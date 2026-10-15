@@ -6,6 +6,7 @@ content search instead of catalog-only discovery. Byline: Codex · 2026-10-06.
 """
 from urllib.parse import urlencode, urlsplit, unquote
 from uuid import UUID
+import re
 
 from app.repo.spine_client import spine_json
 from app.repo.object_store_client import validate_source_key
@@ -25,7 +26,41 @@ def search(payload: SearchRequest) -> dict:
         **payload.model_dump(mode="json"), "scope": {},
         "per_leg_limit": min(100, max(50, payload.limit)), "leg_timeout_seconds": 25.0,
     })
-    return _attach_read_locations(_attach_file_locations(result))
+    return _attach_ai_locations(_attach_read_locations(_attach_file_locations(result)))
+
+
+def _is_ai_hit(item: dict) -> bool:
+    """Recognize native AI citations without resolving a PostgreSQL conversation.
+
+    Input: one indexed hit. Output: AI identity flag. Effects: none; use before
+    attaching any human conversation navigation to combined search results.
+    """
+    citation = item.get("citation", {})
+    return ("ai" in item.get("legs", []) or citation.get("record_kind") == "ai_conversation_chunk"
+            or citation.get("locator", {}).get("source_kind") == "ai_chat")
+
+
+def _attach_ai_locations(result: dict) -> dict:
+    """Link native AI matches to their recorded workflow without a PG content lookup.
+
+    Input: original cited result. Output: optional actor-checked review link.
+    Effects: none; the destination checks actual workflow ownership on open.
+    """
+    for item in result.get("items", []):
+        if not _is_ai_hit(item):
+            continue
+        citation = item.get("citation", {})
+        locator = citation.get("locator", {})
+        workflow = locator.get("workflow_id", "")
+        sources = []
+        if re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", workflow):
+            versions = citation.get("source_version_ids", [])
+            sources.append({"source_version_id": versions[0] if versions else "",
+                            "source_uri": locator.get("source_ref", ""),
+                            "name": locator.get("conversation_title") or "AI chat extraction",
+                            "href": "/read?" + urlencode({"context_workflow": workflow})})
+        item["navigation"] = {"status": "resolved" if sources else "unresolved", "sources": sources}
+    return result
 
 
 def _attach_read_locations(result: dict) -> dict:
@@ -35,7 +70,7 @@ def _attach_read_locations(result: dict) -> dict:
     links while preserving citations. Reads PostgreSQL only. Missing mappings remain
     missing; a reader outage marks navigation unavailable without hiding search hits.
     """
-    candidates = [item for item in result.get("items", []) if "proffer" in item.get("legs", [])]
+    candidates = [item for item in result.get("items", []) if "proffer" in item.get("legs", []) and not _is_ai_hit(item)]
     if not candidates:
         return result
     ids = set()

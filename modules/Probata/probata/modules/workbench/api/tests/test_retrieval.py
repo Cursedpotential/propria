@@ -29,7 +29,7 @@ def test_search_retains_partial_status_and_all_citations(client, monkeypatch):
     assert result.status_code == 200 and result.json() == reply
     args, kwargs = seen[0]
     assert args == ("POST", "/v1/context/retrieve")
-    assert kwargs["json"]["legs"] == ["intake", "proffer"]
+    assert kwargs["json"]["legs"] == ["intake", "proffer", "ai"]
     assert kwargs["json"]["scope"] == {}
 
 
@@ -80,6 +80,33 @@ def test_navigation_failure_keeps_results_with_explicit_unavailable_state(monkey
         "citation": {"source_version_ids": ["11111111-1111-4111-8111-111111111111"]}}]})
     assert result["items"][0]["text"] == "synthetic"
     assert result["items"][0]["navigation"] == {"status": "unavailable", "sources": []}
+
+
+def test_ai_search_uses_recorded_workflow_and_never_pg_chat_lookup(client, monkeypatch):
+    """Keep native AI excerpts in search and open only their actual recorded workflow.
+
+    Inputs: synthetic native hit. Outputs: citation-preserving result and review link.
+    Effects: fake upstream only; a PostgreSQL conversation lookup fails this test.
+    """
+    monkeypatch.setattr(service.imported.pg, "versions_to_threads", lambda *_args: pytest.fail("AI chat reached PG conversation lookup"))
+    citation = {"source_version_ids": ["11111111-1111-4111-8111-111111111111"],
+                "record_kind": "ai_conversation_chunk", "locator": {
+                    "source_kind": "ai_chat", "source_ref": "b2://fixture/export.json",
+                    "workflow_id": "context-source:fixture", "conversation_title": "Synthetic chat"}}
+    reply = {"status": "success", "items": [{"legs": ["ai", "proffer"], "text": "synthetic", "citation": citation}], "legs": []}
+    monkeypatch.setattr(service, "spine_json", lambda *_args, **_kwargs: reply)
+    response = client.post("/api/retrieval/search", json={"request_id": "ai-test", "query": "synthetic", "legs": ["ai"]})
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["citation"] == citation and item["text"] == "synthetic"
+    assert item["navigation"]["sources"][0]["href"] == "/read?context_workflow=context-source%3Afixture"
+
+
+@pytest.mark.parametrize("workflow", ["", "https://untrusted/", "../human-thread", "x" * 161])
+def test_ai_navigation_never_guesses_a_missing_or_invalid_workflow(workflow):
+    """Leave unsupported workflow coordinates unresolved while retaining native citations."""
+    result = service._attach_ai_locations({"items": [{"legs": ["ai"], "citation": {"locator": {"workflow_id": workflow}}}]})
+    assert result["items"][0]["navigation"] == {"status": "unresolved", "sources": []}
 
 
 def test_relationships_preserves_snapshot_ambiguity(client, monkeypatch):

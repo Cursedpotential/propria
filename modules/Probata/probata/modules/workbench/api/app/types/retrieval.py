@@ -19,7 +19,7 @@ class SearchRequest(BaseModel):
     request_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     query: str = Field(min_length=1, max_length=2000, pattern=r"\S")
     mode: Literal["keyword", "hybrid", "vector"] = "hybrid"
-    legs: list[Literal["intake", "proffer"]] = Field(default_factory=lambda: ["intake", "proffer"], min_length=1, max_length=2)
+    legs: list[Literal["intake", "proffer", "ai"]] = Field(default_factory=lambda: ["intake", "proffer", "ai"], min_length=1, max_length=3)
     limit: int = Field(default=20, ge=1, le=50, strict=True)
 
     @field_validator("legs")

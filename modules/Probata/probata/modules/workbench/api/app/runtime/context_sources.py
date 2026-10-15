@@ -11,11 +11,12 @@ Byline: Codex · GPT-6 · 2026-10-08.
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 import httpx
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.runtime.analysis import _actor_headers
 from app.runtime import ai_candidate_review
@@ -38,6 +39,31 @@ class AIContextSource(BaseModel):
     package_ref: str | None = Field(default=None, max_length=2048)
     source_kind: Literal["ai_chat"] = "ai_chat"
     declared_format: Literal["chatgpt", "claude", "gemini_markdown"]
+    historical_source_version_id: str | None = Field(default=None, max_length=36)
+    source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    matter_id: str | None = Field(default=None, min_length=1, max_length=160)
+    court_case_id: str | None = Field(default=None, min_length=1, max_length=160)
+    max_source_bytes: int | None = Field(default=None, ge=1, le=32 * 1024 * 1024)
+    max_records: int | None = Field(default=None, ge=1, le=1024)
+    max_text_bytes: int | None = Field(default=None, ge=1, le=2 * 1024 * 1024)
+    max_chunks: int | None = Field(default=None, ge=1, le=256)
+    max_model_calls: int | None = Field(default=None, ge=1, le=512)
+
+    @model_validator(mode="after")
+    def validate_recovery_identity(self) -> "AIContextSource":
+        """Validate paired recovery and case coordinates before forwarding a native import.
+
+        Inputs: optional historical UUID/hash and case identifiers. Output: unchanged
+        request. Effects: none; use to reject incomplete lineage without reading chat text.
+        """
+        if (self.historical_source_version_id is None) != (self.source_sha256 is None):
+            raise ValueError("historical_source_version_id and source_sha256 must be supplied together")
+        if self.historical_source_version_id is not None:
+            if str(UUID(self.historical_source_version_id)) != self.historical_source_version_id:
+                raise ValueError("historical_source_version_id must be a canonical UUID")
+        if (self.matter_id is None) != (self.court_case_id is None):
+            raise ValueError("matter_id and court_case_id must be supplied together")
+        return self
 
 
 class HumanContextSource(BaseModel):

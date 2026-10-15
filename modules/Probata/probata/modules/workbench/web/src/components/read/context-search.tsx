@@ -14,6 +14,7 @@ import { useFixedCase } from "@/lib/fixed-case-context";
 
 const families: { id: RetrievalLeg; label: string }[] = [
   { id: "intake", label: "Case Bible / Intake" }, { id: "proffer", label: "Ingested material" },
+  { id: "ai", label: "AI chats" },
 ];
 
 /** Search before and after ingestion while retaining original citations and explicit source failures.
@@ -24,16 +25,16 @@ const families: { id: RetrievalLeg; label: string }[] = [
 export function ContextSearch({ initialQuery = "", onSubmit }: { initialQuery?: string; onSubmit?: (query: string) => void }) {
   const [draft, setDraft] = useState(initialQuery);
   const [mode, setMode] = useState<RetrievalMode>("hybrid");
-  const [legs, setLegs] = useState<RetrievalLeg[]>(["intake", "proffer"]);
+  const [legs, setLegs] = useState<RetrievalLeg[]>(["intake", "proffer", "ai"]);
   const [submitted, setSubmitted] = useState<{ text: string; mode: RetrievalMode; legs: RetrievalLeg[]; id: string } | null>(
-    () => initialQuery ? { text: initialQuery, mode: "hybrid", legs: ["intake", "proffer"], id: crypto.randomUUID() } : null,
+    () => initialQuery ? { text: initialQuery, mode: "hybrid", legs: ["intake", "proffer", "ai"], id: crypto.randomUUID() } : null,
   );
   const [previousInitialQuery, setPreviousInitialQuery] = useState(initialQuery);
   if (previousInitialQuery !== initialQuery) {
     setPreviousInitialQuery(initialQuery);
     setDraft(initialQuery);
     setSubmitted((previous) => previous?.text === initialQuery ? previous : initialQuery
-      ? { text: initialQuery, mode: previous?.mode ?? "hybrid", legs: previous?.legs ?? ["intake", "proffer"], id: crypto.randomUUID() }
+      ? { text: initialQuery, mode: previous?.mode ?? "hybrid", legs: previous?.legs ?? ["intake", "proffer", "ai"], id: crypto.randomUUID() }
       : null);
   }
   const query = useQuery({
@@ -86,6 +87,7 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
   const { mode } = useFixedCase();
   const sources = hit.navigation?.sources ?? [];
   const locator = hit.citation.locator;
+  const ai = hit.legs.includes("ai") || locator.source_kind === "ai_chat" || hit.citation.record_kind === "ai_conversation_chunk";
   const target = nativeSearchTargets({
     corpus: hit.corpus ?? hit.citation.corpus ?? locator.corpus,
     source_kind: hit.source_kind ?? hit.citation.source_kind ?? locator.source_kind,
@@ -97,7 +99,10 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
     source_version_id: locator.source_version_id,
     source_version_ids: hit.citation.source_version_ids,
   });
-  const links = target.native
+  const links = ai
+    ? sources.filter((source) => source.href.startsWith("/read?") && new URLSearchParams(source.href.slice(6)).has("context_workflow"))
+      .map((source) => ({ id: source.source_version_id || source.href, name: "AI chat extraction", href: source.href }))
+    : target.native
     ? target.handles.map((handle) => ({ id: handle, name: "source messages", href: attemptReadHref(handle, mode) }))
     : sources.filter((source) => source.href.startsWith("/read?")).flatMap((source) => {
       const params = new URLSearchParams(source.href.slice("/read?".length));
@@ -105,7 +110,7 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
       if (native.native) return native.handles.map((handle) => ({ id: handle, name: source.name, href: attemptReadHref(handle, mode) }));
       return [{ id: source.source_version_id, name: source.name, href: readHref(params, { q: query }) }];
     });
-  const title = sources[0]?.name || hit.location?.name || (locator.source_path || locator.vault_key || "").split(/[\\/]/).pop() || "Indexed passage";
+  const title = locator.conversation_title || sources[0]?.name || hit.location?.name || (locator.source_path || locator.vault_key || locator.source_ref || "").split(/[\\/]/).pop() || "Indexed passage";
   const kind = locator.source_kind || locator.record_type || locator.content_type || "type not supplied by index";
   const origin = hit.origin_system || hit.citation.origin_system || locator.origin_system || hit.legs.join(", ") || "origin not supplied";
   const excerpt = searchExcerpt(hit.text);
@@ -120,7 +125,7 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
     <div className="flex flex-wrap gap-3">{links.map((source) =>
       <AppLink className="text-sm underline underline-offset-4" key={source.id}
         href={source.href}>Read {source.name}</AppLink>)}</div>
-    {target.native && !links.length ? <p className="text-xs text-muted-foreground">This indexed passage has no verified human-source reader reference. Its excerpt and source coordinates remain available.</p> : null}
+    {target.native && !links.length ? <p className="text-xs text-muted-foreground">{ai ? "This indexed chat has no recorded extraction workflow." : "This indexed passage has no verified human-source reader reference."} Its excerpt and source coordinates remain available.</p> : null}
     {hit.location?.href.startsWith("/sources?") ? <AppLink className="inline-block text-sm underline underline-offset-4"
       href={hit.location.href}>Locate original file</AppLink> : null}
     {hit.navigation?.status === "unavailable" ? <p className="text-xs text-muted-foreground">The source lookup could not complete.</p> : null}

@@ -1,6 +1,6 @@
 // Byline: Codex · 2026-10-06. Read-only combined-search browser contract.
 export type RetrievalMode = "keyword" | "hybrid" | "vector";
-export type RetrievalLeg = "intake" | "proffer";
+export type RetrievalLeg = "intake" | "proffer" | "ai";
 export interface RetrievalHit {
   corpus?: string | null;
   source_kind?: string | null;

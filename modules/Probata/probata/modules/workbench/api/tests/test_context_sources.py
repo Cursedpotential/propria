@@ -78,6 +78,52 @@ def test_ai_context_requires_explicit_provider_and_version() -> None:
         context_sources.AIContextSource(source_ref="b2://casevault/file.json", provider_version_id="version-one", declared_format="message_export_json")
 
 
+def test_historical_ai_context_preserves_lineage_and_explicit_budgets(monkeypatch) -> None:
+    """Forward historical recovery coordinates and limits without loading chat content.
+
+    Inputs: source identity and explicit bounded budget. Output: exact starter body.
+    Effects: fake upstream only; use to guard historical native imports against dropped fields.
+    """
+    captured = {}
+
+    async def fake_request(_method, _path, *, json, headers):
+        """Capture the bounded request without starting a real workflow."""
+        captured.update(json)
+        return object()
+
+    monkeypatch.setattr(context_sources.proffer, "_request", fake_request)
+    monkeypatch.setattr(context_sources.proffer, "_json_payload", lambda *_args: {"workflow_id": "context-source:recovery", "run_id": "run"})
+    fields = {
+        "source_ref": "b2://casevault/conversations.json", "provider_version_id": "version-one",
+        "declared_format": "chatgpt", "historical_source_version_id": "01a1141c-b03a-7a07-ad05-9dd5632829e8",
+        "source_sha256": "a" * 64, "matter_id": "matter", "court_case_id": "case",
+        "max_source_bytes": 32 * 1024 * 1024, "max_records": 1024,
+        "max_text_bytes": 2 * 1024 * 1024, "max_chunks": 256, "max_model_calls": 512,
+    }
+    asyncio.run(context_sources.submit_ai_context_source(context_sources.AIContextSource(**fields), _request(), "recovery"))
+    assert captured == {"contract_version": "context-v1", "source_kind": "ai_chat", **fields}
+
+
+@pytest.mark.parametrize("extra", [
+    {"historical_source_version_id": "01a1141c-b03a-7a07-ad05-9dd5632829e8"},
+    {"source_sha256": "a" * 64},
+    {"historical_source_version_id": "not-a-uuid", "source_sha256": "a" * 64},
+    {"historical_source_version_id": "01a1141c-b03a-7a07-ad05-9dd5632829e8", "source_sha256": "A" * 64},
+    {"matter_id": "matter"}, {"court_case_id": "case"},
+    {"max_source_bytes": 32 * 1024 * 1024 + 1}, {"max_records": 1025},
+    {"max_text_bytes": 2 * 1024 * 1024 + 1}, {"max_chunks": 257},
+    {"max_model_calls": 513}, {"max_model_calls": 0}, {"max_records": -1},
+])
+def test_historical_ai_context_rejects_incomplete_identity_or_unbounded_limits(extra) -> None:
+    """Reject malformed recovery requests before any native source registration.
+
+    Inputs: incomplete identity or excessive budgets. Output: validation failure.
+    Effects: none; use for fail-closed native import admission.
+    """
+    with pytest.raises(ValidationError):
+        context_sources.AIContextSource(source_ref="b2://casevault/file.json", provider_version_id="version-one", declared_format="chatgpt", **extra)
+
+
 def test_ai_context_rejects_missing_actor_before_go(monkeypatch) -> None:
     """Reject unauthenticated submissions before any Go request can be sent.
 
