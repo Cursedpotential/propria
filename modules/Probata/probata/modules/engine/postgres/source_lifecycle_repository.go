@@ -46,9 +46,10 @@ type ImmutableAcquisitionResolver func(context.Context, proffer.Ref) (ImmutableA
 
 // SourceLifecycleRepository implements activities.SourceLifecycleStore.
 type SourceLifecycleRepository struct {
-	db      DB
-	resolve ImmutableAcquisitionResolver
-	clock   func() time.Time
+	db               DB
+	resolve          ImmutableAcquisitionResolver
+	clock            func() time.Time
+	unitManifestRoot string
 }
 
 func NewSourceLifecycleRepository(db DB, resolve ImmutableAcquisitionResolver) (*SourceLifecycleRepository, error) {
@@ -61,8 +62,15 @@ func NewSourceLifecycleRepository(db DB, resolve ImmutableAcquisitionResolver) (
 	return &SourceLifecycleRepository{db: db, resolve: resolve, clock: func() time.Time { return time.Now().UTC() }}, nil
 }
 
+// RegisterSource atomically establishes source identity and validated package provenance with a durable receipt.
+// Inputs: intake scope, immutable acquisition and optional frozen unit references. Outputs: source version and receipt references.
+// Effects: registration SQL transaction and external manifest metadata read; choose before retaining or parsing the primary.
 func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec activities.SourceRegistrationSpec) (proffer.Ref, proffer.Ref, error) {
 	if err := validateRegistrationSpec(spec); err != nil {
+		return "", "", err
+	}
+	unitMetadata, err := r.batchUnitRegistrationMetadata(spec)
+	if err != nil {
 		return "", "", err
 	}
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
@@ -152,6 +160,9 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 	if result, receipt, found, err := successfulReceipt(ctx, tx, executionID, "source_version", sourceVersionID.String()); err != nil {
 		return "", "", err
 	} else if found {
+		if err := verifyBatchUnitRegistrationMetadata(ctx, tx, sourceVersionID, unitMetadata); err != nil {
+			return "", "", err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return "", "", fmt.Errorf("commit recovered registration: %w", err)
 		}
@@ -161,6 +172,11 @@ func (r *SourceLifecycleRepository) RegisterSource(ctx context.Context, spec act
 	receiptID, err := insertSuccessReceipt(ctx, tx, executionID, spec.Attempt, "source_version", sourceVersionID.String(), r.now())
 	if err != nil {
 		return "", "", err
+	}
+	if len(unitMetadata) > 0 {
+		if _, err := tx.Exec(ctx, `INSERT INTO context.source_metadata (source_version_id,metadata_class,metadata,extractor_id,extractor_version,extraction_activity_receipt_id,generated_at) VALUES ($1::uuid,'record_native',$2::jsonb,'batch-unit-inventory','1.0.0',$3::uuid,$4)`, sourceVersionID, unitMetadata, receiptID, r.now()); err != nil {
+			return "", "", fmt.Errorf("persist package inventory provenance: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return "", "", fmt.Errorf("commit source registration: %w", err)

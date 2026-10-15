@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,13 +23,17 @@ import (
 // activity execution, and immutable activity receipt in one idempotent
 // persistence boundary.
 type SourceRegistrationSpec struct {
-	RequestID        string
-	MatterID         string
-	CourtCaseID      string
-	AcquisitionRef   proffer.Ref
-	SourceContextRef proffer.Ref
-	DeclaredFormat   string
-	Attempt          int32
+	UnitRootRef        proffer.Ref
+	UnitManifestRef    proffer.Ref
+	UnitManifestSHA256 string
+	UnitMemberCount    int
+	RequestID          string
+	MatterID           string
+	CourtCaseID        string
+	AcquisitionRef     proffer.Ref
+	SourceContextRef   proffer.Ref
+	DeclaredFormat     string
+	Attempt            int32
 }
 
 // OriginalRetentionSpec is the compact input resolved by
@@ -119,7 +124,15 @@ func (a SourceLifecycleActivities) RegisterSource(ctx context.Context, req proff
 		return proffer.StageResult{}, err
 	}
 	sourceContextRef := req.Refs["source_context"]
+	unitMemberCount := 0
+	if req.Refs["unit_root"] != "" || req.Refs["unit_manifest"] != "" {
+		unitMemberCount, err = strconv.Atoi(string(req.Refs["unit_member_count"]))
+		if err != nil || unitMemberCount < 1 {
+			return proffer.StageResult{}, errors.New("unit registration requires a positive frozen member count")
+		}
+	}
 	resultRef, receiptRef, err := a.Store.RegisterSource(ctx, SourceRegistrationSpec{
+		UnitRootRef: req.Refs["unit_root"], UnitManifestRef: req.Refs["unit_manifest"], UnitManifestSHA256: string(req.Refs["unit_manifest_sha256"]), UnitMemberCount: unitMemberCount,
 		RequestID:        req.RequestID,
 		MatterID:         req.MatterID,
 		CourtCaseID:      req.CourtCaseID,

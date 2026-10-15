@@ -176,12 +176,17 @@ type BatchInput struct {
 	// ".json" for a Facebook thread folder whose photos and videos sit beside
 	// the thread files). Byline: Claude Code · Opus 5.5 · 2026-10-02
 	KeySuffix string `json:"key_suffix,omitempty"`
+	// UnitRoots selects explicit packages, each producing one primary child and an external membership manifest.
+	UnitRoots []string `json:"unit_roots,omitempty"`
 
 	// MaxInFlight is how many items may run at once. One is the default and
 	// the owner's instruction; more only when a system is proven to take it.
 	MaxInFlight int `json:"max_in_flight,omitempty"`
 }
 
+// validate checks bounded folder-batch and explicit package input before any Activity dispatch.
+// Inputs: compact batch identity and roots. Outputs: validation error or nil. Effects: none.
+// Choose for both legacy recursive batches and explicit unit batches; configured-root authority stays at the API/provider boundary.
 func (in BatchInput) validate() error {
 	for name, value := range map[string]string{
 		"batch_id": in.BatchID, "matter_id": in.MatterID, "court_case_id": in.CourtCaseID,
@@ -201,17 +206,25 @@ func (in BatchInput) validate() error {
 	if in.MaxInFlight < 0 {
 		return errors.New("batch max_in_flight cannot be negative")
 	}
+	if _, err := CanonicalBatchUnitRoots(in.Scheme, in.Bucket, in.Prefix, in.UnitRoots); err != nil {
+		return err
+	}
 	return nil
 }
 
 // BatchItem is one object's outcome, by reference.
 type BatchItem struct {
-	Key           string          `json:"key"`
-	SourceRef     Ref             `json:"source_ref"`
-	RequestID     string          `json:"request_id"`
-	PreviewHandle string          `json:"preview_handle,omitempty"`
-	Status        BatchItemStatus `json:"status"`
-	Reason        string          `json:"reason,omitempty"`
+	UnitRoot           string          `json:"unit_root,omitempty"`
+	UnitManifestRef    Ref             `json:"unit_manifest_ref,omitempty"`
+	UnitManifestSHA256 string          `json:"unit_manifest_sha256,omitempty"`
+	MemberCount        *int            `json:"member_count,omitempty"`
+	SelectedFormat     string          `json:"selected_format,omitempty"`
+	Key                string          `json:"key"`
+	SourceRef          Ref             `json:"source_ref"`
+	RequestID          string          `json:"request_id"`
+	PreviewHandle      string          `json:"preview_handle,omitempty"`
+	Status             BatchItemStatus `json:"status"`
+	Reason             string          `json:"reason,omitempty"`
 }
 
 // BatchCounts is every item, counted. It always covers the whole batch even
@@ -312,6 +325,14 @@ func BatchWorkflow(ctx workflow.Context, in BatchInput) (BatchStatus, error) {
 	if maxInFlight < 1 {
 		maxInFlight = 1
 	}
+	if len(in.UnitRoots) > 0 {
+		var err error
+		in.UnitRoots, err = CanonicalBatchUnitRoots(in.Scheme, in.Bucket, in.Prefix, in.UnitRoots)
+		if err != nil {
+			return state.snapshot(), err
+		}
+		return runBatchUnits(ctx, in, state, maxInFlight)
+	}
 
 	listCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 2 * time.Minute,
@@ -377,6 +398,8 @@ func BatchWorkflow(ctx workflow.Context, in BatchInput) (BatchStatus, error) {
 
 // runBatchItem imports one object. It records an outcome for every path and
 // returns as soon as the item no longer needs its in-flight slot.
+// Inputs: batch scope and an object or frozen unit primary. Outputs: updated item outcome.
+// Effects: ordinary child workflow and Review binding; unit membership travels only by manifest reference.
 func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 	shortCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 1 * time.Minute,
@@ -431,9 +454,18 @@ func runBatchItem(ctx workflow.Context, in BatchInput, item *BatchItem) {
 		// it; the owner answers the gate later, in Review.
 		ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_ABANDON,
 	})
+	selectedFormat := in.DeclaredFormat
+	if item.SelectedFormat != "" {
+		selectedFormat = item.SelectedFormat
+	}
+	memberCount := 0
+	if item.MemberCount != nil {
+		memberCount = *item.MemberCount
+	}
 	child := workflow.ExecuteChildWorkflow(childCtx, ProfferWorkflow, WorkflowInput{
 		OperatingMode: in.OperatingMode, RequestID: item.RequestID, MatterID: in.MatterID, CourtCaseID: in.CourtCaseID,
-		SourceRef: item.SourceRef, DeclaredFormat: in.DeclaredFormat,
+		SourceRef: item.SourceRef, DeclaredFormat: selectedFormat,
+		UnitRootRef: Ref(item.UnitRoot), UnitManifestRef: item.UnitManifestRef, UnitManifestSHA256: item.UnitManifestSHA256, UnitMemberCount: memberCount,
 		ParserOptionsRef: in.ParserOptionsRef, SourceContextRef: in.SourceContextRef,
 		OwnerPersonID: in.OwnerPersonID, PerspectivePersonID: in.PerspectivePersonID,
 		AutoApproval: in.AutoApproval,

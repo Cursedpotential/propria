@@ -631,6 +631,9 @@ func batchFolderLister(stores objectstores.Stores) activities.BatchFolderLister 
 	}
 }
 
+// buildRegistrations composes the existing canonical worker Activities and their bounded storage adapters.
+// Inputs: configured database, worker settings and runtime clients. Outputs: Activity implementations or configuration error.
+// Effects: constructs clients and loads supported configuration; choose at worker startup rather than in workflow orchestration.
 func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformtemporal.FlowRegistry, temporalClient client.Client, catalog activities.CatalogVersionFinder) (Registrations, error) {
 	openObject, err := runtimeapi.NewRetainedObjectOpener(pool)
 	if err != nil {
@@ -703,6 +706,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 	if err != nil {
 		return Registrations{}, err
 	}
+	lifecycleRepo.UseBatchUnitManifestRoot(cfg.DeriveScratchDir)
 	manifestFactory, err := runtimeapi.NewFilesystemInventoryManifestFactory(cfg.InventoryManifestDir)
 	if err != nil {
 		return Registrations{}, err
@@ -877,12 +881,13 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	aiWorkproductPlacement := activities.NewAIWorkproductPlacementActivities(cfg.DeriveScratchDir, objectStores)
+	unitHead, unitRead, unitAuthorize := batchUnitProvider(stores)
 	return Registrations{
 		PreviewAdmissionRepair: previewStore.RepairBindingAdmission,
-		SourcePreview:  sourcePreview,
-		HumanContext:   humanContext,
-		ContextPackage: activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
-		ContextSource:  activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
+		SourcePreview:          sourcePreview,
+		HumanContext:           humanContext,
+		ContextPackage:         activities.AIContextPackageActivities{Placement: aiWorkproductPlacement, Metadata: contextSourceStore, Catalog: nativeContextCatalog(os.Getenv("AI_CONTEXT_CATALOG_DATABASE_URL_FILE"))},
+		ContextSource:          activities.ContextSourceRegistrationActivities{Store: contextSourceStore},
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),
@@ -933,6 +938,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		},
 		BatchImport: activities.BatchImportActivities{
 			Lister: batchFolderLister(stores), Bindings: previewStore, Operations: batchOperations,
+			UnitHead: unitHead, UnitRead: unitRead, UnitAuthorize: unitAuthorize, UnitManifestRoot: cfg.DeriveScratchDir,
 		},
 		Raw:        activities.NewRawPipelineActivities(rawRepo),
 		Normalized: activities.NewNormalizedPipelineActivities(normalizedRepo, normalize.GenericMessageNormalizer{}),

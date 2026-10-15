@@ -8,6 +8,7 @@ import (
 	"github.com/Cursedpotential/probata/engine/derive/smsthreads"
 	"github.com/Cursedpotential/probata/engine/normalize"
 	"github.com/Cursedpotential/probata/engine/parser"
+	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/stagegraph"
 )
 
@@ -251,12 +252,15 @@ func NewDeriveSMSThreadsActivities(
 	}
 }
 
-// RegisterBatchImportActivities installs the four batch-by-folder Activities
+// RegisterBatchImportActivities installs the five atomic folder and package batching Activities
 // under their exact names. They are standalone: the batch workflow is the
 // only caller, and none of them belongs to the 26-stage graph.
+// Inputs: registrar and injected stores/providers. Outputs: exact Activity registrations.
+// Effects: worker registration only; choose for ordinary folders or explicit package units.
 //
 // Byline: Claude Code · Opus 5 · 2026-09-21
 func RegisterBatchImportActivities(registrar ActivityRegistrar, batch BatchImportActivities) {
+	registrar.RegisterActivityWithOptions(batch.FreezeBatchUnit, activity.RegisterOptions{Name: proffer.FreezeBatchUnitActivityName})
 	registrar.RegisterActivityWithOptions(batch.ListBatchFolder, activity.RegisterOptions{Name: ListBatchFolderActivityName})
 	registrar.RegisterActivityWithOptions(batch.BindImportOperation, activity.RegisterOptions{Name: BindImportOperationActivityName})
 	registrar.RegisterActivityWithOptions(batch.ReadImportOperation, activity.RegisterOptions{Name: ReadImportOperationActivityName})

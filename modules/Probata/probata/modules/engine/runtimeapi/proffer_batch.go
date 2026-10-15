@@ -56,15 +56,16 @@ func (h *PreviewHTTPHandler) UseBatchWorkflow(client BatchWorkflowClient) error 
 }
 
 type batchStartRequest struct {
-	OperatingMode    string `json:"operating_mode"`
-	BatchID          string `json:"batch_id"`
-	MatterID         string `json:"matter_id"`
-	CourtCaseID      string `json:"court_case_id"`
-	FolderRef        string `json:"folder_ref"`
-	DeclaredFormat   string `json:"declared_format"`
-	ParserOptionsRef string `json:"parser_options_ref"`
-	SourceContextRef string `json:"source_context_ref"`
-	MaxInFlight      int    `json:"max_in_flight"`
+	OperatingMode    string   `json:"operating_mode"`
+	BatchID          string   `json:"batch_id"`
+	MatterID         string   `json:"matter_id"`
+	CourtCaseID      string   `json:"court_case_id"`
+	FolderRef        string   `json:"folder_ref"`
+	DeclaredFormat   string   `json:"declared_format"`
+	ParserOptionsRef string   `json:"parser_options_ref"`
+	SourceContextRef string   `json:"source_context_ref"`
+	MaxInFlight      int      `json:"max_in_flight"`
+	UnitRoots        []string `json:"unit_roots,omitempty"`
 	// Explicit D04 identity, passed to every item's run. Byline: Claude Code · Opus 5.5 · 2026-10-01
 	OwnerPersonID       string `json:"owner_person_id"`
 	PerspectivePersonID string `json:"perspective_person_id"`
@@ -74,9 +75,10 @@ type batchStartRequest struct {
 	AutoApproval string `json:"auto_approval"`
 }
 
-// startBatch validates a non-AI folder declaration and starts one legacy batch workflow.
-// Inputs: authorized folder, case, mode and declared format. Outputs: batch identifiers or refusal.
-// Effects: batch start on admission only; choose native context sources for recognized AI exports.
+// startBatch validates non-AI folders and starts one package or ordinary batch workflow.
+// Inputs: case/mode, configured folder and optional explicit package roots. Outputs: durable batch ID.
+// Effects: one Temporal start after validation; choose package roots for shared attachments,
+// and native context sources for recognized AI exports.
 func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) {
 	if h.batch == nil {
 		previewError(w, http.StatusServiceUnavailable, errors.New("batch import is not configured on this service"))
@@ -130,6 +132,17 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		previewError(w, http.StatusUnprocessableEntity, err)
 		return
 	}
+	unitRoots, err := proffer.CanonicalBatchUnitRoots(scheme, bucket, prefix, req.UnitRoots)
+	if err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	for _, root := range unitRoots {
+		if _, _, _, err := validateAuthorizedFolderRef(root); err != nil {
+			previewError(w, http.StatusUnprocessableEntity, err)
+			return
+		}
+	}
 	if req.SourceContextRef != "" {
 		if _, err := uuid.Parse(req.SourceContextRef); err != nil {
 			previewError(w, http.StatusUnprocessableEntity, errors.New("source_context_ref must be a UUID"))
@@ -156,6 +169,7 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 		OperatingMode: string(mode),
 		BatchID:       req.BatchID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID,
 		Scheme: scheme, Bucket: bucket, Prefix: prefix,
+		UnitRoots:      unitRoots,
 		DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef),
 		SourceContextRef: proffer.Ref(req.SourceContextRef), MaxInFlight: maxInFlight,
 		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID),

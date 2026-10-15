@@ -101,10 +101,10 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 	// +1: exact native AI candidate bundle staging into the existing owner review store.
 	// +3: context source registration, package retention and package cataloging.
 	const standaloneActivityCount = 41
-	const batchActivityCount = 4
+	const batchActivityCount = 5
 	repairActivityCount := len(stagegraph.RepairPlanActivities)
 	if len(recorder.names) != len(stagegraph.Stages)+replayAliasCount+standaloneActivityCount+batchActivityCount+repairActivityCount || len(stagegraph.Stages) != 26 || repairActivityCount != 5 {
-		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 41 standalone + 4 batch + 5 repair-plan activities", len(recorder.names))
+		t.Fatalf("activity registration count = %d, want 26 canonical + 3 replay aliases + 41 standalone + 5 batch + 5 repair-plan activities", len(recorder.names))
 	}
 	for _, descriptor := range stagegraph.RepairPlanActivities {
 		found := 0
@@ -118,6 +118,7 @@ func TestRegisterAllRegistersCanonicalStagesAndReplayAliasesExactlyOnce(t *testi
 		}
 	}
 	for _, name := range []string{
+		proffer.FreezeBatchUnitActivityName,
 		activities.ListBatchFolderActivityName, activities.BindImportOperationActivityName,
 		activities.ReadImportOperationActivityName, activities.FindImportBindingsActivityName,
 	} {

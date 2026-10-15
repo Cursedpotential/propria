@@ -4,6 +4,7 @@ package proffer
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"go.temporal.io/sdk/workflow"
@@ -173,6 +174,12 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 	registerRefs := map[string]Ref{"acquisition": in.SourceRef}
 	if in.SourceContextRef != "" {
 		registerRefs["source_context"] = in.SourceContextRef
+	}
+	if in.UnitRootRef != "" || in.UnitManifestRef != "" {
+		registerRefs["unit_root"] = in.UnitRootRef
+		registerRefs["unit_manifest"] = in.UnitManifestRef
+		registerRefs["unit_manifest_sha256"] = Ref(in.UnitManifestSHA256)
+		registerRefs["unit_member_count"] = Ref(strconv.Itoa(in.UnitMemberCount))
 	}
 	sourceVersionRef, err := r.exec(ctx, stagegraph.RegisterSource, in.DeclaredFormat, registerRefs)
 	if err != nil {

@@ -159,6 +159,11 @@ type WorkflowInput struct {
 	// SourceContextRef points to the append-only, actor-bound operator
 	// assertion receipt. Metadata values never enter Temporal history.
 	SourceContextRef Ref
+	// Unit provenance refers to original package membership, independently of the nonmessaging PackageRef contract.
+	UnitRootRef        Ref    `json:",omitempty"`
+	UnitManifestRef    Ref    `json:",omitempty"`
+	UnitManifestSHA256 string `json:",omitempty"`
+	UnitMemberCount    int    `json:",omitempty"`
 	// The context-chunk fields enable the D-158 non-messaging context path.
 	// Empty fields preserve the established messaging path. The flat wire
 	// shape deliberately uses only Refs and bounded strings.

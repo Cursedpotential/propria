@@ -141,9 +141,13 @@ type ImportOperationReader interface {
 
 // BatchImportActivities implements all four. Every field is required.
 type BatchImportActivities struct {
-	Lister     BatchFolderLister
-	Bindings   ImportBindingStore
-	Operations ImportOperationReader
+	UnitHead         BatchUnitHead
+	UnitRead         BatchUnitRead
+	UnitManifestRoot string
+	UnitAuthorize    func(string) error
+	Lister           BatchFolderLister
+	Bindings         ImportBindingStore
+	Operations       ImportOperationReader
 }
 
 // ListBatchFolder returns one page of object keys under a prefix.
