@@ -43,13 +43,15 @@ import (
 // implement all 26 Proffer stages. Filesystem and embedded observation bodies are
 // separate values so extractor provenance cannot cross activity boundaries.
 type Registrations struct {
-	Lifecycle             activities.SourceLifecycleActivities
-	FilesystemObservation activities.SourceObservationActivities
-	InventoryObservation  activities.SourceObservationActivities
-	EmbeddedObservation   activities.SourceObservationActivities
-	N8N                   platformtemporal.N8NActivities
-	N8NFlows              platformtemporal.FlowActivities
-	Hash                  activities.HashActivities
+	// PreviewAdmissionRepair appends an explicit owner receipt; invoked only by its Temporal workflow.
+	PreviewAdmissionRepair func(context.Context, proffer.PreviewAdmissionRepairInput) (proffer.PreviewAdmissionRepairResult, error)
+	Lifecycle              activities.SourceLifecycleActivities
+	FilesystemObservation  activities.SourceObservationActivities
+	InventoryObservation   activities.SourceObservationActivities
+	EmbeddedObservation    activities.SourceObservationActivities
+	N8N                    platformtemporal.N8NActivities
+	N8NFlows               platformtemporal.FlowActivities
+	Hash                   activities.HashActivities
 	// Independent byte-only check; never inserted into the base Proffer sequence.
 	// Byline: Codex, 2026-10-06.
 	Integrity        activities.SourceIntegrityActivities
@@ -173,6 +175,10 @@ func RegisterAll(registrar interface {
 	RegisterWorkflowWithOptions(interface{}, workflow.RegisterOptions)
 }, registrations Registrations) {
 	registrar = operatingRegistrar{registrar}
+	registrar.RegisterWorkflowWithOptions(proffer.PreviewAdmissionRepairWorkflow, workflow.RegisterOptions{Name: proffer.PreviewAdmissionRepairWorkflowName})
+	if registrations.PreviewAdmissionRepair != nil {
+		registrar.RegisterActivityWithOptions(registrations.PreviewAdmissionRepair, activity.RegisterOptions{Name: proffer.PreviewAdmissionRepairActivityName})
+	}
 	registrar.RegisterWorkflow(proffer.ProfferWorkflow)
 	// Reuse exact verified AI generations after content-stage failures; no new-source admission.
 	// Byline: Codex / 2026-10-06.
@@ -757,6 +763,7 @@ func buildRegistrations(pool *pgxpool.Pool, cfg Config, flowRegistry *platformte
 		return Registrations{}, err
 	}
 	return Registrations{
+		PreviewAdmissionRepair: previewStore.RepairBindingAdmission,
 		// Optional worker-owned root: unset fails visibly when invoked; no source or DB writes.
 		// Byline: Codex, 2026-10-04.
 		ToolkitInventory:        activities.NewToolkitPackageInventoryActivities(strings.TrimSpace(os.Getenv("TOOLKIT_INVENTORY_ROOT"))),

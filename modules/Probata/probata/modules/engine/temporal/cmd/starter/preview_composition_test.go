@@ -46,8 +46,11 @@ func TestMountPreviewRoutesForwardsEveryPreviewRoute(t *testing.T) {
 		{http.MethodGet, "/reference-import/previews/handle/messages"},
 		{http.MethodGet, "/reference-import/previews/handle/content"},
 		{http.MethodGet, "/reference-import/previews/handle/events"},
+		{http.MethodGet, "/reference-import/admission-repairs/preview-admission-repair:handle:receipt"},
 		{http.MethodPost, "/reference-import/previews/handle/decision"},
 		{http.MethodPost, "/reference-import/previews/handle/repair-decision"},
+		{http.MethodPost, "/reference-import/previews/handle/admission-repair"},
+		{http.MethodGet, "/reference-import/admission-repairs/preview-admission-repair:handle:attempt"},
 		{http.MethodPost, "/reference-import/previews/handle/handler-selection"},
 		{http.MethodGet, "/reference-import/previews/handle/source-context"},
 		// Batch routes were missing until 2026-09-25 and 404'd.

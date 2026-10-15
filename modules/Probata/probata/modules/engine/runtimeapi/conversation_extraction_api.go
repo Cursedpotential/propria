@@ -69,6 +69,7 @@ func (h *ConversationExtractionHTTPHandler) extractors(w http.ResponseWriter, _ 
 }
 
 type conversationRequest struct {
+	CourtCaseID   string                 `json:"court_case_id,omitempty"`
 	OperatingMode string                 `json:"operating_mode,omitempty"`
 	MatterID      string                 `json:"matter_id"`
 	Conversations []flow.ConversationRef `json:"conversations"`
@@ -96,7 +97,11 @@ func (h *ConversationExtractionHTTPHandler) decode(w http.ResponseWriter, r *htt
 		previewError(w, http.StatusConflict, err)
 		return body, false
 	}
-	if !caseidentity.AdmittedIdentity(body.MatterID, caseidentity.AuthoritativeCourtCaseID) {
+	// Legacy callers used the existing fixed court scope; new callers forward the full pair explicitly.
+	if body.CourtCaseID == "" {
+		body.CourtCaseID = caseidentity.AuthoritativeCourtCaseID
+	}
+	if !caseidentity.AdmittedIdentity(body.MatterID, body.CourtCaseID) {
 		previewError(w, http.StatusUnprocessableEntity, errors.New("conversation request requires the approved matter"))
 		return body, false
 	}
@@ -116,7 +121,7 @@ func (h *ConversationExtractionHTTPHandler) extract(w http.ResponseWriter, r *ht
 		return
 	}
 	input := flow.RequestInput{
-		OperatingMode: body.OperatingMode, CourtCaseID: caseidentity.AuthoritativeCourtCaseID,
+		OperatingMode: body.OperatingMode, CourtCaseID: body.CourtCaseID,
 		RequestID: flow.DeterministicID("conversation_extraction_request", key, actor.SubjectUID, body.MatterID),
 		MatterID:  body.MatterID, Conversations: body.Conversations, Extractors: body.Extractors,
 		Actor: actor, RequestedAt: h.clock().UTC(),
@@ -154,7 +159,7 @@ func (h *ConversationExtractionHTTPHandler) send(w http.ResponseWriter, r *http.
 	}
 	include := body.IncludeExtractions == nil || *body.IncludeExtractions
 	input := flow.SendInput{
-		OperatingMode: body.OperatingMode, CourtCaseID: caseidentity.AuthoritativeCourtCaseID,
+		OperatingMode: body.OperatingMode, CourtCaseID: body.CourtCaseID,
 		RequestID: flow.DeterministicID("surreal_send_request", key, actor.SubjectUID, body.MatterID),
 		MatterID:  body.MatterID, Conversations: body.Conversations, IncludeExtractions: include,
 		Actor: actor, RequestedAt: h.clock().UTC(),

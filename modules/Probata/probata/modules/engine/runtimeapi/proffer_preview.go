@@ -604,6 +604,9 @@ func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs
 
 func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	// Explicit repair retains service authentication and validates new authority in its Temporal Activity.
+	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/admission-repair", profferServiceAuth(h.serviceTokenPath, "proffer preview service authorization required", h.repairAdmission))
+	mux.HandleFunc("GET /reference-import/admission-repairs/{workflow_id}", h.auth(h.admissionRepairStatus))
 	mux.HandleFunc("POST /reference-import/start", h.auth(h.start))
 	mux.HandleFunc("POST /reference-import/start-batch", h.auth(h.startBatch))
 	mux.HandleFunc("GET /reference-import/batches/{batch_id}", h.auth(h.batchStatus))

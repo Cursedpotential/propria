@@ -416,7 +416,7 @@ func (s *EntityExtractionStore) ResolveRun(ctx context.Context, previewHandle st
 	var run flow.RunRef
 	var modeDetail string
 	err := s.db.QueryRow(ctx, `SELECT b.preview_handle, s.normalized_generation_id::text, s.source_version_id::text,
- COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=b.preview_handle AND event_id=0), '')
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=b.preview_handle AND (event_id=0 OR (event_type='receipt_recorded' AND phase='operating_mode_repair')) ORDER BY event_id DESC LIMIT 1), '')
 FROM context.proffer_preview_binding b
 JOIN LATERAL (
   SELECT normalized_generation_id, source_version_id FROM context.proffer_preview_snapshot sn
@@ -427,7 +427,8 @@ WHERE b.preview_handle = $1 AND version.matter_id=$2::uuid AND version.court_cas
 	if errors.Is(err, pgx.ErrNoRows) {
 		return flow.RunRef{}, fmt.Errorf("run %s has no normalized generation yet: %w", previewHandle, service.ErrNotFound)
 	}
-	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail)}
+	versionID, _ := uuid.Parse(run.SourceVersionID)
+	admission := previewmodel.Binding{OperatingMode: recordedOperatingMode(modeDetail), SourceVersionID: versionID}
 	applyBindingAdmission(&admission, modeDetail)
 	run.MatterMode = admission.OperatingMode
 	return run, err
