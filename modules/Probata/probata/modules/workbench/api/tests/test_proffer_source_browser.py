@@ -12,7 +12,6 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-
 from app.repo import object_store_client
 from app.runtime import source_inspection as source_runtime
 from app.service import proffer, proffer_sources, source_inspection
@@ -222,7 +221,7 @@ def test_source_inspection_hashes_immediately_without_claiming_a_custody_digest(
     monkeypatch.setattr(
         source_inspection,
         "open_source_object",
-        lambda root_id, key, **kwargs: {"Body": io.BytesIO(payload)},
+        lambda root_id, key, **kwargs: {"Body": io.BytesIO(payload), "ETag": '"object-etag"', "ContentLength": len(payload)},
     )
     app = FastAPI()
     app.include_router(source_runtime.router)
@@ -360,7 +359,7 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
 
     def fake_open(root_id, key, **kwargs):
         captured.update(kwargs)
-        return {"Body": io.BytesIO(payload[2:6])}
+        return {"Body": io.BytesIO(payload[2:6]), "ETag": '"etag"', "ContentLength": 4, "ContentRange": "bytes 2-5/10"}
 
     monkeypatch.setattr(source_inspection, "open_source_object", fake_open)
     app = FastAPI()
@@ -368,7 +367,7 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
 
     response = TestClient(app).get(
         "/api/proffer/source-content",
-        params={"root_id": "b2-vault", "key": "source.pdf", "etag": '"etag"'},
+        params={"root_id": "b2-vault", "key": "source.pdf", "etag": '"etag"', "download": "true"},
         headers={"Range": "bytes=2-5"},
     )
 
@@ -377,7 +376,8 @@ def test_source_content_is_same_origin_etag_pinned_and_range_bounded(monkeypatch
     assert response.headers["content-range"] == "bytes 2-5/10"
     assert response.headers["accept-ranges"] == "bytes"
     assert response.headers["content-type"] == "application/pdf"
-    assert captured == {"if_match": '"etag"', "byte_range": "bytes=2-5"}
+    assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''source.pdf"
+    assert captured == {"if_match": '"etag"', "byte_range": "bytes=2-5", "version_id": None}
 
 
 def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(monkeypatch) -> None:
@@ -430,3 +430,115 @@ def test_source_context_route_uses_authenticated_actor_and_returns_only_receipt(
     assert captured["actor"].username == "operator"
     assert captured["body"].assertions.other_party == "Other party"
     assert captured["mode"] == "LIVE"
+
+
+@pytest.mark.parametrize("field,bad", [("ETag", '"different"'), ("VersionId", "wrong-version"), ("ContentLength", 10), ("ContentRange", "bytes 0-3/10")])
+def test_reader_rejects_provider_get_identity_and_range_mismatch(monkeypatch, field, bad):
+    """No bytes escape when provider GET disagrees with the exact inspected version.
+
+    Inputs: each malformed GET header. Output: 502 and a closed body. Effects:
+    memory-only fixtures; choose to prevent false success from fabricated headers.
+    """
+    body = io.BytesIO(b"2345")
+    monkeypatch.setattr(source_inspection, "head_source_object", lambda *args, **kwargs: {"ContentLength": 10, "ETag": '"etag"', "VersionId": "version-a"})
+    response = {"Body": body, "ETag": '"etag"', "VersionId": "version-a", "ContentLength": 4, "ContentRange": "bytes 2-5/10", field: bad}
+    monkeypatch.setattr(source_inspection, "open_source_object", lambda *args, **kwargs: response)
+    with pytest.raises(source_inspection.SourceInspectionError, match="did not confirm"):
+        source_inspection.open_source_content("b2-vault", "photo.jpg", '"etag"', "bytes=2-5", version_id="version-a", expected_byte_length=10)
+    assert body.closed
+
+
+def test_reader_pins_head_and_get_to_the_same_version_and_preserves_original_bytes(monkeypatch):
+    """Reader metadata and original links share the exact provider version and bytes.
+
+    Input: arbitrary bytes including non-decodable media. Output: unchanged 206.
+    Effects: mocked reads only; choose to separate byte delivery from browser decoding.
+    """
+    payload = b"\x00\xff\xfe\x80original"
+    calls = []
+    def head(root, key, **kwargs):
+        calls.append(("HEAD", kwargs))
+        return {"ContentLength": len(payload), "ETag": '"etag"', "VersionId": "exact-version", "ContentType": "image/jpeg"}
+    def read(root, key, **kwargs):
+        calls.append(("GET", kwargs))
+        return {"Body": io.BytesIO(payload[1:5]), "ContentLength": 4, "ETag": '"etag"', "VersionId": "exact-version", "ContentRange": f"bytes 1-4/{len(payload)}"}
+    monkeypatch.setattr(source_inspection, "head_source_object", head)
+    monkeypatch.setattr(source_inspection, "open_source_object", read)
+    app = FastAPI()
+    app.include_router(source_runtime.router)
+    response = TestClient(app).get("/api/proffer/source-content", params={"root_id": "b2-vault", "key": "photo.jpg", "etag": '"etag"', "version_id": "exact-version", "expected_byte_length": len(payload)}, headers={"Range": "bytes=1-4"})
+    assert response.status_code == 206 and response.content == payload[1:5]
+    assert response.headers["x-source-version-id"] == "exact-version"
+    assert all(kwargs["version_id"] == "exact-version" for _, kwargs in calls)
+    assert calls[-1][1]["if_match"] == '"etag"'
+
+
+@pytest.mark.parametrize("range_header,expected", [("bytes=0-", "bytes 0-9/10"), ("bytes=-3", "bytes 7-9/10"), ("bytes=7-99", "bytes 7-9/10")])
+def test_range_normalization_is_exact(range_header, expected):
+    """Normalize open, suffix and clipped ranges to the provider's exact byte interval.
+
+    Input: supported Range syntax. Output: exact Content-Range. Effects: none;
+    choose to protect browser media seeking and bounded original inspection.
+    """
+    assert source_inspection._range_header(range_header, 10)[2] == expected
+
+
+def test_reader_rejects_missing_expected_version_before_get(monkeypatch):
+    """A supplied immutable version cannot silently fall back to the latest object.
+
+    Input: HEAD lacking the requested version. Output: 409 before GET. Effects:
+    mocked metadata only; choose for Back/retry preservation of original identity.
+    """
+    monkeypatch.setattr(source_inspection, "head_source_object", lambda *args, **kwargs: {"ContentLength": 10, "ETag": '"etag"'})
+    monkeypatch.setattr(source_inspection, "open_source_object", lambda *args, **kwargs: pytest.fail("GET must not run"))
+    with pytest.raises(source_inspection.SourceInspectionError) as error:
+        source_inspection.open_source_content("b2-vault", "photo.jpg", '"etag"', None, version_id="exact-version")
+    assert error.value.status_code == 409
+
+
+@pytest.mark.parametrize("payload", [b"short", b"too many bytes"])
+def test_reader_rejects_body_length_disagreement_and_closes(payload):
+    """Detect truncated or overlong streams without changing their source bytes.
+
+    Input: body disagreeing with validated headers. Output: stream error and
+    closed reader. Effects: memory-only reads; choose after header validation.
+    """
+    body = io.BytesIO(payload)
+    content = source_inspection.SourceContent(body, "image/jpeg", 10, '"etag"', 200)
+    with pytest.raises(source_inspection.SourceInspectionError):
+        list(source_inspection.stream_source_content(content))
+    assert body.closed
+
+
+def test_object_store_passes_version_to_both_provider_reads(monkeypatch):
+    """The object repo carries immutable version pins through both SDK calls.
+
+    Input: versioned HEAD and GET. Output: unchanged provider requests. Effects:
+    mocked SDK only; choose to prove pins are not dropped below the service seam.
+    """
+    calls = []
+    class Client:
+        def head_object(self, **kwargs):
+            calls.append(kwargs)
+            return {}
+        def get_object(self, **kwargs):
+            calls.append(kwargs)
+            return {}
+    monkeypatch.setattr(object_store_client, "get_store_client", lambda _: Client())
+    object_store_client.head_source_object("b2-vault", "photo.jpg", version_id="exact-version")
+    object_store_client.open_source_object("b2-vault", "photo.jpg", if_match='"etag"', byte_range="bytes=0-3", version_id="exact-version")
+    assert all(call["VersionId"] == "exact-version" for call in calls)
+    assert calls[1]["IfMatch"] == '"etag"' and calls[1]["Range"] == "bytes=0-3"
+
+
+def test_legacy_version_locator_is_authorized_without_rewriting_or_broadening_root():
+    """The existing starter/context locator validator admits one exact provider version.
+
+    Input: encoded versioned B2 source URI. Output: unchanged locator; wrong
+    roots fail. Effects: reads fixture configuration only, never starts processing.
+    """
+    from app.types.source_roots import validate_authorized_source_ref
+    locator = "b2://salem-data/consignatio/casevault/source.pdf?versionId=retained%2B%2Fversion"
+    assert validate_authorized_source_ref(locator) == locator
+    with pytest.raises(ValueError):
+        validate_authorized_source_ref(locator.replace("salem-data", "unapproved-bucket"))

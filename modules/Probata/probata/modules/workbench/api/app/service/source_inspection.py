@@ -8,15 +8,14 @@ Byline: Codex · GPT-5.6-Sol · 2026-08-30.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import mimetypes
-from pathlib import PurePosixPath
 import re
-from typing import Iterator
-from urllib.parse import quote
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from urllib.parse import urlencode
 
-from app.types.source_inspection import SourcePreviewResponse
 from app.repo.object_store_client import (
     get_source_root,
     head_source_object,
@@ -25,8 +24,13 @@ from app.repo.object_store_client import (
 )
 from app.service.proffer import _require_mode_configuration
 from app.types.proffer import MatterMode
-from app.types.source_inspection import ParserPreflight, SourceInspectionRequest, SourceInspectionResponse, SourceVersionResponse
-
+from app.types.source_inspection import (
+    ParserPreflight,
+    SourceInspectionRequest,
+    SourceInspectionResponse,
+    SourcePreviewResponse,
+    SourceVersionResponse,
+)
 
 MAX_IMMEDIATE_HASH_BYTES = 256 * 1024 * 1024
 MAX_TEXT_PREVIEW_BYTES = 250_000
@@ -72,6 +76,44 @@ class SourceContent:
     etag: str
     status_code: int
     content_range: str | None = None
+    provider_version_id: str | None = None
+
+
+def _version(head: dict) -> str | None:
+    """Normalize the provider version without inventing a version for unversioned stores.
+
+    Input: HEAD/GET metadata. Output: real version or None. Effects: none;
+    use for preview pins, keeping the provider ETag separate from a digest.
+    """
+    value = str(head.get("VersionId") or "").strip()
+    return value if value and value.lower() != "null" else None
+
+
+def _reader_url(root_id: str, key: str, head: dict) -> str:
+    """Build the original reader URL from inspected source identity.
+
+    Inputs: root/key and HEAD. Output: same-origin URL. Effects: none;
+    use for every preview and original link so they share the exact same pins.
+    """
+    pins = {"root_id": root_id, "key": key, "etag": str(head["ETag"]), "expected_byte_length": str(head["ContentLength"])}
+    if version := _version(head):
+        pins["version_id"] = version
+    return f"/api/proffer/source-content?{urlencode(pins)}"
+
+
+def _validate_get(response: dict, *, etag: str, version_id: str | None, length: int, content_range: str | None) -> None:
+    """Reject provider responses whose pins or range disagree with inspected metadata.
+
+    Inputs: GET plus expected identity/range. Output: None or inspection error.
+    Effects: closes invalid response bodies; choose before any preview bytes escape.
+    """
+    if (response.get("Body") is None or response.get("ETag") != etag
+            or (version_id is not None and _version(response) != version_id)
+            or response.get("ContentLength") != length
+            or response.get("ContentRange") != content_range):
+        if body := response.get("Body"):
+            body.close()
+        raise SourceInspectionError(502, "The source provider did not confirm the inspected version, ETag, length and byte range; no preview bytes were delivered")
 
 
 def _metadata(request: SourceInspectionRequest) -> tuple[str, dict]:
@@ -80,7 +122,7 @@ def _metadata(request: SourceInspectionRequest) -> tuple[str, dict]:
         key = validate_source_key(request.key)
         if request.source_ref != root.source_ref(key):
             raise ValueError("source reference does not belong to the selected source root")
-        head = head_source_object(root.root_id, key)
+        head = head_source_object(root.root_id, key, **({"version_id": request.expected_provider_version_id} if request.expected_provider_version_id else {}))
     except ValueError as error:
         raise SourceInspectionError(422, str(error)) from None
     except RuntimeError:
@@ -89,6 +131,8 @@ def _metadata(request: SourceInspectionRequest) -> tuple[str, dict]:
     etag = str(head.get("ETag") or "").strip()
     if size < 0 or not etag:
         raise SourceInspectionError(502, "The selected source returned incomplete object metadata")
+    if request.expected_provider_version_id and _version(head) != request.expected_provider_version_id:
+        raise SourceInspectionError(409, "The provider did not return the selected source version; inspect its identity again")
     listed_etag = request.expected_etag.strip('"') if request.expected_etag else None
     if size != request.expected_byte_length or (listed_etag and etag.strip('"') != listed_etag):
         raise SourceInspectionError(409, "The selected source changed after it was listed; choose it again")
@@ -144,7 +188,8 @@ def inspect_source(request: SourceInspectionRequest, *, mode: MatterMode) -> Sou
         )
     try:
         root = get_source_root(request.root_id)
-        response = open_source_object(root.root_id, key, if_match=etag)
+        response = open_source_object(root.root_id, key, if_match=etag, version_id=_version(head))
+        _validate_get(response, etag=etag, version_id=_version(head), length=size, content_range=None)
         body = response["Body"]
         digest = hashlib.sha256()
         captured = bytearray()
@@ -178,7 +223,7 @@ def inspect_source(request: SourceInspectionRequest, *, mode: MatterMode) -> Sou
     )
     preview_text = bytes(captured).decode("utf-8", errors="replace") if preview_kind == "text" else ""
     preview_url = (
-        f"/api/proffer/source-content?root_id={quote(request.root_id, safe='')}&key={quote(key, safe='')}&etag={quote(etag, safe='')}"
+        _reader_url(request.root_id, key, head)
         if preview_kind in {"pdf", "text", "image"}
         else None
     )
@@ -193,6 +238,7 @@ def inspect_source(request: SourceInspectionRequest, *, mode: MatterMode) -> Sou
         name=PurePosixPath(key).name,
         byte_length=size,
         etag=etag,
+        provider_version_id=_version(head),
         last_modified=head.get("LastModified"),
         content_type=content_type,
         sha256=digest.hexdigest(),
@@ -241,9 +287,10 @@ def preview_source(request: SourceInspectionRequest, *, mode: MatterMode) -> Sou
         matter_mode=mode, source_location=root.scheme, bucket=root.bucket,
         key=key, source_ref=request.source_ref, name=PurePosixPath(key).name,
         byte_length=int(head["ContentLength"]), etag=etag,
+        provider_version_id=_version(head),
         last_modified=head.get("LastModified"), content_type=content_type,
         sha256=None, digest_status="not_computed", preview_kind=preview_kind,
-        preview_url=f"/api/proffer/source-content?root_id={quote(root.root_id, safe='')}&key={quote(key, safe='')}&etag={quote(etag, safe='')}",
+        preview_url=_reader_url(root.root_id, key, head),
         parser_preflight=_preflight(key),
     )
 
@@ -269,26 +316,31 @@ def _range_header(range_header: str | None, size: int) -> tuple[str | None, int,
     return f"bytes={start}-{end}", end - start + 1, f"bytes {start}-{end}/{size}"
 
 
-def open_source_content(root_id: str, key: str, etag: str, range_header: str | None) -> SourceContent:
-    """Open same-origin preview content, pinned to the inspected object identity."""
+def open_source_content(root_id: str, key: str, etag: str, range_header: str | None, *, version_id: str | None = None, expected_byte_length: int | None = None) -> SourceContent:
+    """Open unchanged source content after confirming both HEAD and GET identity.
+
+    Inputs: root/key, ETag, version/length pins and byte range. Output: verified
+    stream descriptor. Effects: read-only provider calls; choose for previews.
+    """
     try:
         root = get_source_root(root_id)
         validated = validate_source_key(key)
-        head = head_source_object(root.root_id, validated)
+        head = head_source_object(root.root_id, validated, **({"version_id": version_id} if version_id else {}))
     except (ValueError, RuntimeError):
         raise SourceInspectionError(404, "The selected source is unavailable") from None
     size = int(head.get("ContentLength", -1))
     current_etag = str(head.get("ETag") or "")
     if size < 0 or not current_etag:
         raise SourceInspectionError(502, "The selected source returned incomplete object metadata")
-    if current_etag != etag:
+    if current_etag != etag or (version_id and _version(head) != version_id) or (expected_byte_length is not None and size != expected_byte_length):
         raise SourceInspectionError(409, "The selected source changed after inspection; inspect it again")
     byte_range, content_length, content_range = _range_header(range_header, size)
     try:
-        response = open_source_object(root.root_id, validated, if_match=current_etag, byte_range=byte_range)
+        response = open_source_object(root.root_id, validated, if_match=current_etag, byte_range=byte_range, version_id=_version(head))
     except RuntimeError:
         raise SourceInspectionError(502, "The selected source preview could not be opened") from None
     content_type = _source_content_type(validated, head)
+    _validate_get(response, etag=current_etag, version_id=_version(head), length=content_length, content_range=content_range)
     return SourceContent(
         body=response["Body"],
         content_type=content_type,
@@ -296,15 +348,27 @@ def open_source_content(root_id: str, key: str, etag: str, range_header: str | N
         etag=current_etag,
         status_code=206 if byte_range else 200,
         content_range=content_range,
+        provider_version_id=_version(head),
     )
 
 
 def stream_source_content(content: SourceContent) -> Iterator[bytes]:
+    """Stream exactly the validated body length and always close the provider reader.
+
+    Input: verified descriptor. Output: unchanged chunks. Effects: reads/closes
+    the body; choose after headers pass validation, never to transform originals.
+    """
+    remaining = content.content_length
     try:
         while True:
             chunk = content.body.read(STREAM_CHUNK_BYTES)  # type: ignore[attr-defined]
             if not chunk:
+                if remaining:
+                    raise SourceInspectionError(502, "Source stream ended before the confirmed byte length")
                 break
+            remaining -= len(chunk)
+            if remaining < 0:
+                raise SourceInspectionError(502, "Source stream exceeded the confirmed byte length")
             yield chunk
     finally:
         content.body.close()  # type: ignore[attr-defined]

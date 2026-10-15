@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.types.matter_mode import MatterMode
 
-
 SourceKey = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1024)]
 OpaqueETag = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=512)]
 Sha256Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -26,6 +25,7 @@ class SourceInspectionRequest(BaseModel):
     key: SourceKey
     expected_byte_length: Annotated[int, Field(ge=0)]
     expected_etag: OpaqueETag | None = None
+    expected_provider_version_id: OpaqueETag | None = None
 
 
 class SourceVersionResponse(BaseModel):
@@ -73,6 +73,7 @@ class SourceReaderDescriptor(BaseModel):
     byte_length: Annotated[int, Field(ge=0)]
     etag: OpaqueETag
     last_modified: datetime | None = None
+    provider_version_id: str | None = None
     content_type: str
     preview_text: str = ""
     preview_url: str | None = None

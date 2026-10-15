@@ -6,27 +6,37 @@ Byline: Claude Code · Opus 5.5 · 2026-09-25 (run source-context read-back).
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
-from app.service.source_inspection import preview_source
-from app.types.source_inspection import SourcePreviewResponse
-from app.types.matter_mode import MatterMode
 from app.runtime.operating_mode import OperatingMode
 from app.service.proffer import ProfferError
 from app.service.source_context import create_source_context, run_source_context
 from app.service.source_inspection import (
     SourceInspectionError,
     inspect_source,
-    read_source_version,
     open_source_content,
+    preview_source,
+    read_source_version,
     stream_source_content,
 )
+from app.types.matter_mode import MatterMode
 from app.types.proffer import ProfferDecisionActor
-from app.types.source_context import ProfferRunSourceContext, SourceContextCreateRequest, SourceContextReceipt
-from app.types.source_inspection import SourceInspectionRequest, SourceInspectionResponse, SourceVersionResponse
+from app.types.source_context import (
+    ProfferRunSourceContext,
+    SourceContextCreateRequest,
+    SourceContextReceipt,
+)
+from app.types.source_inspection import (
+    SourceInspectionRequest,
+    SourceInspectionResponse,
+    SourcePreviewResponse,
+    SourceVersionResponse,
+)
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
 
@@ -64,6 +74,7 @@ def source_preview_endpoint(
     source_ref: Annotated[str, Query(min_length=1, max_length=2048)],
     expected_byte_length: Annotated[int, Query(ge=0)],
     expected_etag: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
+    expected_provider_version_id: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
     mode: Annotated[MatterMode, Query()] = "LIVE",
 ) -> SourcePreviewResponse:
     """Return read-only metadata and the existing stream URL for file selection.
@@ -76,6 +87,7 @@ def source_preview_endpoint(
         return preview_source(SourceInspectionRequest(
             root_id=root_id, key=key, source_ref=source_ref,
             expected_byte_length=expected_byte_length, expected_etag=expected_etag,
+            expected_provider_version_id=expected_provider_version_id,
         ), mode=mode)
     except SourceInspectionError as error:
         raise _translate(error) from None
@@ -127,9 +139,18 @@ def source_content_endpoint(
     key: Annotated[str, Query(min_length=1, max_length=1024)],
     etag: Annotated[str, Query(min_length=1, max_length=512)],
     range_header: Annotated[str | None, Header(alias="Range")] = None,
+    version_id: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
+    expected_byte_length: Annotated[int | None, Query(ge=0)] = None,
+    download: Annotated[bool, Query()] = False,
 ):
+    """Deliver original source bytes after validating the inspected identity and range.
+
+    Inputs: allowlisted coordinates, ETag, optional version/length and Range.
+    Output: unchanged bytes and verified headers. Effects: read-only HEAD/GET;
+    choose for inline readers and original-file download without processing.
+    """
     try:
-        content = open_source_content(root_id, key, etag, range_header)
+        content = open_source_content(root_id, key, etag, range_header, version_id=version_id, expected_byte_length=expected_byte_length)
     except SourceInspectionError as error:
         raise _translate(error) from None
     headers = {
@@ -142,6 +163,10 @@ def source_content_endpoint(
     }
     if content.content_range:
         headers["Content-Range"] = content.content_range
+    if content.provider_version_id:
+        headers["X-Source-Version-Id"] = content.provider_version_id
+    if download:
+        headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(PurePosixPath(key).name, safe='')}"
     return StreamingResponse(
         stream_source_content(content),
         status_code=content.status_code,
