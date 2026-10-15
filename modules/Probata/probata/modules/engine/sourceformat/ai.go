@@ -4,6 +4,7 @@ package sourceformat
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -70,6 +71,22 @@ func claudeConversationSignature(first map[string]json.RawMessage) bool {
 
 var aiHeading = regexp.MustCompile(`^(?:#{1,6}\s+)(Prompt|Response|Human|Assistant):?\s*$`)
 var geminiRoleLabel = regexp.MustCompile(`^\*\*(You|Gemini):\*\*\s*(.*)$`)
+var geminiExporterHeading = regexp.MustCompile(`(?i)^##[ \t]+(Prompt|Response):[ \t]*$`)
+var markdownURL = regexp.MustCompile(`https://[^\s<>\[\]()]+`)
+var geminiConversationPath = regexp.MustCompile(`^/(app|share)/[A-Za-z0-9_-]+/?$`)
+
+// geminiExporterOrigin verifies a provider conversation URL in a source preamble.
+// Input: one unfenced preamble line. Output: exact Gemini host/path recognition.
+// Effects: none; choose before classifying shared Prompt/Response export headings.
+func geminiExporterOrigin(line string) bool {
+	for _, raw := range markdownURL.FindAllString(line, -1) {
+		parsed, err := url.Parse(raw)
+		if err == nil && strings.EqualFold(parsed.Host, "gemini.google.com") && geminiConversationPath.MatchString(parsed.Path) {
+			return true
+		}
+	}
+	return false
+}
 
 // detectAIMarkdown recognizes paired role headings outside fenced code, with content for both turns.
 // Inputs: UTF-8 bytes. Outputs: ChatGPT, Claude or Gemini Markdown format/signature, otherwise empty IDs.
@@ -79,6 +96,7 @@ func detectAIMarkdown(content []byte) (string, string) {
 	var body bool
 	var completeUser bool
 	var family string
+	var exporterOrigin bool
 	fence := ""
 	for _, line := range bytes.Split(content, []byte{'\n'}) {
 		text := strings.TrimSpace(string(line))
@@ -97,7 +115,18 @@ func detectAIMarkdown(content []byte) (string, string) {
 		if fence != "" {
 			continue
 		}
+		if role == "" && geminiExporterOrigin(string(line)) {
+			exporterOrigin = true
+		}
 		match := aiHeading.FindStringSubmatch(text)
+		exporterHeading := geminiExporterHeading.FindStringSubmatch(strings.TrimSuffix(string(line), "\r"))
+		if exporterOrigin && exporterHeading != nil {
+			roleName := "Response"
+			if strings.EqualFold(exporterHeading[1], "Prompt") {
+				roleName = "Prompt"
+			}
+			match = []string{exporterHeading[0], roleName}
+		}
 		gemini := geminiRoleLabel.FindStringSubmatch(text)
 		if match != nil || gemini != nil {
 			if role == "Prompt" || role == "Human" || role == "You" {
@@ -116,6 +145,13 @@ func detectAIMarkdown(content []byte) (string, string) {
 			newFamily := "claude"
 			if newRole == "Prompt" || newRole == "Response" {
 				newFamily = "chatgpt"
+				if exporterOrigin {
+					if exporterHeading == nil ||
+						(role == "" && newRole != "Prompt") || role == newRole {
+						return "", ""
+					}
+					newFamily = "gemini_exporter"
+				}
 			} else if newRole == "You" || newRole == "Gemini" {
 				newFamily = "gemini"
 			}
@@ -142,6 +178,9 @@ func detectAIMarkdown(content []byte) (string, string) {
 // Input: chatgpt, claude or gemini. Output: registered format/signature IDs. Side effects: none.
 // Pick after validating paired headings outside code fences.
 func markdownIDs(family string) (string, string) {
+	if family == "gemini_exporter" {
+		return GeminiMarkdown, "gemini_prompt_response_markdown_v1"
+	}
 	if family == "chatgpt" {
 		return ChatGPTMarkdown, "chatgpt_prompt_response_markdown_v1"
 	}
