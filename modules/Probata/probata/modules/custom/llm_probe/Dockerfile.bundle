@@ -1,0 +1,26 @@
+# Serve the existing FastAPI and Next.js applications in one supervised container.
+# Inputs: Probata module build context and existing app sources. Outputs: both
+# compatibility ports. Effects: dependency installation during image build only.
+# Pick for consolidated deployment; the original Dockerfiles remain rollback inputs.
+FROM node:22-slim AS ui-builder
+WORKDIR /build/ui
+COPY modules/custom/llm_probe_ui/package.json modules/custom/llm_probe_ui/package-lock.json ./
+RUN npm ci
+COPY modules/custom/llm_probe_ui/ ./
+ENV NEXT_PUBLIC_LLM_PROBE_URL=/api/probe
+RUN npm run build
+
+FROM python:3.12-slim
+WORKDIR /app
+ENV PYTHONPATH=/app
+RUN apt-get update && apt-get install -y --no-install-recommends supervisor libstdc++6 libatomic1
+COPY modules/custom/llm_probe/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY modules/custom/llm_probe/ /app/llm_probe/
+COPY --from=ui-builder /usr/local/bin/node /usr/local/bin/node
+COPY --from=ui-builder /build/ui/public /opt/llm-probe-ui/public
+COPY --from=ui-builder /build/ui/.next/standalone /opt/llm-probe-ui/
+COPY --from=ui-builder /build/ui/.next/static /opt/llm-probe-ui/.next/static
+COPY modules/custom/llm_probe/supervisord.bundle.conf /etc/supervisor/llm-probe.conf
+EXPOSE 8000 3000
+CMD ["supervisord", "-n", "-c", "/etc/supervisor/llm-probe.conf"]

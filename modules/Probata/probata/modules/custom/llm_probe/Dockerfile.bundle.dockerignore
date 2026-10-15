@@ -1,0 +1,23 @@
+# Limit the module-root bundle context to the two existing LLM Probe apps.
+# Inputs: module checkout. Output: bounded source context without caches/secrets.
+# Effects: build filtering only; pick over changing the shared root dockerignore.
+**
+!modules/
+!modules/custom/
+!modules/custom/llm_probe/
+!modules/custom/llm_probe/**
+!modules/custom/llm_probe_ui/
+!modules/custom/llm_probe_ui/**
+**/.git
+**/.env*
+**/*.env
+**/.secrets
+**/.venv
+**/venv
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/*.log

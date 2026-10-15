@@ -1,8 +1,9 @@
 # =============================================================================
-# LLM PROBE SERVICE — deploy as its OWN Coolify app, tailnet-only. One
-# concern per app (see workbench.yaml for the pattern precedent).
+# LLM PROBE — one Coolify app/container hosting the existing API and Next UI.
+# Both old ports remain during cutover; provider/history settings stay API-only.
 #
-# Coolify Watch Paths for this app: llm_probe/** + deploy/llm-probe.yaml
+# Coolify Watch Paths: modules/Probata/probata/modules/custom/llm_probe/**,
+# modules/Probata/probata/modules/custom/llm_probe_ui/** and this compose file.
 #
 # WHAT THIS IS: a standalone FastAPI service that live-tests LLM providers
 # (NIM, Ollama Cloud, OpenRouter, Google, OpenAI, Mistral, Groq, Cerebras) —
@@ -22,16 +23,19 @@
 services:
   llm-probe:
     build:
-      context: ./modules/custom/llm_probe
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: modules/custom/llm_probe/Dockerfile.bundle
     image: agno-llm-probe:latest
     container_name: llm-probe
     restart: unless-stopped
+    stop_grace_period: 45s
     ports:
       - "${BIND_IP:-127.0.0.1}:8030:8000"   # tailnet-only; NEVER 0.0.0.0
+      - "${BIND_IP:-127.0.0.1}:8031:3000"   # preserve the existing UI address
     environment:
       # --- casebible.llm_eval persistence ---
       DATABASE_URL: ${LLM_PROBE_DATABASE_URL:?set to postgresql://user:pass@100.91.190.107:5432/casebible}
+      PROVIDER_KEY_PASSPHRASE: ${PROVIDER_KEY_PASSPHRASE:?preserve the existing custom-provider encryption passphrase}
       # --- frontend origin(s) allowed to call this API (tailnet address(es)) ---
       CORS_ORIGINS: ${LLM_PROBE_CORS_ORIGINS:-}
       # --- provider keys (server-side only, never sent to the browser) ---
@@ -45,11 +49,11 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status==200 else 1)\""]
+      test: ["CMD", "python", "-m", "llm_probe.bundle_runtime", "health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     networks:
       - probata
 
