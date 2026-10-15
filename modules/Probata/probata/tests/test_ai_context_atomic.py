@@ -189,6 +189,68 @@ def test_markdown_fallback_is_explicit_and_preserves_whole_document(tmp_path, mo
         assert record["native_time"] is None
 
 
+def test_gemini_exporter_headings_require_source_origin_and_preserve_spans(tmp_path, monkeypatch):
+    """Decode Gemini exporter turns with original clocks and source slices intact.
+
+    Inputs: fictional URL-backed CRLF export with a fenced role-like heading.
+    Outputs: four exact turns, original byte identity and unknown timestamps.
+    Effects: temporary files only; pick for the exporter Markdown variant.
+    """
+    text = ("# Fictional export\r\n[Original](https://gemini.google.com/app/abc123)\r\n"
+            "## Prompt:\r\n😀 first ask\r\n## Response:\r\n"
+            "```markdown\r\n## Prompt:\r\nquoted heading\r\n```\r\n"
+            "## Prompt:\r\nsecond ask\r\n## Response:\r\n second answer \r\n")
+    params, raw = _source(tmp_path, monkeypatch, text, "gemini_markdown")
+    receipt = context.decode(params)
+    decoded = context._read(receipt["bundle_ref"], params, "decoded")
+    records = decoded["records"]
+    assert [r["role"] for r in records] == ["user", "assistant", "user", "assistant"]
+    assert "## Prompt:\r\nquoted heading" in records[1]["body"]
+    assert records[-1]["body"] == " second answer \r\n"
+    for record in records:
+        span = record["source_span"]
+        assert text[span["start"]:span["end"]] == record["body"]
+        assert record["native_time"] is None and record["source_available_from"] is None
+        assert record["native_message_id"] is None and record["conversation_id"] is None
+    assert Path(decoded["original_ref"].removeprefix("file://")).read_bytes() == raw
+
+
+@pytest.mark.parametrize("origin", ["", "https://chatgpt.com/c/abc123", "https://gemini.google.com.evil.example/app/abc123",
+                                    "https://gemini.google.com/", "```\nhttps://gemini.google.com/app/abc123\n```"])
+def test_exporter_headings_without_gemini_conversation_origin_are_rejected(origin):
+    """Reject generic or unrelated Markdown headings as Gemini role evidence.
+
+    Inputs: absent, unrelated, spoofed or fenced origin. Outputs: permanent
+    rejection; effects: none. Pick to guard the narrow exporter compatibility.
+    """
+    with pytest.raises(context.ContextInvalid, match="Gemini conversation URL"):
+        context.decode_markdown_records(origin + "\n## Prompt:\nask\n## Response:\nanswer\n", {})
+
+
+def test_gemini_exporter_role_order_and_record_bound_are_enforced():
+    """Reject ambiguous exporter role sequences and work beyond requested bounds.
+
+    Inputs: URL-backed malformed sequences or three turns with a two-turn limit.
+    Outputs: explicit permanent errors; effects: none. Pick for bounded decoding.
+    """
+    origin = "https://gemini.google.com/share/abc123\n"
+    for body in ["## Response:\nanswer", "## Prompt:\nask\n## Prompt:\nask"]:
+        with pytest.raises(context.ContextInvalid, match="alternate"):
+            context.decode_markdown_records(origin + body, {})
+    with pytest.raises(context.ContextInvalid, match="record bound"):
+        context.decode_markdown_records(origin + "## Prompt:\na\n## Response:\nb\n## Prompt:\nc", {"max_records": 2})
+
+
+def test_native_markdown_role_style_keeps_exporter_like_body_headings():
+    """Keep exporter-like headings literal within the existing native role style.
+
+    Inputs: explicit native roles and a Prompt heading inside the answer.
+    Outputs: two unchanged turns; effects: none. Pick for replay compatibility.
+    """
+    records = context.decode_markdown_records("**You:**\nask\n**Gemini:**\n## Prompt:\nexample\n", {})
+    assert len(records) == 2 and records[1]["body"] == "## Prompt:\nexample\n"
+
+
 class _Store:
     """Hold additive synthetic search objects for independent readback.
 

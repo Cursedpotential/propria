@@ -360,11 +360,15 @@ def decode_markdown_records(text: str, params: dict[str, Any]) -> list[dict[str,
     Effects: none; choose when no registered DuckDB native Markdown template
     preserves spans and the normalized-message parser would alter source text.
     Role-like lines inside fenced created works remain part of their turn.
+    Exporter Prompt/Response headings require a Gemini conversation URL in
+    the source preamble; generic Markdown headings do not establish roles.
     """
     role_pattern = re.compile(r"^\*\*(You|User|Gemini|Model|Assistant)(?::\*\*|\*\*:)[ \t]*(?:\r?\n)?$", re.I)
+    exporter_pattern = re.compile(r"^##[ \t]+(Prompt|Response):[ \t]*(?:\r?\n)?$", re.I)
     fence_pattern = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})([^\r\n]*)(?:\r?\n)?$")
     markers: list[tuple[int, int, str]] = []
     cursor, fence, title = 0, None, None
+    exporter_origin, marker_style = False, None
     for line in text.splitlines(keepends=True):
         stripped = line.rstrip("\r\n")
         if fence is not None:
@@ -373,15 +377,33 @@ def decode_markdown_records(text: str, params: dict[str, Any]) -> list[dict[str,
         else:
             opening = fence_pattern.fullmatch(line)
             marker = role_pattern.fullmatch(line)
+            exporter_marker = exporter_pattern.fullmatch(line)
             if opening:
                 fence = opening.group(1)
             elif marker:
+                if marker_style == "exporter":
+                    raise ContextInvalid("native Markdown role styles are mixed")
+                marker_style = "native"
                 role = "user" if marker.group(1).lower() in {"you", "user"} else "assistant"
+                markers.append((cursor, cursor + len(line), role))
+            elif exporter_marker and marker_style != "native":
+                if not exporter_origin:
+                    raise ContextInvalid("exporter turns require a Gemini conversation URL in the preamble")
+                marker_style = "exporter"
+                role = "user" if exporter_marker.group(1).lower() == "prompt" else "assistant"
+                expected = "user" if len(markers) % 2 == 0 else "assistant"
+                if role != expected:
+                    raise ContextInvalid("exporter turns must alternate Prompt and Response")
                 markers.append((cursor, cursor + len(line), role))
             elif not markers and title is None:
                 heading = re.fullmatch(r"\ufeff?#[ \t]+([^\r\n]+)", stripped)
                 if heading:
                     title = heading.group(1)
+            if not markers:
+                for url in re.findall(r"https://[^\s<>\[\]()]+", line):
+                    parsed = urlsplit(url)
+                    if parsed.netloc.lower() == "gemini.google.com" and re.fullmatch(r"/(app|share)/[A-Za-z0-9_-]+/?", parsed.path):
+                        exporter_origin = True
         cursor += len(line)
     if not markers:
         raise ContextInvalid("Gemini Markdown has no native role markers")
