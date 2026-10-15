@@ -12,6 +12,14 @@ export function useExtractors() {
   return useQuery({ queryKey: ["extractors"], queryFn: ({ signal }) => conversationApi.extractors(signal), staleTime: 5 * 60_000 });
 }
 
+/** Read the current exact target and extractor admission without starting work.
+ * Inputs: selected IDs and enabled state. Output: read-only workload query.
+ * Effects: preflight POST; use before the independently guarded dispatch.
+ */
+export function useExtractionPreflight(threadIds: readonly string[], extractors: readonly string[], enabled = true) {
+  return useQuery({ queryKey: ["extraction-preflight", threadIds, extractors], queryFn: ({ signal }) => conversationApi.preflight(threadIds, extractors, signal), enabled: enabled && threadIds.length > 0 && extractors.length > 0, retry: false, staleTime: 0 });
+}
+
 /** A set of checked conversation ids. */
 export function useSelection() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -36,9 +44,9 @@ export function useSelection() {
 export function useStartExtraction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { threadIds: string[]; extractors: string[]; key?: string }) => {
+    mutationFn: (input: { threadIds: string[]; extractors: string[]; key?: string; preflightToken?: string }) => {
       input.key ??= newIdempotencyKey("extract");
-      return conversationApi.startExtraction(input.threadIds, input.extractors, input.key);
+      return conversationApi.startExtraction(input.threadIds, input.extractors, input.key, input.preflightToken);
     },
     onSuccess: (_started, { threadIds }) => {
       for (const id of threadIds) void queryClient.invalidateQueries({ queryKey: ["thread-extractions", id] });

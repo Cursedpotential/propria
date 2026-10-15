@@ -28,6 +28,7 @@ class ExtractConversationsRequest(BaseModel):
     thread_ids: Annotated[list[ThreadId], Field(min_length=1, max_length=200)]
     # Empty means the default extractor. Every registered extractor is selectable; the picker lists them.
     extractors: Annotated[list[ExtractorId], Field(max_length=16)] = []
+    preflight_token: Annotated[str, StringConstraints(max_length=64, pattern=r"^[a-f0-9]*$")] = ""
 
 
 class SendConversationsRequest(BaseModel):

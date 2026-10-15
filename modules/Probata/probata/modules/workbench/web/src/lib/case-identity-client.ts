@@ -162,6 +162,20 @@ export interface CaseReceipt {
   replayed: boolean;
 }
 
+export interface IdentifierImpact {
+  scope: string; alias: CaseIdentifier; history: CaseChange[];
+  imported: { available: boolean; reason?: string; records?: number; source_versions?: number; conversations?: number };
+  catalog: { available: boolean; reason?: string; unique_records?: number; overlap?: number; basis?: string };
+}
+
+/** Read global alias scope and affected counts before the existing edit.
+ * Inputs: current alias ID and explicit mode. Output: read-only impact and history.
+ * Effects: GET only; use for identifier correction, never message-local overrides.
+ */
+export function getIdentifierImpact(aliasId: string, mode: MatterMode) {
+  return caseFetch<IdentifierImpact>(`/api/case-identity/identifiers/${encodeURIComponent(aliasId)}/impact?mode=${mode}`);
+}
+
 export interface IdentifierAdd {
   entity_id: string;
   raw_value: string;

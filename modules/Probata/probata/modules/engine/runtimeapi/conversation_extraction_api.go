@@ -31,11 +31,24 @@ type ConversationWorkflows interface {
 	Status(context.Context, string) (flow.Progress, error)
 }
 
+// ConversationPreflightStore reads exact target admission and workload metadata.
+// Inputs: matter/ref/selection. Output: preflight; effects: reads only.
+type ConversationPreflightStore interface {
+	PreflightConversations(context.Context, string, []flow.ConversationRef, []string) (flow.ExtractionPreflight, error)
+}
+
 // ConversationExtractionHTTPHandler serves the conversation extraction and send routes.
 type ConversationExtractionHTTPHandler struct {
 	workflows        ConversationWorkflows
 	serviceTokenPath string
 	clock            func() time.Time
+	preflightStore   ConversationPreflightStore
+}
+
+// SetPreflightStore connects the existing canonical store before serving routes.
+// Input: read-only admission seam. Output: none; effects: composition only.
+func (h *ConversationExtractionHTTPHandler) SetPreflightStore(store ConversationPreflightStore) {
+	h.preflightStore = store
 }
 
 // NewConversationExtractionHTTPHandler validates its seams and the service token.
@@ -54,6 +67,8 @@ func (h *ConversationExtractionHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /reference-import/extractors", h.auth(h.extractors))
 	mux.HandleFunc("POST /reference-import/conversations/extract", h.auth(h.extract))
+	mux.HandleFunc("POST /reference-import/conversations/preflight", h.auth(h.preflight))
+	mux.HandleFunc("GET /reference-import/conversations/history", h.auth(h.history))
 	mux.HandleFunc("POST /reference-import/conversations/send-to-surreal", h.auth(h.send))
 	mux.HandleFunc("GET /reference-import/conversations/workflows/{workflow_id}", h.auth(h.status))
 	return mux
@@ -69,11 +84,12 @@ func (h *ConversationExtractionHTTPHandler) extractors(w http.ResponseWriter, _ 
 }
 
 type conversationRequest struct {
-	CourtCaseID   string                 `json:"court_case_id,omitempty"`
-	OperatingMode string                 `json:"operating_mode,omitempty"`
-	MatterID      string                 `json:"matter_id"`
-	Conversations []flow.ConversationRef `json:"conversations"`
-	Extractors    []string               `json:"extractors"`
+	PreflightToken string                 `json:"preflight_token,omitempty"`
+	CourtCaseID    string                 `json:"court_case_id,omitempty"`
+	OperatingMode  string                 `json:"operating_mode,omitempty"`
+	MatterID       string                 `json:"matter_id"`
+	Conversations  []flow.ConversationRef `json:"conversations"`
+	Extractors     []string               `json:"extractors"`
 	// IncludeExtractions applies to the send only; the default is true.
 	IncludeExtractions *bool `json:"include_extractions,omitempty"`
 }
@@ -128,6 +144,41 @@ func (h *ConversationExtractionHTTPHandler) extract(w http.ResponseWriter, r *ht
 	}
 	if err := input.Validate(); err != nil {
 		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if h.preflightStore == nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction admission is unavailable; no workflow was started"))
+		return
+	}
+	check, err := h.preflightStore.PreflightConversations(r.Context(), body.MatterID, body.Conversations, body.Extractors)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction target admission could not be read; no workflow was started"))
+		return
+	}
+	if !check.Eligible {
+		previewJSON(w, http.StatusConflict, map[string]any{"error": "Extraction prerequisite is not satisfied; no workflow was started", "preflight": check})
+		return
+	}
+	if body.PreflightToken == "" || body.PreflightToken != flow.PreflightToken(check) {
+		previewError(w, http.StatusConflict, errors.New("Extraction selection or workload changed, or preflight confirmation is missing. Refresh preflight and confirm the exact target again; no workflow was started"))
+		return
+	}
+	// Dispatch only the exact generation pins checked above. Conversation coordinates
+	// remain metadata, so the workflow cannot silently resolve a newer generation.
+	input.RequestedConversations = body.Conversations
+	input.Conversations = nil
+	seenRuns := map[string]bool{}
+	for _, target := range check.Targets {
+		for _, run := range target.Runs {
+			key := run.SourceVersionID + ":" + run.GenerationID
+			if !seenRuns[key] {
+				input.Runs = append(input.Runs, run)
+				seenRuns[key] = true
+			}
+		}
+	}
+	if len(input.Runs) == 0 {
+		previewError(w, http.StatusConflict, errors.New("Extraction admission returned no pinned runs; no workflow was started"))
 		return
 	}
 	started, err := h.workflows.StartConversationExtraction(r.Context(), input)
@@ -206,5 +257,56 @@ func (h *ConversationExtractionHTTPHandler) status(w http.ResponseWriter, r *htt
 	if receipts == nil {
 		receipts = []flow.SendReceipt{}
 	}
-	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "kind": kind, "outcome": progress.Outcome, "steps": steps, "receipts": receipts})
+	previewJSON(w, http.StatusOK, map[string]any{"workflow_id": id, "run_id": progress.RunID, "kind": kind, "outcome": progress.Outcome, "steps": steps, "receipts": receipts})
+}
+
+// preflight reads selected workload and durable admission without starting work.
+// Inputs: existing authenticated conversation request. Output: source-pinned bounds.
+// Effects: SELECT only; pick before Extract and repeat admission at dispatch.
+func (h *ConversationExtractionHTTPHandler) preflight(w http.ResponseWriter, r *http.Request) {
+	body, ok := h.decode(w, r)
+	if !ok {
+		return
+	}
+	input := flow.RequestInput{RequestID: "preflight", MatterID: body.MatterID, Conversations: body.Conversations, Extractors: body.Extractors}
+	if err := input.Validate(); err != nil {
+		previewError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	if h.preflightStore == nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction admission reader is unavailable"))
+		return
+	}
+	out, err := h.preflightStore.PreflightConversations(r.Context(), body.MatterID, body.Conversations, body.Extractors)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction admission could not be read"))
+		return
+	}
+	out.Token = flow.PreflightToken(out)
+	previewJSON(w, http.StatusOK, out)
+}
+
+// history reads retained extraction parents for one exact existing conversation.
+// Inputs: approved matter and source/conversation pair. Output: bounded matching
+// statuses and retention limits. Effects: Temporal reads only, never retries work.
+func (h *ConversationExtractionHTTPHandler) history(w http.ResponseWriter, r *http.Request) {
+	matter := r.URL.Query().Get("matter_id")
+	ref := flow.ConversationRef{ExportKey: r.URL.Query().Get("export_key"), Conv: r.URL.Query().Get("conv")}
+	if matter != caseidentity.AuthoritativeMatterID || ref.ExportKey == "" || len(ref.ExportKey) > 2048 || ref.Conv == "" || len(ref.Conv) > 2048 {
+		previewError(w, http.StatusUnprocessableEntity, errors.New("exact approved matter and conversation required"))
+		return
+	}
+	reader, ok := h.workflows.(interface {
+		ConversationHistory(context.Context, string, flow.ConversationRef) (flow.ConversationHistory, error)
+	})
+	if !ok {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Durable extraction history reader is unavailable"))
+		return
+	}
+	out, err := reader.ConversationHistory(r.Context(), matter, ref)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Durable extraction history is unavailable; absence of attempts is not established"))
+		return
+	}
+	previewJSON(w, http.StatusOK, out)
 }

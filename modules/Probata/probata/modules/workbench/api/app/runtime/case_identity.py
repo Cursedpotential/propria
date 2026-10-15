@@ -84,6 +84,19 @@ async def catalog_events_endpoint(
 UuidPath = Annotated[str, Path(pattern="^[0-9a-fA-F-]{36}$")]
 
 
+@router.get("/identifiers/{alias_id}/impact")
+async def identifier_impact_endpoint(alias_id: UuidPath, mode: OperatingMode):
+    """Preview one global identifier edit without changing registry or source rows.
+
+    Inputs: alias ID and mode. Output: exact scope, current values and bounded counts.
+    Effects: read-only service calls; pick before editing an existing mapping.
+    """
+    try:
+        return await service.identifier_impact(alias_id, mode)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
 @router.post("/identifiers", status_code=201)
 async def identifier_endpoint(body: JsonObject, request: Request, key: IdempotencyKey, mode: OperatingMode):
     actor = _actor(request)

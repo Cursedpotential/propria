@@ -125,6 +125,15 @@ export interface ThreadExtractions {
   thread_id: string;
   extractors: ExtractionGroup[];
   truncated: boolean;
+  history?: { available: boolean; truncated: boolean; scanned?: number; coverage: string;
+    attempts: { workflow_id: string; run_id: string; extractors: string[]; progress: { outcome: string; steps?: ActionStep[] } }[] };
+}
+
+export interface ExtractionPreflight {
+  token: string;
+  eligible: boolean; blockers: string[]; cost_estimate: string; runtime_estimate: string; bounds: string[];
+  targets: { ref: { export_key: string; conv: string }; runs: { preview_handle: string; normalized_generation_id: string; source_version_id: string; matter_mode: string }[];
+    messages: number; characters: number; utf8_bytes: number; max_message_characters: number; max_message_utf8_bytes: number; acquisition_relationships: string[] }[];
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -148,8 +157,9 @@ function post<T>(path: string, body: unknown, key: string): Promise<T> {
 
 export const conversationApi = {
   extractors: (signal?: AbortSignal) => request<ExtractorListing>("/api/extractors", { signal }),
-  startExtraction: (threadIds: string[], extractors: string[], key: string) =>
-    post<WorkflowStarted>("/api/imported/threads/extract", { thread_ids: threadIds, extractors }, key),
+  preflight: (threadIds: readonly string[], extractors: readonly string[], signal?: AbortSignal) => request<ExtractionPreflight>("/api/imported/threads/extraction-preflight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ thread_ids: threadIds, extractors }), signal }),
+  startExtraction: (threadIds: string[], extractors: string[], key: string, preflightToken?: string) =>
+    post<WorkflowStarted>("/api/imported/threads/extract", { thread_ids: threadIds, extractors, preflight_token: preflightToken ?? "" }, key),
   startSend: (threadIds: string[], includeExtractions: boolean, key: string) =>
     post<WorkflowStarted>("/api/imported/threads/send-to-surreal", { thread_ids: threadIds, include_extractions: includeExtractions }, key),
   status: async (workflowId: string, signal?: AbortSignal): Promise<ActionStatus> => {

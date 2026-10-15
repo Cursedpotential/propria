@@ -200,7 +200,7 @@ func run() error {
 	}
 	// Conversation extraction and the Surreal send (Workbench: Extract and Send to Surreal).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
-	conversationRoutes, err := conversationExtractionHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	conversationRoutes, err := conversationExtractionHandler(pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
 	if err != nil {
 		return err
 	}

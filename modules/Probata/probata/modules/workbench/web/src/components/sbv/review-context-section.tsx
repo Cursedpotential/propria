@@ -30,6 +30,10 @@ function when(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+/** Edit one source-operation context using append-only revisions and exact readback.
+ * Inputs: current snapshot/context and refresh callbacks. Output: scoped revision UI.
+ * Effects: explicit context save or separate rerun click; historical rows stay versioned.
+ */
 export function ReviewContextSection({
   snapshot,
   runContext,
@@ -151,12 +155,16 @@ export function ReviewContextSection({
               Your assertions about this source. Saving records a new revision with your identity; earlier revisions stay as they were.
             </DialogDescription>
           </DialogHeader>
+          <section className="rounded border p-3 text-xs" aria-label="Source context correction scope">
+            <p className="break-all">Scope: request {runContext?.request_id} · source {snapshot.source_ref}. One new revision supersedes {current?.source_context_ref ?? "no prior context revision"} for the recorded observation.</p>
+            <p className="mt-2">Historical normalized messages changed by this save: 0. Existing speaker labels, extraction results and approvals retain their versions. Re-run with this context is a separate new-version action.</p>
+          </section>
           <SourceAssertionsFields value={form} onChange={update} className="mt-0" />
           <label className="grid gap-1.5 text-xs font-semibold">Why this change
             <input className="h-9 border bg-background px-3 font-normal" value={reason} maxLength={4000} onChange={(event) => setReason(event.target.value)} />
           </label>
           {saveError && <p className="text-xs text-destructive" role="alert">{saveError}</p>}
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 border-t bg-background py-3">
             <Button type="button" variant="outline" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="button" disabled={saving || !reason.trim()} onClick={() => void save()}>
               {saving && <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />} Save revision

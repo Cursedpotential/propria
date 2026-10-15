@@ -55,6 +55,7 @@ function ReadAnalysisView({ params, workflowId }: { params: URLSearchParams; wor
     : "";
   const cutoff = cutoffOverride ?? defaultCutoff;
   const snapshots = catalog.data?.pages.flatMap((page) => page.items) ?? [];
+  const unavailable = catalog.data?.pages.find((page) => page.available === false);
   const result = status.data?.result;
   const choices: AnalysisProjection[] = result && !snapshots.some((item) => item.projection_generation_id === result.projection_generation_id) ? [result, ...snapshots] : snapshots;
   const projection = choices.find((item) => item.projection_generation_id === selected) ?? null;
@@ -72,7 +73,8 @@ function ReadAnalysisView({ params, workflowId }: { params: URLSearchParams; wor
   };
   return <section className="space-y-3 rounded-lg border border-border bg-card p-4" aria-label="Analysis reading">
     <h2 className="text-sm font-semibold">Read analysis</h2>
-    <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+    {unavailable ? <p role="status" className="rounded border p-3 text-sm">{unavailable.reason}</p> : null}
+    <fieldset disabled={Boolean(unavailable)} className="border-0 p-0"><form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); submit(); }}>
       <label className="min-w-48 flex-1 text-xs">Completed snapshot
         <select className="mt-1 block w-full rounded border bg-background p-2 text-sm" value={selected ?? ""} onChange={(event) => setSelectedOverride(event.target.value)}>
           <option value="">Choose a recorded snapshot</option>
@@ -88,10 +90,10 @@ function ReadAnalysisView({ params, workflowId }: { params: URLSearchParams; wor
         <input className="mt-1 block rounded border bg-background p-2 text-sm" type="datetime-local" step="1" required value={cutoff} onChange={(event) => setCutoffOverride(event.target.value)} />
       </label> : null}
       <Button type="submit" disabled={!projection || start.isPending}>{start.isPending ? "Starting…" : "Read findings"}</Button>
-    </form>
+    </form></fieldset>
     {catalog.isPending ? <Loading /> : null}
     {catalog.isError ? <ErrorBox error={catalog.error} onRetry={() => void catalog.refetch()} /> : null}
-    {catalog.isSuccess && !choices.length ? <p className="text-sm">No completed analysis snapshots are recorded yet.</p> : null}
+    {catalog.isSuccess && !unavailable && !choices.length ? <p className="text-sm">No completed analysis snapshots are recorded yet.</p> : null}
     {catalog.hasNextPage ? <Button variant="outline" size="sm" disabled={catalog.isFetchingNextPage} onClick={() => void catalog.fetchNextPage()}>More snapshots</Button> : null}
     {message ? <p role="alert" className="text-sm text-destructive">{message}</p> : null}
     {start.isError ? <ErrorBox error={start.error} onRetry={() => start.variables && start.mutate(start.variables)} /> : null}

@@ -76,7 +76,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
  * Pick for snapshot selection; never manufacture pins from candidate rows.
  */
 export function getAnalysisProjections(cursor?: string, signal?: AbortSignal) {
-  return request<{ items: AnalysisProjection[]; next_cursor?: string }>(`/projections${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { signal });
+  return request<{ available?: boolean; reason?: string; items: AnalysisProjection[]; next_cursor?: string }>(`/projections${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { signal });
 }
 
 /** Call the existing Workbench boundary without sending service credentials to the browser.

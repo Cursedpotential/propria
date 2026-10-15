@@ -102,6 +102,30 @@ async def catalog_events(identifier: str, match_on: str, before: str | None, lim
         raise ProfferError(error.message, error.status) from None
 
 
+async def identifier_impact(alias_id: str, mode: MatterMode) -> dict[str, Any]:
+    """Preview global registry edit scope using the current alias and read-only counts.
+
+    Inputs: alias ID and explicit mode. Output: current values, history and affected
+    Imported/catalog counts. Effects: GET/SELECT only; use before the existing editor.
+    """
+    from app.repo.imported_sources_pg import attribution_impact
+    view = await read(mode)
+    alias = next((a for p in view["people"] for a in p.get("identifiers", []) if a["id"] == alias_id), None)
+    if alias is None:
+        raise ProfferError("Unknown registry identifier", 404)
+    result = {"alias": alias, "scope": "One global registry alias; all readers resolving its normalized identifier may change. Period is descriptive metadata and is not an Imported time filter.",
+              "history": [h for h in view["history"] if h.get("subject_id") == alias_id]}
+    try:
+        result["imported"] = await asyncio.to_thread(attribution_impact, imported.live_matter(), alias["normalized"], alias["kind"])
+    except imported.ImportedError as error:
+        result["imported"] = {"available": False, "reason": error.message}
+    try:
+        result["catalog"] = await asyncio.to_thread(catalog.overlap, alias["normalized"]) if alias["kind"] == "phone" else {"available": False, "reason": "Phone filter overlap only"}
+    except catalog.CatalogError as error:
+        result["catalog"] = {"available": False, "reason": error.message}
+    return result
+
+
 async def _write(path: str, body: dict[str, Any], actor: ProfferDecisionActor, key: str, *, mode: MatterMode) -> dict[str, Any]:
     """Forward one Live identity edit; Dev has no isolated data workspace.
 

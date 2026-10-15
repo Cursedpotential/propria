@@ -203,7 +203,10 @@ def test_a_conversation_nobody_extracted_has_no_groups(starter, monkeypatch):
     monkeypatch.setattr(pg, "runs", lambda *a: [])
     monkeypatch.setattr(pg, "entities", lambda *a: [])
     monkeypatch.setattr(pg, "events", lambda *a: [])
-    assert _client().get(f"/api/imported/threads/{THREAD}/extractions").json() == {"thread_id": THREAD, "extractors": [], "truncated": False}
+    result = _client().get(f"/api/imported/threads/{THREAD}/extractions").json()
+    assert result["thread_id"] == THREAD and result["extractors"] == [] and result["truncated"] is False
+    assert result["history"]["available"] is False
+    assert "absence of earlier attempts is not established" in result["history"]["coverage"]
 
 
 def test_the_extraction_reads_never_write():

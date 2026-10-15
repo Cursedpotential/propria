@@ -83,6 +83,7 @@ function conversation(head, threadResult = {}, params = "source=wrong&thread=ori
       return React.createElement("p", { "data-highlighted": highlighted }, row.message.body);
     } },
     "@/components/read/read-context": { ReadContext: () => React.createElement("aside", null, "Existing context") },
+    "@/components/read/read-attribution": { ReadAttribution: () => React.createElement("details", null, "Inspect attribution") },
   });
   const html = renderToStaticMarkup(React.createElement(ReadConversation, { threadId: "original-thread", around: "original-record", params: new URLSearchParams(params) }));
   return { html, options, calls, threadOptions, threadCalls, bubbleRows };

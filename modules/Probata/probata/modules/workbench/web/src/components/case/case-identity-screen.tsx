@@ -90,6 +90,7 @@ function CatalogChips({
   for (const count of mine) byMatch.set(count.match_on, [...(byMatch.get(count.match_on) ?? []), count]);
   return (
     <div className="flex flex-wrap gap-1.5">
+      <p className="w-full text-xs text-muted-foreground">Sender and other-party filters can include the same record. These counts are non-additive. Open Edit to preview unique provenance keys and overlap.</p>
       {[...byMatch.entries()].map(([matchOn, rows]) => {
         const first = rows.map((row) => row.first_at).filter(Boolean).sort()[0];
         const last = rows.map((row) => row.last_at).filter(Boolean).sort().at(-1);

@@ -75,7 +75,8 @@ test("a failed extraction renders a failed headline, preserved errors and a work
     "@/components/ui/button": { Button: ({ children, variant, ...props }) => { buttons.push({ children, ...props }); return React.createElement("button", props, children); } },
     "@/components/ui/badge": { Badge: Empty }, "@/components/ui/checkbox": { Checkbox: Empty }, "@/components/ui/skeleton": { Skeleton: Empty },
     "@/components/ui/sheet": { Sheet: Empty, SheetContent: Empty, SheetDescription: Empty, SheetFooter: Empty, SheetHeader: Empty, SheetTitle: Empty },
-    "@/hooks/use-conversation-actions": { useActionStatus: () => ({ data: status("completed", [resolution, ...requested.map((id) => stage(id, "failed", `${id}: missing verified operating_mode`))]), isError: failStatusRead, error: new Error("Status transport unavailable"), refetch: () => { readsRetried++; } }), useExtractors: () => ({ data: { extractors: [] } }) },
+    "@/hooks/use-conversation-actions": { useActionStatus: () => ({ data: status("completed", [resolution, ...requested.map((id) => stage(id, "failed", `${id}: temporary provider unavailable`))]), isError: failStatusRead, error: new Error("Status transport unavailable"), refetch: () => { readsRetried++; } }), useExtractors: () => ({ data: { extractors: [] } }) },
+    "@/lib/conversation-actions-client": { conversationApi: {} },
     "@/lib/conversation-action-progress": { conversationActionProgress, failedConversationExtractors }, "@/lib/utils": { cn },
     "@/hooks/use-operation-notifications": { useOperationNotifications: () => {} },
   }, "\nexport { ActionProgress };\n");
@@ -85,7 +86,7 @@ test("a failed extraction renders a failed headline, preserved errors and a work
   assert.match(html, /data-outcome="failed"/);
   assert.match(html, /No requested extractor completed successfully/);
   assert.match(html, /Resolve source conversations \(preparation\)/);
-  for (const id of requested) assert.ok(html.includes(`${id}: missing verified operating_mode`));
+  for (const id of requested) assert.ok(html.includes(`${id}: temporary provider unavailable`));
   assert.match(html, /actual-temporal-run/);
   const targeted = buttons.find((button) => Array.isArray(button.children) && button.children.join("") === "Retry failed fixture-two");
   assert.ok(targeted);
@@ -100,7 +101,7 @@ test("a failed extraction renders a failed headline, preserved errors and a work
   const retained = renderToStaticMarkup(React.createElement(ActionProgress, { workflowId: "actual-workflow", threadIds: ["actual-thread"], title: "Extraction", requested, retrying: false, onRetry: async () => {} }));
   assert.match(retained, /Status transport unavailable/);
   assert.match(retained, /data-outcome="failed"/);
-  assert.match(retained, /fixture-one: missing verified operating_mode/, "a background status read failure must not erase known extraction errors");
+  assert.match(retained, /fixture-one: temporary provider unavailable/, "a background status read failure must not erase known extraction errors");
   buttons.find((button) => button.children === "Retry status read").onClick();
   assert.equal(readsRetried, 1);
 });
@@ -114,23 +115,32 @@ test("retry starts the saved conversations and chosen extractors after list sele
   assert.ok(run);
   const calls = [];
   let saved;
-  const context = { kind: "extract", threadIds: [], checked: new Set(["different-current-choice"]), startExtraction: { mutateAsync: async (input) => { calls.push(input); return { workflow_id: "new-workflow" }; } }, setStarted: (value) => { saved = value; }, onStarted: undefined };
+  const context = { kind: "extract", threadIds: [], retryTarget: null, checked: new Set(["different-current-choice"]), preflight: { data: { eligible: true, token: "shown-workload-token" }, isFetching: false }, setRetryTarget(value) { this.retryTarget = value; }, setChosen(value) { this.checked = value; }, setAdmissionError() {}, errorText: (error) => error.message, startExtraction: { mutateAsync: async (input) => { calls.push(input); return { workflow_id: "new-workflow" }; } }, setStarted: (value) => { saved = value; }, onStarted: undefined };
+  context.setRetryTarget = (value) => { context.retryTarget = value; };
+  context.setChosen = (value) => { context.checked = value; };
   const code = ts.transpileModule(`${run}\nglobalThis.retry = run`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   runInNewContext(code, context);
   await context.retry({ workflowId: "failed-workflow", threadIds: ["original-thread"], extractors: requested });
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), { threadIds: ["original-thread"], extractors: requested });
+  assert.equal(calls.length, 0, "retry first opens fresh workload confirmation");
+  await context.retry();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), { threadIds: ["original-thread"], extractors: requested, preflightToken: "shown-workload-token" });
   assert.equal(saved.workflowId, "new-workflow");
   assert.deepEqual(saved.threadIds, ["original-thread"]);
-  assert.equal(saved.previous[0].workflowId, "failed-workflow", "keep previous workflow tracking after an accepted retry");
   await context.retry({ workflowId: "partially-successful-workflow", runId: "parent-run", threadIds: ["original-thread"], extractors: requested }, [requested[1]]);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[1])), { threadIds: ["original-thread"], extractors: [requested[1]] });
+  await context.retry();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[1])), { threadIds: ["original-thread"], extractors: [requested[1]], preflightToken: "shown-workload-token" });
   context.threadIds = ["standalone-thread"];
+  context.retryTarget = null;
   await context.retry(undefined, [requested[2]]);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[2])), { threadIds: ["standalone-thread"], extractors: [requested[2]] }, "standalone controls use the same existing start mutation with exactly one extractor");
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[2])), { threadIds: ["standalone-thread"], extractors: [requested[2]], preflightToken: "shown-workload-token" }, "standalone controls use the same existing start mutation with exactly one extractor");
   saved = undefined;
   context.startExtraction.mutateAsync = async () => { throw new Error("Retry starter unavailable"); };
-  await assert.rejects(context.retry({ workflowId: "failed-workflow", threadIds: ["original-thread"], extractors: requested }), /Retry starter unavailable/);
+  await assert.rejects(context.retry(), /Retry starter unavailable/);
   assert.equal(saved, undefined, "failed retry must not replace the tracked failed workflow");
+  context.preflight.data = { eligible: false };
+  const before = calls.length;
+  await assert.rejects(context.retry(), /Refresh and inspect/);
+  assert.equal(calls.length, before, "permanent preflight blocker starts nothing");
 });
 
 test("single-conversation failed-extractor retry never selects successful, running or ambiguous stages", () => {

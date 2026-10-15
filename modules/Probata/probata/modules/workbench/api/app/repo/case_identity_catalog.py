@@ -87,3 +87,25 @@ def events(identifier: str, match_on: str, *, before: str | None = None, limit: 
         "has_more": more,
         "next_before": rows[-1]["event_ts_utc"].isoformat() if more and rows[-1].get("event_ts_utc") else None,
     }
+
+
+def overlap(identifier: str) -> dict[str, Any]:
+    """Read bounded provenance-key overlap between sender and counterparty filters.
+
+    Input: normalized identifier. Output: distinct-key union/intersection or explicit
+    truncation. Effects: SELECT only; use to explain non-additive catalog counts.
+    """
+    rows = intake_discovery._query(f"""SELECT dedup_key,
+        raw_duck.norm_phone(sender)=%s AS sender_match,
+        raw_duck.norm_phone(counterparty_phone)=%s AS counterparty_match
+        FROM {EVENTS} WHERE raw_duck.norm_phone(sender)=%s
+        OR raw_duck.norm_phone(counterparty_phone)=%s LIMIT 10001""", (identifier,)*4)
+    if len(rows) > 10000:
+        return {"available": False, "truncated": True, "limit": 10000, "reason": "More than 10,000 matching rows; unique overlap is not established"}
+    if any(not row.get("dedup_key") for row in rows):
+        return {"available": False, "reason": "Some catalog rows have no provenance record key"}
+    sender = {row["dedup_key"] for row in rows if row["sender_match"]}
+    counterparty = {row["dedup_key"] for row in rows if row["counterparty_match"]}
+    return {"available": True, "truncated": False, "unique_records": len(sender | counterparty),
+            "overlap": len(sender & counterparty), "sender": len(sender), "counterparty": len(counterparty),
+            "basis": "Distinct existing dedup_key values; no text comparison or record merge"}

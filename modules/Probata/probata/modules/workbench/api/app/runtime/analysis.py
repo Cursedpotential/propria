@@ -149,6 +149,8 @@ async def analysis_projections(request: Request, cursor: str = Query(default="",
             raise ProfferError("Analysis checkpoint catalog escaped its case or pagination bounds", 502)
         return {"items": [item.model_dump(mode="json") for item in items], "has_more": payload["has_more"], "next_cursor": next_cursor}
     except (ProfferError, MatterModeError) as error:
+        if isinstance(error, ProfferError) and error.status_code == 404:
+            return {"available": False, "reason": "The deployed analysis service does not expose the completed snapshot catalog. Snapshot selection and new queries are unavailable.", "items": [], "has_more": False, "next_cursor": ""}
         _fail(error)
 
 

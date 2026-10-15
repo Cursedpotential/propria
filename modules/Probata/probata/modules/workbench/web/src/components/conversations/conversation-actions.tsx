@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActionStatus, useExtractors, useStartExtraction, useStartSend } from "@/hooks/use-conversation-actions";
+import { useActionStatus, useExtractors, useExtractionPreflight, useStartExtraction, useStartSend } from "@/hooks/use-conversation-actions";
 import { useOperationNotifications } from "@/hooks/use-operation-notifications";
 import type { ExtractorInfo } from "@/lib/conversation-actions-client";
 import { conversationActionProgress, failedConversationExtractors } from "@/lib/conversation-action-progress";
@@ -36,6 +36,7 @@ function ActionProgress({ workflowId, runId, threadIds, title, requested, retryi
   const progress = result?.progress;
   useOperationNotifications(notify ? workflowId : undefined, status.data?.run_id ?? runId, progress?.outcome, title, status.data?.steps.filter((step) => step.status === "failed").map((step) => step.detail).filter(Boolean).join("; "));
   const failedExtractors = status.data ? failedConversationExtractors(status.data, threadIds, requested) : [];
+  const prerequisiteFailed = status.data?.steps.some((step) => /operating.mode|canonical writes unavailable|isolated data workspace/i.test(`${step.detail ?? ""} ${step.last_failure ?? ""}`));
   const readError = status.isError ? <div className="space-y-2"><p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm" role="alert">{errorText(status.error)}</p><Button variant="outline" disabled={status.isFetching} onClick={() => void status.refetch()}>Retry status read</Button></div> : null;
   if (!progress) return readError ?? <Skeleton className="h-24 w-full" />;
   return (
@@ -44,7 +45,8 @@ function ActionProgress({ workflowId, runId, threadIds, title, requested, retryi
       {readError}
       {result?.summary && <p role={progress.outcome === "failed" ? "alert" : "status"} className={cn("rounded border p-3 text-sm", progress.outcome === "failed" && "border-destructive/40 text-destructive")}>{result.summary}</p>}
       <WorkflowSteps progress={progress} title={title} />
-      {onRetry && status.data?.kind === "extraction" && ["failed", "partial"].includes(progress.outcome) && <div className="flex flex-wrap gap-2">
+      {prerequisiteFailed ? <p className="text-sm">This attempt failed a permanent admission prerequisite. Resolve the recorded operation mode before a new attempt.</p> : null}
+      {onRetry && !prerequisiteFailed && status.data?.kind === "extraction" && ["failed", "partial"].includes(progress.outcome) && <div className="flex flex-wrap gap-2">
         {failedExtractors.map((id) => <Button key={id} variant="outline" disabled={retrying} onClick={() => void onRetry([id]).catch(() => undefined)}>Retry failed {extractors.data?.extractors.find((entry) => entry.id === id)?.label ?? id}</Button>)}
         <Button variant="outline" disabled={retrying} onClick={() => void onRetry().catch(() => undefined)}>{retrying ? "Retrying…" : "Run selected extractors again"}</Button>
       </div>}
@@ -97,11 +99,15 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null);
   const [includeExtractions, setIncludeExtractions] = useState(true);
   const [started, setStarted] = useState<StartedAction | null>(null);
+  const [retryTarget, setRetryTarget] = useState<StartedAction | null>(null);
+  const [admissionError, setAdmissionError] = useState<string | null>(null);
   const startExtraction = useStartExtraction();
   const startSend = useStartSend();
 
   const defaults = useMemo(() => new Set((extractors.data?.extractors ?? []).filter((extractor) => extractor.default).map((extractor) => extractor.id)), [extractors.data]);
   const checked = chosen ?? defaults;
+  const selectedThreadIds = retryTarget?.threadIds ?? threadIds;
+  const preflight = useExtractionPreflight(selectedThreadIds, [...checked], kind === "extract" && !started);
   const pending = startExtraction.isPending || startSend.isPending;
   const error = startExtraction.error ?? startSend.error;
 
@@ -117,16 +123,28 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
    * Effects: clicked start POST only; preserves failed progress until retry is accepted.
    */
   async function run(previous?: NonNullable<typeof started>, onlyExtractors?: readonly string[]) {
-    const ids = previous?.threadIds ?? [...threadIds];
+    const ids = previous?.threadIds ?? retryTarget?.threadIds ?? [...threadIds];
     const selectedExtractors = onlyExtractors ? [...onlyExtractors] : previous?.extractors ?? [...checked];
+    if (previous && kind === "extract") {
+      setRetryTarget(previous);
+      setChosen(new Set(selectedExtractors));
+      setStarted(null);
+      return;
+    }
+    if (kind === "extract") {
+      setAdmissionError(null);
+      try {
+        if (!preflight.data?.eligible || !preflight.data.token || preflight.isFetching) throw new Error("Refresh and inspect the exact target preflight before confirming extraction.");
+      } catch (error) { setAdmissionError(errorText(error)); throw error; }
+    }
     const result = kind === "extract"
-      ? await startExtraction.mutateAsync({ threadIds: ids, extractors: selectedExtractors })
+      ? await startExtraction.mutateAsync({ threadIds: ids, extractors: selectedExtractors, preflightToken: preflight.data!.token })
       : await startSend.mutateAsync({ threadIds: ids, includeExtractions });
     setStarted({ workflowId: result.workflow_id, runId: result.run_id, threadIds: ids, extractors: selectedExtractors, previous: previous ? [...(previous.previous ?? []), { ...previous, previous: undefined }].slice(-8) : [] });
     onStarted?.();
   }
 
-  const count = threadIds.length;
+  const count = selectedThreadIds.length;
   const noun = `${count} conversation${count === 1 ? "" : "s"}`;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -140,6 +158,21 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
           </SheetDescription>
         </SheetHeader>
         <div className="space-y-3 px-4 pb-2">
+          {admissionError ? <p role="alert" className="text-sm text-destructive">{admissionError}</p> : null}
+          {kind === "extract" && !started ? <section className="space-y-2 rounded border p-3 text-xs" aria-label="Extraction preflight">
+            <h3 className="font-semibold">Exact selection and workload</h3>
+            {preflight.isPending ? <p role="status">Checking durable source admission and full-text sizes…</p> : preflight.isError ? <p role="alert">Preflight unavailable: {errorText(preflight.error)}</p> : preflight.data ? <>
+              {preflight.data.targets.map((target) => <details key={`${target.ref.export_key}:${target.ref.conv}`} open><summary className="break-all">{target.ref.export_key} · {target.ref.conv}</summary>
+                <p>{target.messages} messages · {target.characters.toLocaleString()} characters · {target.utf8_bytes.toLocaleString()} UTF-8 bytes. Largest message: {target.max_message_characters.toLocaleString()} characters / {target.max_message_utf8_bytes.toLocaleString()} bytes.</p>
+                <p>Acquisition relationships: {target.acquisition_relationships.join(", ") || "Unknown"}</p>
+                <ul className="break-all">{target.runs.map((run) => <li key={run.normalized_generation_id}>Operation {run.preview_handle} · source version {run.source_version_id} · generation {run.normalized_generation_id} · durable mode {run.matter_mode || "unknown"}</li>)}</ul>
+              </details>)}
+              <p>{preflight.data.cost_estimate}. {preflight.data.runtime_estimate}.</p>
+              <ul>{preflight.data.bounds.map((bound) => <li key={bound}>{bound}</li>)}</ul>
+              {preflight.data.blockers.map((blocker) => <p key={blocker} role="alert" className="text-destructive">{blocker}</p>)}
+              <p>Comparison-only candidates and Review proposals retain their existing rules. Extraction does not promote evidence.</p>
+            </> : null}
+          </section> : null}
           {started ? (
             <div className="space-y-3"><ActionProgress workflowId={started.workflowId} runId={started.runId} threadIds={started.threadIds} requested={started.extractors} retrying={pending} onRetry={(only) => run(started, only)} title={kind === "extract" ? "Extraction" : "Send to Surreal"} />
               {started.previous?.length ? <details><summary className="cursor-pointer text-sm">Previous attempts · {started.previous.length} retained here</summary><div className="mt-2 space-y-3">{started.previous.map((attempt) => <ActionProgress key={attempt.workflowId} workflowId={attempt.workflowId} runId={attempt.runId} threadIds={attempt.threadIds} requested={attempt.extractors} retrying={false} notify={false} title="Previous extraction attempt" />)}</div></details> : null}
@@ -151,7 +184,7 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
               <div className="space-y-2" role="group" aria-label="Extractors">
                 {extractors.data.extractors.map((extractor) => (
                   <div key={extractor.id} className="space-y-1"><ExtractorChoice extractor={extractor} checked={checked.has(extractor.id)} onChange={(next) => toggle(extractor.id, next)} />
-                    <Button size="sm" variant="outline" disabled={pending || !count} onClick={() => void run(undefined, [extractor.id]).catch(() => undefined)}>Run {extractor.label} only</Button>
+                    <Button size="sm" variant="outline" disabled={pending || !count} onClick={() => setChosen(new Set([extractor.id]))}>Choose {extractor.label} only</Button>
                   </div>
                 ))}
               </div>
@@ -171,7 +204,7 @@ export function ConversationActionSheet({ kind, threadIds, open, onOpenChange, o
             <Button
               type="button"
               className="h-12"
-              disabled={pending || count === 0 || (kind === "extract" && (checked.size === 0 || !extractors.data))}
+              disabled={pending || count === 0 || (kind === "extract" && (checked.size === 0 || !extractors.data || !preflight.data?.eligible || preflight.isFetching))}
               onClick={() => void run().catch(() => undefined)}
             >
               {pending ? "Starting" : kind === "extract" ? `Extract with ${checked.size} extractor${checked.size === 1 ? "" : "s"}` : `Send ${noun}`}

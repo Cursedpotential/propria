@@ -138,6 +138,13 @@ export interface ImportedMessage {
   body: string;
   sender: Participant;
   outgoing: boolean;
+  attribution?: {
+    raw_sender: string | null; raw_recipients: string[]; raw_participants: Record<string, unknown>[];
+    direction: "sent" | "received" | "unknown"; source_owner: string | null;
+    source_owner_basis: string; acquisition_basis: string; authorship_kind: string;
+    basis: string; status: string; scope: string; source_version_id: string | null;
+    generation_id: string | null; record_ordinal: number | null; preview_handle: string | null;
+  };
   party: "first_party" | "third_party" | null;
   attachments: number;
   certainty: string | null;
