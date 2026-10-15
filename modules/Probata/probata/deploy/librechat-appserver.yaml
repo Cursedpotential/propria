@@ -1,0 +1,52 @@
+# Run the preserved LibreChat application on the app server without rebuilding it.
+# Inputs: exact preloaded image tag, existing cloned session/encryption/gateway
+# secrets, app-server tailnet bind IP, and verified transferred data directories.
+# Outputs: the existing LibreChat HTTP API and login on private port 3080.
+# Effects: application writes only its own MongoDB and mapped upload/image/log
+# state after the separately approved cutover. Pick for the reviewed rehost;
+# deploy/librechat.yaml remains the preserved source-host rollback definition.
+# Admission: verify this local tag resolves to image ID
+# sha256:ae96409249f86ed19381a218dc85eddeb7d4ac0358a9e488a22a821d5100ca55.
+# No build or pull is permitted; no new search/RAG store or public router is added.
+# Owner-authorized migration preparation, Codex GPT-6.1-sol, 2026-10-15.
+services:
+  librechat:
+    image: platform-librechat:preserved-ae96409249f8
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "${BIND_IP:?set app-server tailnet IP}:3080:3080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3080"
+      MONGO_URI: mongodb://librechat-mongo:27017/LibreChat
+      CONFIG_PATH: /app/librechat.yaml
+      JWT_SECRET: ${JWT_SECRET:?preserve existing JWT secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?preserve existing refresh secret}
+      CREDS_KEY: ${CREDS_KEY:?preserve existing encryption key}
+      CREDS_IV: ${CREDS_IV:?preserve existing encryption IV}
+      PORTKEY_CHAT_CONFIG: ${PORTKEY_CHAT_CONFIG:?preserve existing Portkey configuration}
+      CONTEXTFORGE_MCP_TOKEN: ${CONTEXTFORGE_MCP_TOKEN:?preserve existing MCP token}
+      SEARCH: "false"
+      ALLOW_REGISTRATION: "false"
+      ALLOW_SOCIAL_LOGIN: "false"
+      NO_INDEX: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3080/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    labels:
+      traefik.enable: "false"
+    volumes:
+      - /mnt/data/probata/volumes/librechat/images:/app/client/public/images
+      - /mnt/data/probata/volumes/librechat/uploads:/app/uploads
+      - /mnt/data/probata/volumes/librechat/logs:/app/api/logs
+    networks:
+      - librechat
+      - probata
+networks:
+  librechat:
+  probata:
+    external: true
