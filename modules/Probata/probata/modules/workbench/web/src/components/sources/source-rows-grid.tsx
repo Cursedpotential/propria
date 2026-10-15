@@ -11,12 +11,13 @@ import {
   DataEditor,
   GridCellKind,
   type GridCell,
+  type DataEditorRef,
   type GridColumn,
   type GridSelection,
   type Item,
   type Theme,
 } from "@glideapps/glide-data-grid";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTheme } from "@/components/layout/theme-provider";
 import { SOURCE_STATE_LABEL, formatBytes, type SourceState } from "@/components/sources/source-state";
@@ -107,6 +108,8 @@ export function SourceRowsGrid({
   onSelectIndex,
   onToggleChecked,
   onReachEnd,
+  initialScrollRow = 0,
+  onScrollRowChange,
 }: {
   rows: readonly SourceGridRow[];
   selectedIndex: number;
@@ -114,9 +117,19 @@ export function SourceRowsGrid({
   onSelectIndex: (index: number) => void;
   onToggleChecked: (sourceRefs: string[]) => void;
   onReachEnd: () => void;
+  initialScrollRow?: number;
+  onScrollRowChange?: (row: number) => void;
 }) {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const [semantic, setSemantic] = useState(false);
+  const editor = useRef<DataEditorRef>(null);
+  const restoredScroll = useRef(false);
   const theme = useGridTheme(host);
+  useEffect(() => {
+    if (!theme || !rows.length || restoredScroll.current) return;
+    editor.current?.scrollTo(0, Math.min(initialScrollRow, rows.length - 1));
+    restoredScroll.current = true;
+  }, [initialScrollRow, rows.length, theme]);
 
   const getCellContent = useCallback(
     ([column, row]: Item): GridCell => {
@@ -129,7 +142,7 @@ export function SourceRowsGrid({
         if (column === 3) return SOURCE_STATE_LABEL[entry.state];
         return entry.unitMark;
       })();
-      return { kind: GridCellKind.Text, data: text, displayData: text, allowOverlay: false, readonly: true };
+      return { kind: GridCellKind.Text, data: text, displayData: text, allowOverlay: true, readonly: true };
     },
     [rows],
   );
@@ -173,9 +186,22 @@ export function SourceRowsGrid({
   );
 
   return (
-    <div ref={setHost} className="h-full min-h-0 w-full" data-testid="source-rows-grid">
-      {theme && (
-        <DataEditor
+    <div ref={setHost} className="flex h-full min-h-0 w-full flex-col" data-testid="source-rows-grid">
+      <div className="flex flex-wrap items-center gap-2 border-b p-2 text-xs">
+        <button type="button" className="rounded border px-2 py-1 focus-visible:outline-2 focus-visible:outline-primary" aria-pressed={semantic} onClick={() => setSemantic((value) => !value)}>{semantic ? "Use grid" : "Use accessible file list"}</button>
+        <span>{rows.length} files · Select a row to preview; check files for Process.</span>
+      </div>
+      {semantic ? <ul className="min-h-0 flex-1 space-y-2 overflow-auto p-2" aria-label="Source files">
+        {rows.map((row, index) => <li key={row.sourceRef} className="rounded border p-2">
+          <label className="flex items-start gap-2"><input type="checkbox" checked={checkedRefs.has(row.sourceRef)} aria-label={`Select ${row.name} for processing`}
+            onChange={(event) => onToggleChecked(event.target.checked ? [...checkedRefs, row.sourceRef] : [...checkedRefs].filter((ref) => ref !== row.sourceRef))} />
+            <button type="button" className="min-w-0 break-all text-left underline focus-visible:outline-2 focus-visible:outline-primary" aria-current={selectedIndex === index ? "true" : undefined} onClick={() => onSelectIndex(index)}>{row.name}</button></label>
+          <p className="mt-1 text-xs">Type: {row.name.includes(".") ? row.name.split(".").pop()?.toUpperCase() : "unknown"} · {formatBytes(row.byteLength)} · {SOURCE_STATE_LABEL[row.state]} {row.unitMark && `· ${row.unitMark}`}</p>
+          <p className="break-all text-[11px] text-muted-foreground">{row.sourceRef}</p>
+        </li>)}
+      </ul> : theme && (
+        <div className="min-h-0 flex-1"><DataEditor
+          ref={editor}
           width="100%"
           height="100%"
           columns={COLUMNS}
@@ -192,9 +218,10 @@ export function SourceRowsGrid({
           smoothScrollY
           keybindings={{ search: false }}
           onVisibleRegionChanged={(range) => {
-            if (range.y + range.height + PREFETCH_ROW_MARGIN >= rows.length) onReachEnd();
+            onScrollRowChange?.(Math.floor(range.y));
+            if (range.y > 0 && range.y + range.height + PREFETCH_ROW_MARGIN >= rows.length) onReachEnd();
           }}
-        />
+        /></div>
       )}
     </div>
   );

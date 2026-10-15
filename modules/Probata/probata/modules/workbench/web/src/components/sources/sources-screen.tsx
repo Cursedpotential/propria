@@ -18,13 +18,14 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Loader2, Play, Upload, X } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { SourceMetadataPanel, type SourceSelection } from "@/components/sources/source-metadata-panel";
 import { HumanProcessStatus } from "@/components/sources/human-process-status";
 import { humanContextAttribution, isSMSContextSource, type HumanContextProgress, type HumanContextSourceRequest } from "@/lib/human-context";
 import { mergeSourcePages, sourceContinuation } from "@/components/sources/source-pages";
+import { pinnedSourceRef, restoreSourceNavigation, saveSourceNavigation } from "@/components/sources/source-navigation";
 import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-rows-grid";
 import { SourceSearch } from "@/components/sources/source-search";
 import { ContextSearch } from "@/components/read/context-search";
@@ -75,7 +76,7 @@ export function SourcesScreen() {
   const searchParams = useBrowserSearchParams();
   const rootId = searchParams.get("root") ?? "";
   const linkedFile = searchParams.get("file") ?? "";
-  return <SourcesScreenMode key={`${mode}:${rootId}:${linkedFile}`} />;
+  return <SourcesScreenMode key={`${mode}:${rootId}:${searchParams.get("prefix") ?? ""}:${linkedFile}`} />;
 }
 
 function SourcesScreenMode() {
@@ -86,19 +87,23 @@ function SourcesScreenMode() {
   const rootId = searchParams.get("root") ?? "";
   const prefix = searchParams.get("prefix") ?? "";
   const linkedFile = searchParams.get("file") ?? "";
-  const [appliedFilter, setAppliedFilter] = useState(linkedFile);
-  const [selectedRef, setSelectedRef] = useState<string | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set());
+  const navigationKey = JSON.stringify([mode, rootId, prefix, linkedFile]);
+  const [restored] = useState(() => restoreSourceNavigation(navigationKey));
+  const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? linkedFile);
+  const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedFile || null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(restored ? restored.selectedFolder : searchParams.get("select_folder") === "1" ? prefix : null);
+  const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set(restored?.checkedRefs ?? []));
+  const [scrollRow, setScrollRow] = useState(restored?.scrollRow ?? 0);
   const [handlerOverride, setHandlerOverride] = useState("");
   const [perspectiveChoice, setPerspectiveChoice] = useState<SourcePerspectiveChoice | null>(null);
   const [aiProvider, setAIProvider] = useState<"" | "chatgpt" | "claude" | "gemini_markdown">("");
+  const [aiExportSelection, setAIExportSelection] = useState<string | null>(null);
   const [aiPending, setAIPending] = useState(false);
   const [aiError, setAIError] = useState<string | null>(null);
   const [aiWorkflow, setAIWorkflow] = useState<{ workflow_id: string; run_id: string; source_ref: string } | null>(null);
   const aiRequests = useRef(new Map<string, string>());
 
-  const [query, setQuery] = useState(linkedFile);
+  const [query, setQuery] = useState(restored?.query ?? linkedFile);
   const [showContentSearch, setShowContentSearch] = useState(false);
   const [searchSummary, setSearchSummary] = useState<string | null>(linkedFile ? `Recorded file location: ${linkedFile}` : null);
 
@@ -196,17 +201,14 @@ function SourcesScreenMode() {
   });
 
   const selectedObject = useMemo(
-    () => objects.find((object) => object.source_ref === selectedRef) ?? null,
-    [objects, selectedRef],
+    () => restored?.selectedRef === selectedRef && restored.selectedObject
+      ? restored.selectedObject : objects.find((object) => object.source_ref === selectedRef
+        || (selectedRef === linkedFile && linkedFile && (object.key === linkedFile || object.name === linkedFile))) ?? null,
+    [objects, restored, selectedRef, linkedFile],
   );
   const activeRootId = rootId || listing?.active_root_id || "";
 
-  const sourceVersionQuery = useQuery({
-    queryKey: ["sources", "provider-version", activeRootId, selectedObject?.source_ref, selectedObject?.etag],
-    queryFn: ({ signal }) => getProfferSourceVersion(selectedObject!, activeRootId, signal),
-    enabled: Boolean(aiProvider && selectedObject && activeRootId),
-    retry: false,
-  });
+
 
   const aiStatusQuery = useQuery({
     queryKey: ["sources", "ai-context", aiWorkflow?.workflow_id],
@@ -217,11 +219,26 @@ function SourcesScreenMode() {
   });
 
   const inspectionQuery = useQuery({
-    queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref],
-    queryFn: ({ signal }) => previewProfferSource(selectedObject!, mode, activeRootId, signal),
+    queryKey: ["sources", "inspection", mode, activeRootId, selectedObject?.source_ref, selectedObject?.etag, restored?.selectedRef === selectedRef ? restored.providerVersion : null],
+    queryFn: ({ signal }) => previewProfferSource(selectedObject!, mode, activeRootId, signal, restored?.selectedRef === selectedRef ? restored.providerVersion : null),
     enabled: Boolean(selectedObject && activeRootId),
     retry: false,
   });
+
+  const sourceVersionQuery = useQuery({
+    queryKey: ["sources", "provider-version", activeRootId, selectedObject?.source_ref, selectedObject?.etag, inspectionQuery.data?.provider_version_id],
+    queryFn: ({ signal }) => getProfferSourceVersion(selectedObject!, activeRootId, signal, inspectionQuery.data?.provider_version_id),
+    enabled: Boolean(aiProvider && selectedObject && aiExportSelection === selectedObject.source_ref && activeRootId && inspectionQuery.data),
+    retry: false,
+  });
+
+  useEffect(() => {
+    saveSourceNavigation(navigationKey, {
+      selectedRef: selectedObject?.source_ref ?? selectedRef, selectedFolder, checkedRefs: [...checkedRefs], selectedObject,
+      providerVersion: inspectionQuery.data?.provider_version_id ?? (restored?.selectedRef === selectedRef ? restored.providerVersion : null),
+      query, appliedFilter, scrollRow,
+    });
+  }, [navigationKey, selectedRef, selectedFolder, checkedRefs, selectedObject, inspectionQuery.data, restored, query, appliedFilter, scrollRow]);
 
   const manifestQuery = useQuery({
     queryKey: ["sources", "manifest", selectedObject?.source_ref],
@@ -292,7 +309,7 @@ function SourcesScreenMode() {
       })),
     [facts, memberUnits, objects],
   );
-  const selectedIndex = rows.findIndex((row) => row.sourceRef === selectedRef);
+  const selectedIndex = rows.findIndex((row) => row.sourceRef === (selectedObject?.source_ref ?? selectedRef));
 
   const proposal = proposalQuery.data ?? null;
   const markKind: SourceUnitKind = unitMarkKind || proposal?.looks_like || "other";
@@ -321,17 +338,23 @@ function SourcesScreenMode() {
     () => objects.filter((object) => checkedRefs.has(object.source_ref)),
     [checkedRefs, objects],
   );
-  const processTarget = localSource ? localSource.file.name : selectedFiles.length
+  const processTarget = showContentSearch ? null : localSource ? localSource.file.name : selectedFiles.length
     ? `${selectedFiles.length} file(s)`
     : selectedFolder
-      ? `folder ${selectedFolder}`
+      ? `folder ${selectedFolder} · recursive scope, at most 2,000 files per batch, derived outputs excluded; exact count unknown until inventory`
       : selectedObject
         ? selectedObject.name
         : null;
   const processFiles = selectedFiles.length ? selectedFiles : selectedObject ? [selectedObject] : [];
+  const unsupportedMedia = [localSource?.file.name, ...processFiles.map((object) => object.name)].filter((name): name is string => Boolean(name))
+    .some((name) => /\.(mp4|m4a|mp3|wav|ogg|webm|mov|avi|flac|aac)$/i.test(name) && detectedFormat(name) === "unknown_binary");
   const hasNativeProcessTarget = localSource
     ? isSMSContextSource(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name))
     : processFiles.some((object) => isSMSContextSource(object.name, handlerOverride || detectedFormat(object.name)));
+  const needsPerspective = localSource
+    ? requiresMessagePerspective(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name))
+    : processFiles.some((object) => requiresMessagePerspective(object.name, handlerOverride || detectedFormat(object.name)));
+  const canChooseAIProvider = Boolean(selectedObject && ["json", "zip", "md", "markdown"].includes(selectedObject.name.split(".").pop()?.toLowerCase() ?? ""));
   const perspectiveScope = sourcePerspectiveScope(mode, localSource
     ? [[localSource.requestId, null, localSource.file.size]]
     : processFiles.map((object) => [object.source_ref, object.etag, object.byte_length]));
@@ -346,13 +369,15 @@ function SourcesScreenMode() {
     setPerspectiveChoice(null);
     setSelectedRef(null);
     setSelectedFolder(null);
-    setSearchSummary(`Names and paths across this location: “${text}”.`);
-  }, [query]);
+    setCheckedRefs(new Set()); setLocalSource(null); setScrollRow(0);
+    setSearchSummary(`Names and paths across the entire selected location: “${text}”. Browsed folder: ${prefix || "root"}.`);
+  }, [query, prefix]);
 
   const clearSearch = useCallback(() => {
     setQuery("");
     setAppliedFilter("");
     setSearchSummary(null);
+    setSelectedRef(null); setSelectedFolder(null); setCheckedRefs(new Set()); setScrollRow(0);
   }, []);
 
   /** Browse an exact source location with a bookmarkable URL and fresh selection.
@@ -392,7 +417,7 @@ function SourcesScreenMode() {
    * Byline: Codex · GPT-6 · 2026-10-06.
    */
   async function process() {
-    if (processBusy.current) return;
+    if (processBusy.current || showContentSearch || !processTarget || unsupportedMedia) return;
     processBusy.current = true;
     setProcessing(true);
     setProcessError(null);
@@ -452,7 +477,8 @@ function SourcesScreenMode() {
               const humanAttribution = humanContextAttribution(registryPeople, perspectiveScope, perspectiveChoice);
               const key = JSON.stringify([humanCase, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, humanAttribution]);
               if (humanSubmissions.current.get(key)?.response) { accepted += 1; outcomes.push(`${object.name}: already submitted`); continue; }
-              const version = await getProfferSourceVersion(object, activeRootId);
+              const version = await getProfferSourceVersion(object, activeRootId, undefined,
+                object.source_ref === selectedObject?.source_ref ? inspectionQuery.data?.provider_version_id ?? restored?.providerVersion : undefined);
               await submitHumanSource({
                 contract_version: "context-v1", source_kind: "sms", source_ref: version.source_ref,
                 provider_version_id: version.provider_version_id, declared_format: "smsbackuprestore_xml",
@@ -465,12 +491,15 @@ function SourcesScreenMode() {
             }
             if (!matter || !primaryCourtCase) throw new Error("Legacy processing needs a fixed case.");
             const identity = processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, requiresMessagePerspective(object.name, format));
-            const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, identity]);
+            const inspected = inspectionQuery.data?.source_ref === object.source_ref ? inspectionQuery.data
+              : await previewProfferSource(object, mode, activeRootId, undefined, object.source_ref === selectedObject?.source_ref ? restored?.providerVersion : undefined);
+            const sourceRef = pinnedSourceRef(object.source_ref, inspected.provider_version_id);
+            const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, sourceRef, object.etag, object.byte_length, handlerOverride, identity]);
             let entry = submissions.current.get(key);
             if (!entry) {
               entry = { request: {
                 request_id: `proffer-${matter.id}-${crypto.randomUUID()}`,
-                source_ref: object.source_ref,
+                source_ref: sourceRef,
                 ...identity,
                 declared_format: format,
                 parser_options_ref: "pending-handler-selection/v1",
@@ -528,7 +557,7 @@ function SourcesScreenMode() {
    */
   async function addAIChatToContext() {
     const version = sourceVersionQuery.data;
-    if (!selectedObject || !version || !aiProvider || aiPending || version.source_ref !== selectedObject.source_ref) return;
+    if (!selectedObject || !version || !aiProvider || aiPending || aiExportSelection !== selectedObject.source_ref || version.source_ref !== selectedObject.source_ref) return;
     const identity = JSON.stringify([version.source_ref, version.provider_version_id, aiProvider]);
     const requestID = aiRequests.current.get(identity) ?? crypto.randomUUID();
     aiRequests.current.set(identity, requestID);
@@ -582,7 +611,10 @@ function SourcesScreenMode() {
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
         <Button size="sm" variant={showContentSearch ? "default" : "outline"}
-          aria-expanded={showContentSearch} onClick={() => setShowContentSearch((value) => !value)}>
+          aria-expanded={showContentSearch} onClick={() => {
+            setSelectedRef(null); setSelectedFolder(null); setCheckedRefs(new Set()); setLocalSource(null); setPerspectiveChoice(null);
+            setShowContentSearch((value) => !value);
+          }}>
           {showContentSearch ? "Back to files" : "Search content and relationships"}
         </Button>
         <input ref={fileInput} type="file" className="sr-only" aria-label="Choose a file to add" disabled={processing}
@@ -596,7 +628,7 @@ function SourcesScreenMode() {
             event.target.value = "";
           }} />
         <Button size="sm" variant="outline" disabled={processing} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" /> Add file</Button>
-        {(localSource || selectedFiles.length > 0 || (!selectedFolder && selectedObject)) && (
+        {needsPerspective && !showContentSearch && (
           <label className="flex items-center gap-2 text-[11px]">
             Whose phone/export?
             <select aria-label="Whose phone/export?" className="rounded border bg-background px-2 py-1"
@@ -614,24 +646,29 @@ function SourcesScreenMode() {
         )}
         <Button
           size="sm"
-          disabled={processing || !processTarget || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
+          disabled={processing || !processTarget || unsupportedMedia || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
           onClick={() => void process()}
         >
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          {uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
+          {unsupportedMedia ? "Original media can be inspected; no registered audio/video extractor is available in this Process route." : uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
+        {processFiles.length > 0 && !showContentSearch && <details className="max-w-full text-[11px]"><summary className="cursor-pointer">Exact processing target ({processFiles.length} file{processFiles.length === 1 ? "" : "s"}; no folder recursion)</summary><ul className="max-h-40 overflow-auto">{processFiles.map((object) => <li className="break-all" key={object.source_ref}>{object.name} · {object.source_ref} · {object.byte_length} bytes · ETag {object.etag ?? "not supplied"}</li>)}</ul></details>}
         {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => { setLocalSource(null); setPerspectiveChoice(null); }}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
         {humanWorkflows.map((workflow) => <HumanProcessStatus key={workflow.workflowID} workflowID={workflow.workflowID} name={workflow.name} mode={mode} />)}
         {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
         {processError && (
-          <span className="flex items-center gap-1 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
-            <AlertTriangle className="h-3 w-3" /> {processError}
-          </span>
+          <div className="text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
+            <p><AlertTriangle className="inline h-3 w-3" /> Processing request failed. Review the selected source and prerequisite details before submitting again.</p>
+            <details><summary className="cursor-pointer">Processing failure details</summary><pre className="max-h-40 max-w-full overflow-auto whitespace-pre-wrap break-all">{processError}</pre></details>
+          </div>
         )}
-        {selectedObject && !selectedFolder && !localSource && selectedFiles.length === 0 && (
+        {canChooseAIProvider && selectedObject && !selectedFolder && !localSource && selectedFiles.length === 0 && !showContentSearch && (
+          <details className="text-[11px]"><summary className="cursor-pointer">Additional source handlers</summary>
+          <label className="flex items-center gap-2 py-1"><input type="checkbox" checked={aiExportSelection === selectedObject.source_ref} onChange={(event) => { setAIExportSelection(event.target.checked ? selectedObject.source_ref : null); setAIProvider(""); }} />This selected file is an AI chat export</label>
+          {aiExportSelection === selectedObject.source_ref && (
           <div className="flex flex-wrap items-center gap-2 border-l pl-2 text-[11px]">
             <label htmlFor="ai-chat-provider">AI chat export</label>
             <select id="ai-chat-provider" aria-label="AI chat provider" className="rounded border bg-background px-2 py-1"
@@ -658,6 +695,8 @@ function SourcesScreenMode() {
               </span>
             )}
           </div>
+          )}
+          </details>
         )}
       </div>
 
@@ -678,12 +717,11 @@ function SourcesScreenMode() {
               browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
-              setPerspectiveChoice(null);
-              setLocalSource(null);
-              setCheckedRefs(new Set());
-              setSelectedFolder(nextFolder);
-              setSelectedRef(null);
-              setUnitMarkKind("");
+              if (nextFolder !== prefix) {
+                void router.navigate({ href: `/sources?${new URLSearchParams({ root: activeRootId, prefix: nextFolder, select_folder: "1", mode })}` });
+              } else {
+                clearSearch(); setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedFolder(nextFolder); setSelectedRef(null); setUnitMarkKind("");
+              }
             }}
           />
         </Panel>
@@ -712,13 +750,16 @@ function SourcesScreenMode() {
                       setHandlerOverride("");
                     }}
                     onToggleChecked={(refs) => { setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
-                    onReachEnd={() => { if (!nextPageError) loadNextPage(); }}
+                    onReachEnd={() => { if (!appliedFilter && !nextPageError) loadNextPage(); }}
+                    initialScrollRow={restored?.scrollRow ?? 0}
+                    onScrollRowChange={setScrollRow}
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2 border-t px-3 py-1 text-[11px]" role="status">
                   <span>
                     {nextPageError || continuation.issue ||
-                      (listingQuery.isFetchingNextPage ? "Loading more files…" :
+                      (listingQuery.isFetchingNextPage ? "Loading more files…" : appliedFilter ?
+                        `${rows.length} matches found${pages?.at(-1)?.search_complete ? "; search complete" : " so far; continue search to scan more"}. ${pages?.reduce((sum, page) => sum + page.scanned_count, 0) ?? 0} objects scanned.${pages?.at(-1)?.scan_limit_reached ? " Scan limit reached for this request." : ""}` :
                         continuation.complete ? `All ${rows.length} files in this location loaded.` :
                           `${rows.length} files loaded; more available.`)}
                   </span>
@@ -732,7 +773,8 @@ function SourcesScreenMode() {
               </>
             ) : (
               <div className="space-y-2 px-3 py-4 text-xs text-muted-foreground">
-                <p>{listingQuery.isPending ? "Loading files" : "No files on this page."}</p>
+                <p role="status">{listingQuery.isPending ? "Loading files" : appliedFilter ?
+                  `No matches found${pages?.at(-1)?.search_complete ? "; search complete" : " so far"}. Searching names and paths across the entire selected location, not only the browsed folder.` : "No files on this page."}</p>
                 {listingError && <Button size="sm" variant="outline" onClick={() => void listingQuery.refetch()}>Retry</Button>}
                 {continuation.token && (
                   <Button size="sm" variant="outline" disabled={listingQuery.isFetchingNextPage}
@@ -753,6 +795,7 @@ function SourcesScreenMode() {
             inspection={inspectionQuery.data ?? null}
             inspectionLoading={inspectionQuery.isFetching}
             inspectionError={inspectionQuery.error ? errorText(inspectionQuery.error) : null}
+            onRetryInspection={() => void inspectionQuery.refetch()}
             manifest={manifestQuery.data ?? null}
             runs={selectedObject ? runsIndex.get(selectedObject.source_ref) ?? [] : []}
             provenance={provenanceQuery.data ?? null}

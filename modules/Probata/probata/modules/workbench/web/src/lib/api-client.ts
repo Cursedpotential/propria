@@ -815,12 +815,13 @@ export function listProfferSources(params: {
  * Inputs: listed source, root ID and mode label. Output: ETag-pinned reader URL.
  * Effect: metadata GET; use for selection, leaving processing to its own action.
  */
-export function previewProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal) {
+export function previewProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal, expectedVersion?: string | null) {
   const query = new URLSearchParams({
     mode, root_id: rootId, key: source.key, source_ref: source.source_ref,
     expected_byte_length: String(source.byte_length),
   });
   if (source.etag) query.set("expected_etag", source.etag);
+  if (expectedVersion) query.set("expected_provider_version_id", expectedVersion);
   return apiFetch<ProfferSourcePreview>(`/api/proffer/source-inspection?${query.toString()}`, {
     signal,
   }).then((response) => {
@@ -843,6 +844,7 @@ export async function getProfferSourceText(inspection: ProfferSourcePreview, sig
     signal, headers: { Range: `bytes=0-${end}` },
   });
   if (response.status !== 206 || response.headers.get("ETag") !== inspection.etag
+      || (inspection.provider_version_id && response.headers.get("X-Source-Version-Id") !== inspection.provider_version_id)
       || response.headers.get("Content-Range") !== `bytes 0-${end}/${inspection.byte_length}`
       || response.headers.get("Content-Length") !== String(end + 1)) {
     await response.body?.cancel();
@@ -875,15 +877,16 @@ export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMo
  * Inputs: listed source and root ID. Output: source/version/size/ETag metadata.
  * Effect: one B2 HEAD through the BFF, no body read; use before AI context start.
  */
-export function getProfferSourceVersion(source: ProfferSourceObject, rootId: string, signal?: AbortSignal) {
+export function getProfferSourceVersion(source: ProfferSourceObject, rootId: string, signal?: AbortSignal, expectedVersion?: string | null) {
   return apiFetch<{ source_ref: string; provider_version_id: string; byte_length: number; etag: string }>("/api/proffer/source-version", {
     method: "POST", signal, headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       key: source.key, source_ref: source.source_ref, root_id: rootId,
       expected_byte_length: source.byte_length, expected_etag: source.etag ?? null,
+      expected_provider_version_id: expectedVersion ?? null,
     }),
   }).then((response) => {
-    if (response.source_ref !== source.source_ref || response.byte_length !== source.byte_length || !response.provider_version_id) {
+    if (response.source_ref !== source.source_ref || response.byte_length !== source.byte_length || !response.provider_version_id || (expectedVersion && response.provider_version_id !== expectedVersion)) {
       throw new ApiError("The source version did not confirm the selected B2 object", 502);
     }
     return response;

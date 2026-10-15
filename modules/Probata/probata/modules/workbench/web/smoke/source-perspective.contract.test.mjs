@@ -12,12 +12,13 @@ function loadHelpers(path) {
   const module = { exports: {} };
   runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module, exports: module.exports, Error });
+  }).outputText, { module, exports: module.exports, Error, URL });
   return module.exports;
 }
 const { confirmedCaseOwner, sourcePerspectiveScope, processingIdentity, requiresMessagePerspective } = loadHelpers("../src/components/sources/source-perspective.ts");
 const { isSMSContextSource, humanContextAttribution } = loadHelpers("../src/lib/human-context.ts");
 const { processSelection } = loadHelpers("../src/components/sources/process-selection.ts");
+const { pinnedSourceRef } = loadHelpers("../src/components/sources/source-navigation.ts");
 const people = [
   { id: "other-person", role_in_case: "co_parent", verification_state: "confirmed" },
   { id: "registry-owner", role_in_case: "user", verification_state: "confirmed" },
@@ -35,9 +36,9 @@ test("checked files expose the source perspective choice even while a folder rem
   }
   visit(ast);
   assert.ok(condition);
-  assert.equal(Boolean(runInNewContext(condition, { localSource: null, selectedFiles: [{}], selectedFolder: "folder/", selectedObject: null })), true);
-  assert.equal(Boolean(runInNewContext(condition, { localSource: null, selectedFiles: [], selectedFolder: "folder/", selectedObject: null })), false);
-  assert.equal(Boolean(runInNewContext(condition, { localSource: { file: {} }, selectedFiles: [], selectedFolder: "folder/", selectedObject: null })), true);
+  assert.equal(Boolean(runInNewContext(condition, { needsPerspective: true, showContentSearch: false })), true);
+  assert.equal(Boolean(runInNewContext(condition, { needsPerspective: false, showContentSearch: false })), false);
+  assert.equal(Boolean(runInNewContext(condition, { needsPerspective: true, showContentSearch: true })), false);
 });
 
 /** Execute the real Sources Process callback with bounded transport stubs.
@@ -64,16 +65,18 @@ function processHarness(overrides = {}) {
   const scope = sourcePerspectiveScope("LIVE", [[file.source_ref, file.etag, file.byte_length]]);
   const context = {
     matter: { id: "matter-registry" }, primaryCourtCase: { id: "court-registry" }, mode: "LIVE",
-    processBusy: { current: false }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
+    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
     registryPeople: people, perspectiveScope: scope, perspectiveChoice: { scope, personId: "registry-owner" },
     localSource: null, processFiles: [file], selectedFiles: [], selectedObject: file, selectedFolder: null,
     submissions: { current: new Map() }, handlerOverride: "", runsQuery: { refetch() {} },
     humanSubmissions: { current: new Map() }, activeRootId: "actual-root",
+    inspectionQuery: { data: null }, restored: null,
     setHumanWorkflows: (update) => { const next = update(workflows); workflows.splice(0, workflows.length, ...next); },
-    processingIdentity, requiresMessagePerspective, isSMSContextSource, humanContextAttribution, processSelection,
+    processingIdentity, requiresMessagePerspective, isSMSContextSource, humanContextAttribution, processSelection, pinnedSourceRef,
     detectedFormat: () => "xml", URLSearchParams,
     crypto: { randomUUID: () => `request-${requests.length + humanRequests.length}` }, errorText: (error) => error.message,
-    getProfferSourceVersion: async (object, root) => { versions.push({ object, root }); return { source_ref: object.source_ref, provider_version_id: object.etag, etag: object.etag, byte_length: object.byte_length }; },
+    getProfferSourceVersion: async (object, root, signal, expectedVersion) => { versions.push({ object, root, expectedVersion }); return { source_ref: object.source_ref, provider_version_id: object.etag, etag: object.etag, byte_length: object.byte_length }; },
+    previewProfferSource: async (object) => ({ source_ref: object.source_ref, provider_version_id: null }),
     startHumanContextSource: async (request, key) => { humanRequests.push(request); humanKeys.push(key); return { workflow_id: `native-${humanRequests.length}`, run_id: `run-${humanRequests.length}` }; },
     startProffer: async (request) => { requests.push(request); return { preview_handle: "same-handle" }; },
     Error,
@@ -88,6 +91,25 @@ test("owner comes from unique confirmed registry user, never first person or can
   assert.equal(confirmedCaseOwner(people).id, "registry-owner");
   assert.equal(confirmedCaseOwner([...people, { id: "candidate", role_in_case: "user", verification_state: "candidate" }]).id, "registry-owner");
   assert.equal(confirmedCaseOwner([...people, { id: "ambiguous", role_in_case: "user", verification_state: "confirmed" }]), null);
+});
+
+test("content search and unsupported media disarm processing before any source/version or starter call", async () => {
+  for (const change of [{ showContentSearch: true }, { unsupportedMedia: true }, { processTarget: null }]) {
+    const harness = processHarness(change);
+    await harness.invoke();
+    assert.equal(harness.requests.length, 0);
+    assert.equal(harness.humanRequests.length, 0);
+    assert.equal(harness.versions.length, 0);
+  }
+});
+
+test("native start resolves the inspected immutable version and legacy start retains it in the supported locator", async () => {
+  const native = processHarness({ inspectionQuery: { data: { provider_version_id: "inspected-version" } } });
+  await native.invoke();
+  assert.equal(native.versions[0].expectedVersion, "inspected-version");
+  const legacy = processHarness({ detectedFormat: () => "pdf", inspectionQuery: { data: { source_ref: "b2://bucket/sms-20251102230302.xml", provider_version_id: "retained+/version" } } });
+  await legacy.invoke();
+  assert.equal(new URL(legacy.requests[0].source_ref).searchParams.get("versionId"), "retained+/version");
 });
 
 test("native SMS Process forwards exact source version, registry owner and explicit perspective without legacy admission", async () => {

@@ -108,7 +108,8 @@ export function SourceTree({
                     <button
                       type="button"
                       className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left hover:text-primary"
-                      onClick={() => onSelectFolder(entry.prefix)}
+                      onClick={() => onPrefixChange(entry.prefix)}
+                      aria-label={`Browse folder ${entry.name}`}
                       title={entry.prefix}
                     >
                       <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -122,10 +123,11 @@ export function SourceTree({
                     <button
                       type="button"
                       className="shrink-0 px-1 py-1.5 text-muted-foreground hover:text-primary"
-                      aria-label={`Open folder ${entry.name}`}
-                      onClick={() => onPrefixChange(entry.prefix)}
+                      aria-label={`Select folder ${entry.name} for processing`}
+                      aria-pressed={selected}
+                      onClick={() => onSelectFolder(entry.prefix)}
                     >
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      Select
                     </button>
                   </div>
                 </li>

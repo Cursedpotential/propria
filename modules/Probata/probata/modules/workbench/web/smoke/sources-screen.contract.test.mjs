@@ -102,7 +102,7 @@ test("Process is one button and never auto-starts, and no sort or mark gates it"
   assert.ok(clicked);
   assert.equal(processCalls.length, 1, "Process is invoked only by its button, never automatically");
   assert.ok(processCalls[0].pos >= clicked.pos && processCalls[0].end <= clicked.end);
-  const ready = { processing: false, processTarget: "selected-file", hasNativeProcessTarget: false, matter: { id: "existing-matter" }, primaryCourtCase: { id: "existing-case" } };
+  const ready = { processing: false, processTarget: "selected-file", unsupportedMedia: false, hasNativeProcessTarget: false, matter: { id: "existing-matter" }, primaryCourtCase: { id: "existing-case" } };
   const isDisabled = (changes = {}) => runInNewContext(disabled.getText(ast), { ...ready, ...changes });
   assert.equal(isDisabled(), false);
   assert.equal(isDisabled({ processing: true }), true);
