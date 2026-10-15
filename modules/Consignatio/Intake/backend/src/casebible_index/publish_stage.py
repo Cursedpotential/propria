@@ -94,24 +94,32 @@ def _ledger_relation(output_dir: Path) -> str | None:
 
 
 def _ready_vectors(output_dir: Path, slots: list[VectorSlot]) -> list[str] | None:
-    """One relation per slot of good vectors, or None when any slot has none yet."""
+    """Return metadata-only good-vector relations, or None when a slot has no shards.
+
+    Inputs are the lake and enabled slots; output is one hash relation per slot.
+    Reads Parquet metadata without embedding payloads. Use for candidate readiness;
+    ``pending_batch_sql`` reads payloads only after selecting a bounded batch.
+    """
     relations = []
     for slot in slots:
         folder = vectors_dir(output_dir, slot.name)
         if not (folder.is_dir() and any(folder.glob("*.parquet"))):
             return None
         relations.append(
-            f"(SELECT content_hash, embedding, model FROM "
+            f"(SELECT DISTINCT content_hash FROM "
             f"read_parquet('{_posix(folder / '*.parquet')}', "
-            f"union_by_name = true) WHERE status IN ('ok', 'truncated') "
-            f"QUALIFY row_number() OVER (PARTITION BY content_hash ORDER BY embedded_at DESC) = 1)"
+            f"union_by_name = true) WHERE status IN ('ok', 'truncated'))"
         )
     return relations
 
 
 def pending_batch_sql(output_dir: Path, slots: list[VectorSlot], limit: int) -> str | None:
-    """SQL returning up to ``limit`` chunk rows, one per (chunker_version, content_hash), with one
-    vector per slot."""
+    """Return SQL for bounded, unpublished chunk identities with their newest good vectors.
+
+    Inputs are the lake, enabled slots and row cap; output is SQL or None if inputs
+    are absent. Reads only metadata while picking candidates, then limits payload
+    ranking to their hashes. Use for publication rather than relocation.
+    """
     vectors = _ready_vectors(output_dir, slots)
     if vectors is None or not any((output_dir / "datasets" / "chunks").glob("*.parquet")):
         return None
@@ -135,11 +143,27 @@ def pending_batch_sql(output_dir: Path, slots: list[VectorSlot], limit: int) -> 
     vector_columns = ", ".join(
         f"v{i}.embedding AS vec_{i}, v{i}.model AS model_{i}" for i in range(len(vectors))
     )
+    vector_ctes = ", ".join(
+        f"""v{i}_ready AS (
+            SELECT v.content_hash, v.embedding, v.model
+            FROM read_parquet('{_posix(vectors_dir(output_dir, slot.name) / '*.parquet')}',
+                              union_by_name = true) v
+            SEMI JOIN selected_hashes h USING (content_hash)
+            WHERE v.status IN ('ok', 'truncated')
+            QUALIFY row_number() OVER (
+                PARTITION BY v.content_hash ORDER BY v.embedded_at DESC
+            ) = 1
+        )"""
+        for i, slot in enumerate(slots)
+    )
     vector_joins = " ".join(
-        f"JOIN {v} v{i} ON v{i}.content_hash = c.content_hash" for i, v in enumerate(vectors)
+        f"JOIN v{i}_ready v{i} ON v{i}.content_hash = c.content_hash"
+        for i in range(len(vectors))
     )
     return f"""
-        WITH picked AS ({picks})
+        WITH picked AS MATERIALIZED ({picks}),
+             selected_hashes AS MATERIALIZED (SELECT DISTINCT content_hash FROM picked),
+             {vector_ctes}
         SELECT c.* EXCLUDE (embedding), {vector_columns}
         FROM {chunks} c
         JOIN picked k ON c.chunker_version = k.chunker_version AND c.content_hash = k.content_hash
@@ -173,6 +197,8 @@ async def publish_pending(
     more = False
     try:
         con.execute("SET memory_limit='1GB'")
+        con.execute("SET threads=1")
+        con.execute("SET preserve_insertion_order=false")
         reader = con.execute(sql).fetch_record_batch(FETCH_ROWS)
         indexed_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         models = [s.model for s in slots]
