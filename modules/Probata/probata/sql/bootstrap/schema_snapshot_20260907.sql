@@ -1478,15 +1478,32 @@ BEGIN
       AND verification.observed->>'duckdb_template'=CASE detected.format_id
           WHEN 'smsbackuprestore_xml' THEN 'sms_xml_v1' WHEN 'csv' THEN 'csv_v1'
           WHEN 'ndjson' THEN 'ndjson_v1' WHEN 'chatgpt_official_json' THEN 'chatgpt_json_array_v1'
+          WHEN 'claude_ai_export_json' THEN CASE WHEN NEW.format_id IN
+              ('chatgpt_official_json','chatgpt_json_array','chatgpt_conversations_json','claude_ai_export_json','claude_conversations_json','gemini_activity_json','ai_markdown_transcript','ai_chat_file','ai_generic_json','ai_conversations_json')
+              AND EXISTS (SELECT 1 FROM context.activity_receipt selected
+                  JOIN context.activity_execution selected_execution ON selected_execution.id=selected.activity_execution_id
+                  WHERE selected.status='success' AND selected_execution.source_version_id=NEW.source_version_id
+                    AND selected_execution.workflow_id=source.workflow_id
+                    AND selected_execution.activity_name='select_parser_activity'
+                    AND selected.completed_at<=NEW.created_at
+                    AND selected.result_ref->>'parser_id'=NEW.parser_id
+                    AND selected.result_ref->>'parser_version'=NEW.parser_version
+                    AND selected.result_ref->>'declared_format'=NEW.format_id
+                    AND selected.result_ref->>'duckdb_template'='claude_ai_export_json_v1')
+              THEN 'claude_ai_export_json_v1' ELSE NULL END
           WHEN 'messages_transcript' THEN 'imessage_text_v1' ELSE NULL END
     LIMIT 1;
     IF context_template IS NOT NULL THEN
         EXECUTE format('SELECT count(*)>0 AND bool_and(raw.stored_bytes IS NOT NULL
-            AND raw.locator_object_id IS NULL AND raw.record_status=''parsed''
+            AND raw.locator_object_id IS NULL AND (raw.record_status=''parsed'' OR
+                ($2=''claude_ai_export_json_v1''
+                 AND $3 IN (''chatgpt_official_json'',''chatgpt_json_array'',''chatgpt_conversations_json'',''claude_ai_export_json'',''claude_conversations_json'',''gemini_activity_json'',''ai_markdown_transcript'',''ai_chat_file'',''ai_generic_json'',''ai_conversations_json'')
+                 AND raw.record_status IN (''envelope'',''unknown'',''malformed'',''rejected'',''unparsed'')
+                 AND length(trim(COALESCE(raw.status_reason,'''')))>0))
             AND COALESCE(subtype.native_metadata->>''duckdb_template'','''')=$2)
             FROM context.raw_record_identity raw LEFT JOIN %I.%I subtype ON subtype.raw_record_id=raw.id
             WHERE raw.raw_generation_id=$1', 'context', 'raw_' || NEW.format_id)
-            INTO context_rows_valid USING NEW.id, context_template;
+            INTO context_rows_valid USING NEW.id, context_template, NEW.format_id;
     END IF;
     IF EXISTS (
         SELECT 1

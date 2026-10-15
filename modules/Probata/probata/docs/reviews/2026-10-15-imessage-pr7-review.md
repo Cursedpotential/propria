@@ -52,6 +52,27 @@ Verification after this fix: `go test ./sourceformat ./postgres -count=1` passed
 (sourceformat 7.890s; postgres 15.295s), and `git diff --check` passed.
 Fresh PostgreSQL initialization and live database application were not performed.
 
+Codex comment 4286700829 exposed the downstream Claude sealing gap. The snapshot
+now includes the Claude-only transition-guard branch and accounted-row exception
+from the existing live delta, including its declared-format whitelist, successful
+source/workflow/parser/template/time-bound selection, and nonblank status reasons.
+Other receipt and fingerprint safeguards remain intact; ChatGPT v2 is outside scope.
+
+Comment 4286700842 is a false positive: SBV's findNodeClass checks the current node
+before descendants (vendored internal/messaging_html_importers.go:341-346).
+The actual adapter test TestAdapterAcceptsIMessageDirectionOnMessage proves that
+div.message.sent produces a parsed message with body hello and sender self.
+The detector keeps this parser-supported layout; a positive fixture protects it.
+
+Final validation of these follow-ups:
+- go test ./sourceformat ./postgres ./adapters/sbv -count=1: all pass (8.889s, 16.615s, 1.431s).
+- tests/test_claude_bootstrap_guard.py: pass (1.08s), 12 selection and 16 row-proof scenarios.
+  Exact expressions extracted from the snapshot ran in PostgreSQL 18.1 on ovh-files
+  through psql in BEGIN READ ONLY / ROLLBACK. Synthetic CTEs only, no schema or data writes.
+  This verifies expression behavior, not full trigger integration or fresh bootstrap.
+- Ruff check and formatting of the new Python test pass; git diff --check passes.
+- Independent read-only review found no introduced defects.
+
 Prior memory supplied the PR and parser pointers; current GitHub metadata and local
 code independently verified them. Docstore related-update preflight completed with
 partial literal-search coverage. This local receipt has not been indexed in Docstore.

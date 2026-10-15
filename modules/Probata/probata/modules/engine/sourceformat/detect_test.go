@@ -16,6 +16,7 @@ func TestDetectIMessageHTMLRoutesSpecificExports(t *testing.T) {
 		{"owner export", "\n        " + `<!DOCTYPE html><html><body><div class='bubble from-me'>Hi</div><div class='meta'>Sender - time</div></body></html>`, "imessage_html"},
 		{"stock export", `<html><body><div class="message"><div class="sent"><span class="timestamp">time</span></div></div></body></html>`, "imessage_html"},
 		{"received export", `<html><div class='message'><div class='received'><span class='sender'>Alice</span></div></div></html>`, "imessage_html"},
+		{"same-node direction supported by SBV", `<html><div class="message sent"><span class="timestamp">time</span><span class="bubble">hello</span></div></html>`, "imessage_html"},
 		{"unrelated stock classes", `<html><div class='message'>Notice</div><div class='sent'>Status</div><span class='timestamp'>time</span></html>`, "generic_html_document"},
 		{"metadata outside direction", `<html><div class='message'><div class='sent'>Hi</div><span class='timestamp'>time</span></div></html>`, "generic_html_document"},
 		{"metadata in another message", `<html><div class='message'><div class='sent'>Hi</div></div><div class='message'><span class='timestamp'>time</span></div></html>`, "generic_html_document"},
