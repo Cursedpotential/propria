@@ -182,6 +182,25 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** Start one source-pinned, read-only Temporal tool action via the Workbench BFF.
+ * Input: reviewed locator/digest, catalog tool/options and stable click key.
+ * Output: actual workflow/run IDs. Effect: schedules one governed Activity.
+ */
+export async function startSourcePinnedToolAction(body: { tool_id: string; source_ref: string; source_sha256: string; args: Record<string, unknown> }, idempotencyKey: string): Promise<{ workflow_id: string; run_id: string }> {
+  return apiFetch("/api/atomic-tool-actions", {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Read actor-bound Temporal status and content-store/audit references.
+ * Input: a workflow ID returned by start. Output: bounded progress metadata.
+ * Effect: read only; choose this over polling an unimplemented monitor route.
+ */
+export async function getSourcePinnedToolStatus(workflowID: string): Promise<{ workflow_id: string; outcome: string; error?: string; result?: { tool_id: string; operation_id: string; audit_chain_head: string; result_ref: string; result_size: number; source_sha256: string } }> {
+  return apiFetch(`/api/atomic-tool-actions/${encodeURIComponent(workflowID)}`);
+}
+
 export async function getHealth() {
   return apiFetch<{ status: string }>("/health");
 }

@@ -53,6 +53,51 @@ def test_gateway_writes_and_verifies_execution_audit(tmp_path: Path) -> None:
     assert verified["entries"] == 2
 
 
+def test_temporal_tool_result_is_always_a_content_reference(tmp_path: Path) -> None:
+    """Keep even a tiny source-derived result out of durable Temporal history."""
+    from server.tools.gateway.content_store import ContentStore
+
+    source = tmp_path / "source.csv"
+    source.write_text("name,value\na,1\n", encoding="utf-8")
+    store = ContentStore(tmp_path / "gateway")
+    result = execute_tool(
+        "repair.detect", {"path": str(source), "_execution_mode": "temporal", "_operation_id": "test-temporal-ref"},
+        store=store,
+    )
+    assert result["inline"] is False
+    assert result["ref"].startswith("sha256:")
+    assert "result" not in result
+    assert store.exists(result["ref"].split(":", 1)[1])
+
+
+def test_temporal_tool_error_envelope_fails_instead_of_storing_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject a tool's top-level failure envelope before recording success or writing a result ref.
+
+    Inputs: fake read-only tool returning an error envelope. Outputs: raised error
+    and failed audit event. Effects: temporary test files only; use for the
+    Temporal gateway path rather than nested per-record repair diagnostics.
+    """
+    from server.tools.gateway.content_store import ContentStore
+
+    class FailedTool:
+        id = "repair.detect"
+        capability = "repair.detect"
+        execution_policy = "manual_or_auto"
+        side_effect = "read_only"
+
+        def run(self, _payload: dict) -> dict:
+            return {"ok": False, "error": "source unavailable"}
+
+    load_builtin_tools()
+    monkeypatch.setattr(registry, "get", lambda _tool_id: FailedTool())
+    store = ContentStore(tmp_path / "gateway")
+    with pytest.raises(RuntimeError, match="failed result"):
+        execute_tool("repair.detect", {"_execution_mode": "temporal", "_operation_id": "failed-temporal"}, store=store)
+    ledger = (store.root / "audit" / "tool-executions.jsonl").read_text(encoding="utf-8")
+    assert '"status":"failed"' in ledger
+    assert '"status":"completed"' not in ledger
+
+
 def test_execution_audit_detects_tampering(tmp_path: Path) -> None:
     from server.tools.gateway.execution_audit import append_event, verify_ledger
 

@@ -75,8 +75,13 @@ def _passthrough_tool(tool: dict) -> dict:
 
 
 def list_tools() -> list[dict]:
-    """Return one entry per configured server: {key, label, tools} or {key, label, error}."""
-    entries: list[dict] = []
+    """Return executable servers and safe diagnostics for rejected configuration.
+
+    Inputs: the parsed MCP configuration. Outputs: catalog tool or error entries.
+    Effects: read-only MCP discovery. Choose for the operator catalog; a rejected
+    door never becomes callable through _find_server.
+    """
+    entries: list[dict] = list(settings.mcp_server_configuration_errors)
     for server in settings.mcp_servers_parsed:
         key = server.get("key", "")
         label = server.get("label", key)

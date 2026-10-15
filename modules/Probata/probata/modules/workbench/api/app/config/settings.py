@@ -223,6 +223,13 @@ class Settings(BaseSettings):
         return allowed_servers
 
     @property
+    def mcp_server_configuration_errors(self) -> list[dict[str, str]]:
+        """Return safe MCP catalog diagnostics without making a rejected door callable."""
+        from app.config.mcp_diagnostics import configuration_errors
+
+        return configuration_errors(self.mcp_servers, self.mcp_direct_bypass_allowed)
+
+    @property
     def trusted_auth_proxy_cidrs_parsed(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
         """Parse TRUSTED_AUTH_PROXY_CIDRS into a list of IP networks.
 
