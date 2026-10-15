@@ -65,6 +65,7 @@ x-superindex-env: &superindex-env
   # Add `legal` to INTAKE_VECTOR_SLOTS and set INTAKE_VECTOR_LEGAL_MODEL (+ _DIMENSIONS, _BASE_URL, _KEY_SECRET,
   # _STYLE) once the legal embedder is chosen; nothing else changes.
   NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   NIM_BASE_URL: ${NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
   NIM_EMBED_MODEL: ${NIM_EMBED_MODEL:-nvidia/nemotron-3-embed-1b}
   NIM_EMBED_DIMENSIONS: ${NIM_EMBED_DIMENSIONS:-2048}
@@ -108,10 +109,12 @@ x-superindex-env: &superindex-env
   INTAKE_IMAGES_CLIP: ${INTAKE_IMAGES_CLIP:-0}
   INTAKE_IMAGES_PHOTO_TIER: ${INTAKE_IMAGES_PHOTO_TIER:-all}
   INTAKE_IMAGES_OCR_ENGINE: ${INTAKE_IMAGES_OCR_ENGINE:-tesseract}
-  # Optional hosted visual classifier. Off until bounded acceptance is verified; uses the
-  # existing NVIDIA_API_KEY binding. Requires two hash-checked derived references under the
-  # attached output lake; a missing manifest fails closed. Facts caps calls per slice at five.
+  # Optional hosted visual classifier. Off until bounded acceptance is verified. Explicitly
+  # select NIM or OpenRouter Decisions; there is no automatic provider fallback. Both require
+  # two hash-checked derived references under the output lake and cap calls at five per slice.
   INTAKE_IMAGES_SCREENSHOT_CLASSIFIER: ${INTAKE_IMAGES_SCREENSHOT_CLASSIFIER:-off}
+  INTAKE_IMAGES_SCREENSHOT_PROVIDER: ${INTAKE_IMAGES_SCREENSHOT_PROVIDER:-nvidia-nim}
+  INTAKE_IMAGES_SCREENSHOT_MODEL: ${INTAKE_IMAGES_SCREENSHOT_MODEL:-}
   INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS: ${INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS:-5}
   INTAKE_IMAGES_SCREENSHOT_REFERENCE_MANIFEST: ${INTAKE_IMAGES_SCREENSHOT_REFERENCE_MANIFEST:-}
   INTAKE_IMAGES_SLICE_FILES: ${INTAKE_IMAGES_SLICE_FILES:-40}

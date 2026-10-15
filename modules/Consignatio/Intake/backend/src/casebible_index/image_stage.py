@@ -50,9 +50,10 @@ from .image_embedders import SINGLE_DIMENSIONS
 from .image_facts import read_image_facts
 from .image_kind import KIND_PHOTO, KIND_SCAN, KIND_SCREENSHOT, classify_image
 from .image_ocr import DEFAULT_ENGINE, read_text
-from .image_screenshot_classifier import VERSION as SCREENSHOT_CLASSIFIER_VERSION
+from .image_screenshot_classifier import DECISIONS_MODEL as SCREENSHOT_DECISIONS_MODEL
+from .image_screenshot_classifier import MODEL as SCREENSHOT_NIM_MODEL
+from .image_screenshot_classifier import classifier_version, load_reference_bundle
 from .image_screenshot_classifier import classify as classify_screenshot
-from .image_screenshot_classifier import load_reference_bundle
 from .image_screenshot_classifier import unknown as unknown_screenshot
 from .image_slice import (
     DEFAULT_MAX_BYTES,
@@ -159,6 +160,8 @@ class ImageStageSettings:
     screenshot_classifier_enabled: bool = False
     screenshot_classifier_max_calls: int = 5
     screenshot_reference_manifest: str = ""
+    screenshot_classifier_provider: str = "nvidia-nim"
+    screenshot_classifier_model: str = ""
 
     @classmethod
     def from_env(cls) -> ImageStageSettings:
@@ -197,6 +200,8 @@ class ImageStageSettings:
             screenshot_classifier_enabled=env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER", "off").strip().casefold() == "on",
             screenshot_classifier_max_calls=int(env.get("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS", "5")),
             screenshot_reference_manifest=env.get("INTAKE_IMAGES_SCREENSHOT_REFERENCE_MANIFEST", "").strip(),
+            screenshot_classifier_provider=env.get("INTAKE_IMAGES_SCREENSHOT_PROVIDER", "nvidia-nim").strip(),
+            screenshot_classifier_model=env.get("INTAKE_IMAGES_SCREENSHOT_MODEL", "").strip(),
         )
 
     def validate(self) -> None:
@@ -234,6 +239,10 @@ class ImageStageSettings:
             raise ValueError("INTAKE_IMAGES_* limits must be positive")
         if not 1 <= self.screenshot_classifier_max_calls <= 5:
             raise ValueError("INTAKE_IMAGES_SCREENSHOT_CLASSIFIER_MAX_CALLS must be 1..5")
+        model = self.screenshot_classifier_model or (
+            SCREENSHOT_DECISIONS_MODEL if self.screenshot_classifier_provider == "openrouter-decisions" else SCREENSHOT_NIM_MODEL
+        )
+        classifier_version(self.screenshot_classifier_provider, model)
 
     def slot_applies(self, slot: str, kind: str) -> bool:
         """Does ``slot`` embed an image of this kind? The one place the policy and the photo tier
@@ -357,7 +366,7 @@ def _merge_screenshot(row: dict[str, Any], result: dict[str, Any]) -> None:
     Pick this after a model or metadata decision, before embedding policy reads image kind.
     """
     row.update({key: value for key, value in result.items() if not key.startswith("_")})
-    if result["screenshot_classifier_provider"] == "nvidia-nim" and result["screenshot_classifier_status"] == "model_ok":
+    if result["screenshot_classifier_provider"] in {"nvidia-nim", "openrouter-decisions"} and result["screenshot_classifier_status"] == "model_ok":
         if result["screenshot_decision"] == "yes":
             row["kind"] = KIND_SCREENSHOT
             row["kind_basis"] = "vision_model"
@@ -420,6 +429,10 @@ async def run_facts(
                 beat(f"facts {n + 1}/{len(sl.items)}")
     by_identity = {row["identity"]: row for row in rows}
     enabled = bool(settings and settings.screenshot_classifier_enabled)
+    provider = getattr(settings, "screenshot_classifier_provider", "nvidia-nim")
+    configured_model = getattr(settings, "screenshot_classifier_model", "")
+    model = configured_model or (SCREENSHOT_DECISIONS_MODEL if provider == "openrouter-decisions" else SCREENSHOT_NIM_MODEL)
+    version = classifier_version(provider, model)
     bundle = None
     if enabled and getattr(settings, "screenshot_reference_manifest", ""):
         try:
@@ -427,6 +440,8 @@ async def run_facts(
                 load_reference_bundle,
                 Path(settings.screenshot_reference_manifest),
                 output_dir,
+                provider=provider,
+                model=model,
             )
         except (OSError, ValueError, TypeError):
             bundle = None
@@ -434,6 +449,7 @@ async def run_facts(
     requests = 0
     cache_hits = 0
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    billed_cost_usd = 0.0
     formats: dict[str, int] = {}
     finish_reasons: dict[str, int] = {}
     changed = not existing
@@ -451,11 +467,11 @@ async def run_facts(
         if item.page:
             _merge_screenshot(row, _heuristic_screenshot(row))
         elif not row.get("content_sha256"):
-            _merge_screenshot(row, unknown_screenshot("unreadable"))
+            _merge_screenshot(row, unknown_screenshot("unreadable", version=version, provider=provider))
         elif bundle is None:
-            _merge_screenshot(row, unknown_screenshot("reference_unavailable", version=SCREENSHOT_CLASSIFIER_VERSION))
+            _merge_screenshot(row, unknown_screenshot("reference_unavailable", version=version, provider=provider))
         elif calls >= (settings.screenshot_classifier_max_calls if settings else 5):
-            _merge_screenshot(row, unknown_screenshot("budget_exhausted"))
+            _merge_screenshot(row, unknown_screenshot("budget_exhausted", version=version, provider=provider))
         else:
             path = item_path(output_dir, spool_dir, sl.slice_id, item)
             if path.is_file() and classifier_client is not None:
@@ -465,6 +481,7 @@ async def run_facts(
                 cache_hits += int(bool(result.get("_cache_hit")))
                 for field in usage:
                     usage[field] += result.get("_usage", {}).get(field, 0)
+                billed_cost_usd += result.get("_billed_cost_usd", 0.0)
                 diagnostic = result.get("_diagnostic", {})
                 if diagnostic.get("content_format"):
                     fmt = diagnostic["content_format"]
@@ -474,7 +491,7 @@ async def run_facts(
                     finish_reasons[finish] = finish_reasons.get(finish, 0) + 1
                 _merge_screenshot(row, result)
             else:
-                _merge_screenshot(row, unknown_screenshot("source_unavailable"))
+                _merge_screenshot(row, unknown_screenshot("source_unavailable", version=version, provider=provider))
         changed = True
     if changed:
         _write_table(out, pa.Table.from_pylist(rows, schema=FACTS_SCHEMA))
@@ -491,6 +508,7 @@ async def run_facts(
         "screenshot_classifier_requests": requests,
         "screenshot_classifier_cache_hits": cache_hits,
         "screenshot_classifier_usage": usage,
+        "screenshot_classifier_billed_cost_usd": round(billed_cost_usd, 9),
         "screenshot_reference_version": bundle.version if bundle is not None else "",
         "screenshot_classifier_content_formats": formats,
         "screenshot_classifier_finish_reasons": finish_reasons,

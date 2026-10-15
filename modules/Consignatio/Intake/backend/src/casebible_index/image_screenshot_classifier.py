@@ -10,6 +10,7 @@ import base64
 import hashlib
 import io
 import json
+import math
 import re
 import time
 import uuid
@@ -24,6 +25,19 @@ from .image_decode import open_image
 
 MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
+DECISIONS_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
+DECISIONS_MODEL = "cloudflare/clef-flash"
+DECISIONS_MODELS = frozenset({
+    DECISIONS_MODEL,
+    "perplexity/pplx-decider-v1.1-27b",
+    "perplexity/pplx-decider-v1.1-27b-20261006",
+    "typesafe/jev-1.14",
+    "typesafe/jev-1.14-20261014",
+})
+DECISIONS_PROMPT_VERSION = "screenshot-app-ui-v1-decisions-two-reference"
+DECISIONS_PREPROCESS_VERSION = "jpeg-768q70-640q60-512q50-384q40-max60k-v1"
+DECISIONS_IMAGE_BYTES = 60_000
+DECISIONS_TOTAL_BYTES = 180_000
 PROMPT_VERSION = "screenshot-app-ui-v5-native-two-shot"
 PREPROCESS_VERSION = "native-target-1024-jpeg-q85-v1"
 VERSION = f"{MODEL}:{PROMPT_VERSION}:{PREPROCESS_VERSION}"
@@ -64,13 +78,30 @@ class ReferenceBundle:
     version: str
     images: tuple[bytes, bytes]
     expected: tuple[dict[str, Any], dict[str, Any]]
+    provider: str = "nvidia-nim"
+    model: str = MODEL
 
 
-def load_reference_bundle(manifest_path: Path, output_dir: Path) -> ReferenceBundle:
+def classifier_version(provider: str = "nvidia-nim", model: str = MODEL) -> str:
+    """Identify the exact provider, model, prompt and preprocessing contract for cache isolation.
+
+    Inputs: controlled provider and configured model. Output: stable version string. Side effects:
+    none. Pick this before reading references or recording an unavailable classifier result.
+    """
+    if provider == "nvidia-nim" and model == MODEL:
+        return VERSION
+    if provider == "openrouter-decisions" and model in DECISIONS_MODELS:
+        return f"{provider}:{model}:{DECISIONS_PROMPT_VERSION}:{DECISIONS_PREPROCESS_VERSION}"
+    raise ValueError("unsupported screenshot classifier provider or model")
+
+
+def load_reference_bundle(
+    manifest_path: Path, output_dir: Path, *, provider: str = "nvidia-nim", model: str = MODEL
+) -> ReferenceBundle:
     """Validate exactly two reviewed reference derivatives beneath the output lake.
 
     Inputs: absolute manifest path and attached output root. Output: hash-checked JPEG bundle
-    with a version derived from model, prompt, preprocessing, labels and source/derived hashes. Side
+    with a version derived from provider, model, prompt, preprocessing, labels and source/derived hashes. Side
     effects: bounded reads only. Pick this once per facts activity before any provider request.
     Invalid or unavailable inputs raise ValueError/OSError for a safe unknown result upstream.
     """
@@ -118,12 +149,15 @@ def load_reference_bundle(manifest_path: Path, output_dir: Path) -> ReferenceBun
             if image.format != "JPEG":
                 raise ValueError("reference derivative must be JPEG")
         images.append(content)
-    canonical = json.dumps({"base_version": VERSION, "set_version": set_version, "references": refs}, sort_keys=True, separators=(",", ":"))
+    base_version = classifier_version(provider, model)
+    canonical = json.dumps({"base_version": base_version, "set_version": set_version, "references": refs}, sort_keys=True, separators=(",", ":"))
     fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
     return ReferenceBundle(
-        f"{VERSION}:{fingerprint}",
+        f"{base_version}:{fingerprint}",
         (images[0], images[1]),
         (refs[0]["expected"], refs[1]["expected"]),
+        provider,
+        model,
     )
 
 
@@ -147,6 +181,27 @@ def target_jpeg(source: Path | io.BytesIO | bytes) -> bytes:
     return buffer.getvalue()
 
 
+def decisions_jpeg(source: Path | io.BytesIO | bytes) -> bytes:
+    """Bound one Decisions API image to at most 60 KB without changing its original source.
+
+    Inputs: a checked reference JPEG or fetched target path/bytes. Output: oriented JPEG no more
+    than 768 pixels on its longest side and 60 KB. Side effects: decode only. Pick this for each
+    of the three Decisions API image parts; OCR and embeddings retain their original sources.
+    """
+    image_source = io.BytesIO(source) if isinstance(source, bytes) else source
+    with open_image(image_source) as image:
+        image.seek(0)
+        oriented = ImageOps.exif_transpose(image).convert("RGB")
+        for edge, quality in ((768, 70), (640, 60), (512, 50), (384, 40)):
+            resized = oriented.copy()
+            resized.thumbnail((edge, edge))
+            buffer = io.BytesIO()
+            resized.save(buffer, format="JPEG", quality=quality)
+            if buffer.tell() <= DECISIONS_IMAGE_BYTES:
+                return buffer.getvalue()
+    raise ValueError("decision image exceeds provider byte cap")
+
+
 def image_part(jpeg: bytes) -> dict[str, Any]:
     """Wrap one bounded JPEG as a provider image part for its own user turn.
 
@@ -156,7 +211,9 @@ def image_part(jpeg: bytes) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()}}
 
 
-def unknown(status: str, basis: str = "", *, version: str = VERSION) -> dict[str, Any]:
+def unknown(
+    status: str, basis: str = "", *, version: str = VERSION, provider: str = "nvidia-nim"
+) -> dict[str, Any]:
     """Return a safe unknown proposal with a controlled status and no source content.
 
     Inputs: non-sensitive status and short reason. Output: flat classifier fields. Side effects:
@@ -168,7 +225,7 @@ def unknown(status: str, basis: str = "", *, version: str = VERSION) -> dict[str
         "screenshot_app_confidence": 0,
         "screenshot_app_basis": basis[:120],
         "screenshot_classifier_version": version,
-        "screenshot_classifier_provider": "nvidia-nim",
+        "screenshot_classifier_provider": provider,
         "screenshot_classifier_status": status,
     }
 
@@ -231,6 +288,102 @@ def validate_reply(content: str, *, version: str = VERSION) -> dict[str, Any]:
     }
 
 
+def decisions_body(bundle: ReferenceBundle, target: Path | io.BytesIO | bytes) -> dict[str, Any]:
+    """Build one bounded Decisions request with two labeled examples and one unanswered target.
+
+    Inputs: hash-checked references and fetched target. Output: OpenRouter Decisions request.
+    Side effects: image decode only. Pick this for the selected Decisions provider; NIM uses
+    its existing multi-turn chat request and neither path writes source bytes.
+    """
+    images = [decisions_jpeg(bundle.images[0]), decisions_jpeg(bundle.images[1]), decisions_jpeg(target)]
+    if sum(map(len, images)) > DECISIONS_TOTAL_BYTES:
+        raise ValueError("decision images exceed combined byte cap")
+    state = [
+        "REFERENCE A only; its reviewed answer is " + json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":")) + ". Use this answer only for the following image.",
+        image_part(images[0]),
+        "REFERENCE B only; its reviewed answer is " + json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":")) + ". Use this answer only for the following image.",
+        image_part(images[1]),
+        "TARGET only. Classify this final image from visible UI controls, chrome, and logos. The two preceding labels are examples, not evidence about TARGET. Never infer app from message topics or names; never transcribe messages, names, credentials, or secrets. A cropped screenshot counts; PNG alone proves nothing.",
+        image_part(images[2]),
+    ]
+    return {
+        "model": bundle.model,
+        "state": state,
+        "questions": {
+            "screenshot": {
+                "type": "choice",
+                "instructions": "For TARGET only, is this a screenshot of a visible user interface? Choose unknown if uncertain; do not infer from file type or references.",
+                "criteria": {value: None for value in ("yes", "no", "unknown")},
+            },
+            "app": {
+                "type": "choice",
+                "instructions": "For TARGET only, which app has visible UI controls or logo? Choose unknown if not a screenshot or uncertain. Mixed requires multiple app UIs within TARGET.",
+                "criteria": {value: None for value in sorted(APPS)},
+            },
+        },
+    }
+
+
+def validate_decisions_reply(payload: dict[str, Any], *, version: str) -> dict[str, Any]:
+    """Normalize strictly checked choice distributions into the existing flat proposal.
+
+    Inputs: one Decisions API JSON object and cache version. Output: app/decision fields with
+    an uncalibrated corpus score derived from the winning app probability. Side effects: none.
+    Pick this for Decisions replies; NIM chat replies use validate_reply instead. Weak,
+    contradictory or malformed answers become unknown or raise for the caller's safe failure.
+    """
+    if not isinstance(payload, dict) or not isinstance(payload.get("answers"), dict):
+        raise TypeError("decision answer shape invalid")
+    answers = payload["answers"]
+    if set(answers) != {"screenshot", "app"}:
+        raise ValueError("decision answer names invalid")
+
+    def checked_choice(name: str, allowed: frozenset[str]) -> tuple[str, float]:
+        """Validate one complete probability distribution and return its selected probability.
+
+        Inputs: answer name and allowed choices. Output: selected label and probability. Side
+        effects: none. Pick this inside Decisions reply validation for either typed question.
+        """
+        answer = answers[name]
+        if not isinstance(answer, dict) or set(answer) != {"type", "choice", "probabilities", "confidence"} or answer["type"] != "choice":
+            raise ValueError("decision choice shape invalid")
+        choice, probabilities = answer["choice"], answer["probabilities"]
+        if choice not in allowed or not isinstance(probabilities, dict) or set(probabilities) != allowed:
+            raise ValueError("decision choice labels invalid")
+        values = probabilities.values()
+        if any(type(value) not in (int, float) or not 0 <= value <= 1 or not math.isfinite(value) for value in values):
+            raise ValueError("decision probabilities invalid")
+        if not 0.98 <= sum(probabilities.values()) <= 1.02:
+            raise ValueError("decision probability sum invalid")
+        confidence = answer["confidence"]
+        if type(confidence) not in (int, float) or not 0 <= confidence <= 1 or not math.isfinite(confidence):
+            raise ValueError("decision distribution confidence invalid")
+        selected = probabilities[choice]
+        if selected + 0.001 < max(probabilities.values()):
+            raise ValueError("decision selected choice is not highest")
+        return choice, selected
+
+    decision, decision_probability = checked_choice("screenshot", DECISIONS)
+    app, app_probability = checked_choice("app", APPS)
+    if decision == "unknown" or (decision != "unknown" and decision_probability < 0.8):
+        return unknown("model_unknown", "screen_ui_uncertain", version=version, provider="openrouter-decisions")
+    if decision == "no":
+        if app != "unknown" or app_probability < 0.8:
+            return unknown("model_unknown", "screen_ui_uncertain", version=version, provider="openrouter-decisions")
+        return {
+            **unknown("model_ok", "visible_ui:none", version=version, provider="openrouter-decisions"),
+            "screenshot_decision": "no",
+        }
+    if app != "unknown" and app_probability < 0.8:
+        return unknown("model_unknown", "screen_ui_uncertain", version=version, provider="openrouter-decisions")
+    return {
+        **unknown("model_ok", f"visible_ui:{app}" if app != "unknown" else "screen_ui_uncertain", version=version, provider="openrouter-decisions"),
+        "screenshot_decision": "yes",
+        "screenshot_app": app,
+        "screenshot_app_confidence": round(app_probability * 100) if app != "unknown" else 0,
+    }
+
+
 def cache_path(output_dir: Path, digest: str, *, version: str = VERSION) -> Path:
     """Locate one versioned SHA-256 result in the existing image output lake.
 
@@ -256,6 +409,8 @@ def _cache_result(target: Path, result: dict[str, Any], *, retry_after: float = 
         payload = {"result": {k: v for k, v in result.items() if not k.startswith("_")}, "retry_after": retry_after}
         if result.get("_usage"):
             payload["usage"] = result["_usage"]
+        if result.get("_billed_cost_usd") is not None:
+            payload["billed_cost_usd"] = result["_billed_cost_usd"]
         if result.get("_diagnostic"):
             payload["diagnostic"] = result["_diagnostic"]
         partial.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
@@ -275,7 +430,7 @@ async def classify(
 ) -> dict[str, Any]:
     """Classify a retained image through the hosted vision model, reusing a versioned result.
 
-    Inputs: fetched path, its SHA-256, output lake, NVIDIA key and HTTP client. Output: flat
+    Inputs: fetched path, its SHA-256, output lake, selected provider key and HTTP client. Output: flat
     proposal with explicit model status. Side effects: bounded decode, one HTTPS request on cache
     miss, atomic JSON cache write for validated replies. Pick this within image_facts; OCR and
     embedding have separate jobs. Provider errors return unknown without response body or secrets.
@@ -290,55 +445,81 @@ async def classify(
         except (OSError, ValueError, TypeError, AttributeError):
             pass
     if not key:
-        return unknown("missing_key", version=bundle.version)
+        return unknown("missing_key", version=bundle.version, provider=bundle.provider)
     request_made = False
     usage: dict[str, int] = {}
+    billed_cost_usd: float | None = None
     diagnostic: dict[str, str] = {}
     try:
-        image = target_jpeg(path)
-        body = {
-            "model": MODEL,
-            "temperature": 0,
-            "max_tokens": 512,
-            "reasoning_budget": 128,
-            "stream": False,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": [image_part(bundle.images[0]), {"type": "text", "text": REFERENCE_A_PROMPT}]},
-                {"role": "assistant", "content": json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":"))},
-                {"role": "user", "content": [image_part(bundle.images[1]), {"type": "text", "text": REFERENCE_B_PROMPT}]},
-                {"role": "assistant", "content": json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":"))},
-                {"role": "user", "content": [image_part(image), {"type": "text", "text": TARGET_PROMPT}]},
-            ],
-        }
+        if bundle.provider == "openrouter-decisions":
+            endpoint = DECISIONS_ENDPOINT
+            body = decisions_body(bundle, path)
+        else:
+            image = target_jpeg(path)
+            endpoint = ENDPOINT
+            body = {
+                "model": MODEL,
+                "temperature": 0,
+                "max_tokens": 512,
+                "reasoning_budget": 128,
+                "stream": False,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": [image_part(bundle.images[0]), {"type": "text", "text": REFERENCE_A_PROMPT}]},
+                    {"role": "assistant", "content": json.dumps(bundle.expected[0], sort_keys=True, separators=(",", ":"))},
+                    {"role": "user", "content": [image_part(bundle.images[1]), {"type": "text", "text": REFERENCE_B_PROMPT}]},
+                    {"role": "assistant", "content": json.dumps(bundle.expected[1], sort_keys=True, separators=(",", ":"))},
+                    {"role": "user", "content": [image_part(image), {"type": "text", "text": TARGET_PROMPT}]},
+                ],
+            }
         request_made = True
-        response = await client.post(ENDPOINT, headers={"Authorization": f"Bearer {key}"}, json=body)
+        response = await client.post(endpoint, headers={"Authorization": f"Bearer {key}"}, json=body)
         if response.status_code != 200:
-            failure = unknown(f"model_http_{response.status_code}", version=bundle.version)
+            failure = unknown(f"model_http_{response.status_code}", version=bundle.version, provider=bundle.provider)
             _cache_result(target, failure, retry_after=time.time() + 300)
             return {**failure, "_request_made": True}
         payload = response.json()
         raw_usage = payload.get("usage", {})
         if isinstance(raw_usage, dict):
+            if bundle.provider == "openrouter-decisions":
+                raw_cost = raw_usage.get("cost")
+                if type(raw_cost) in (int, float) and 0 <= raw_cost <= 100 and math.isfinite(raw_cost):
+                    billed_cost_usd = float(raw_cost)
+                raw_usage = {
+                    "prompt_tokens": raw_usage.get("input_tokens"),
+                    "completion_tokens": raw_usage.get("output_tokens"),
+                    "total_tokens": raw_usage.get("total_tokens"),
+                }
             usage = {
                 field: value
                 for field in ("prompt_tokens", "completion_tokens", "total_tokens")
                 if type(value := raw_usage.get(field)) is int and 0 <= value <= 1_000_000
             }
-        choice = payload["choices"][0]
-        finish = choice.get("finish_reason", "")
-        diagnostic["finish_reason"] = finish if isinstance(finish, str) and re.fullmatch(r"[a-z_]{1,32}", finish) else "other"
-        content = choice["message"]["content"]
-        diagnostic["content_format"] = content_format(content)
-        result = validate_reply(content, version=bundle.version)
+        if bundle.provider == "openrouter-decisions":
+            result = validate_decisions_reply(payload, version=bundle.version)
+            diagnostic["content_format"] = "typed_decisions"
+            served_model = payload.get("model")
+            if isinstance(served_model, str) and re.fullmatch(r"[A-Za-z0-9._/:-]{1,120}", served_model):
+                diagnostic["served_model"] = served_model
+        else:
+            choice = payload["choices"][0]
+            finish = choice.get("finish_reason", "")
+            diagnostic["finish_reason"] = finish if isinstance(finish, str) and re.fullmatch(r"[a-z_]{1,32}", finish) else "other"
+            content = choice["message"]["content"]
+            diagnostic["content_format"] = content_format(content)
+            result = validate_reply(content, version=bundle.version)
         if usage:
             result["_usage"] = usage
+        if billed_cost_usd is not None:
+            result["_billed_cost_usd"] = billed_cost_usd
         result["_diagnostic"] = diagnostic
-    except (httpx.HTTPError, OSError, ValueError, KeyError, IndexError, TypeError) as exc:
-        failure = unknown(f"model_failed_{type(exc).__name__}", version=bundle.version)
+    except (httpx.HTTPError, OSError, ValueError, KeyError, IndexError, TypeError, AttributeError, OverflowError) as exc:
+        failure = unknown(f"model_failed_{type(exc).__name__}", version=bundle.version, provider=bundle.provider)
         if usage:
             failure["_usage"] = usage
+        if billed_cost_usd is not None:
+            failure["_billed_cost_usd"] = billed_cost_usd
         if diagnostic:
             failure["_diagnostic"] = diagnostic
         _cache_result(target, failure, retry_after=time.time() + 300)
