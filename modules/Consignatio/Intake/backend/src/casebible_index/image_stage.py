@@ -416,6 +416,8 @@ async def run_facts(
     requests = 0
     cache_hits = 0
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    formats: dict[str, int] = {}
+    finish_reasons: dict[str, int] = {}
     changed = not existing
     for item in sl.items:
         row = by_identity.get(item.identity)
@@ -443,6 +445,13 @@ async def run_facts(
                 cache_hits += int(bool(result.get("_cache_hit")))
                 for field in usage:
                     usage[field] += result.get("_usage", {}).get(field, 0)
+                diagnostic = result.get("_diagnostic", {})
+                if diagnostic.get("content_format"):
+                    fmt = diagnostic["content_format"]
+                    formats[fmt] = formats.get(fmt, 0) + 1
+                if diagnostic.get("finish_reason"):
+                    finish = diagnostic["finish_reason"]
+                    finish_reasons[finish] = finish_reasons.get(finish, 0) + 1
                 _merge_screenshot(row, result)
             else:
                 _merge_screenshot(row, unknown_screenshot("source_unavailable"))
@@ -462,6 +471,8 @@ async def run_facts(
         "screenshot_classifier_requests": requests,
         "screenshot_classifier_cache_hits": cache_hits,
         "screenshot_classifier_usage": usage,
+        "screenshot_classifier_content_formats": formats,
+        "screenshot_classifier_finish_reasons": finish_reasons,
         "screenshot_classifier_statuses": {status: sum(1 for r in rows if r.get("screenshot_classifier_status") == status) for status in sorted({r.get("screenshot_classifier_status", "") for r in rows})},
     }
 

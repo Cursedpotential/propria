@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -20,7 +21,7 @@ from .image_decode import jpeg_derivative
 
 MODEL = "meta/llama-3.2-11b-vision-instruct"
 ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
-PROMPT_VERSION = "screenshot-app-ui-v1"
+PROMPT_VERSION = "screenshot-app-ui-v2"
 PREPROCESS_VERSION = "jpeg1024-q75-v1"
 VERSION = f"{MODEL}:{PROMPT_VERSION}:{PREPROCESS_VERSION}"
 APPS = frozenset(
@@ -28,20 +29,19 @@ APPS = frozenset(
 )
 DECISIONS = frozenset({"yes", "no", "unknown"})
 PROMPT = (
-    "Look at this image's visible pixels. Decide whether it is a screenshot of a digital UI. "
-    "A renamed or cropped screenshot may have no filename or phone frame. A PNG without camera "
-    "metadata is not necessarily a screenshot. If uncertain, answer unknown. For a screenshot, "
-    "identify the app from visible interface chrome, logos, navigation and controls; do not "
-    "infer the app from conversation topics, names, OCR text alone, or file metadata. Use mixed "
-    "only when multiple app UIs are actually visible; browser when browser chrome identifies "
-    "the container; other for an identifiable unlisted app; unknown if app UI is inconclusive. "
-    "Return ONLY a JSON object with exactly these keys: screenshot_decision (yes/no/unknown), "
-    "screenshot_app (facebook-messenger/messages/snapchat/whatsapp/instagram/browser/other/mixed/unknown), "
-    "screenshot_app_confidence (integer 0..100), screenshot_app_basis (short visual UI reason). "
-    "The confidence is your uncalibrated estimate. For no or unknown screenshot decision, "
-    "set app unknown and confidence 0. If it is a screenshot but the app is unknown, also set "
-    "confidence 0. Do not quote message content or personal names."
+    "Classify THIS image from visible pixels and app UI controls. A cropped or renamed image can "
+    "be a screenshot; a PNG alone proves nothing. Use decision yes, no, or unknown. For yes, "
+    "identify app from visible chrome/logo/navigation, not message topics or names. App must be "
+    "facebook-messenger, messages, snapchat, whatsapp, instagram, browser, other, mixed, or "
+    "unknown. Use mixed only if multiple app UIs are visible. Confidence is an uncalibrated "
+    "integer 0..100; set it to 0 when app is unknown or decision is no/unknown. Basis must briefly "
+    "describe visual UI, without quoting conversation content. Return ONLY JSON with exactly four "
+    "short keys. Example: {\"decision\":\"yes\",\"app\":\"messages\",\"confidence\":85,"
+    "\"basis\":\"visible chat header and compose controls\"}. "
+    "Now return JSON for THIS image."
 )
+
+FENCE = re.compile(r"\A```(?:json)?\s*\n(?P<body>[\s\S]*?)\n```\s*\Z", re.IGNORECASE)
 
 
 def unknown(status: str, basis: str = "") -> dict[str, Any]:
@@ -61,19 +61,41 @@ def unknown(status: str, basis: str = "") -> dict[str, Any]:
     }
 
 
+def content_format(content: Any) -> str:
+    """Describe a response's shape without retaining or printing its text.
+
+    Inputs: provider message content. Output: one controlled format category. Side effects: none.
+    Pick this for private cache/receipt diagnostics when JSON validation fails.
+    """
+    if not isinstance(content, str):
+        return "non_string"
+    value = content.strip()
+    if not value:
+        return "empty"
+    if value.startswith("```"):
+        return "fenced_json" if FENCE.fullmatch(value) else "invalid_fence"
+    return "json_object" if value.startswith("{") else "prose"
+
+
 def validate_reply(content: str) -> dict[str, Any]:
     """Validate the model's exact JSON contract before any proposal is persisted.
 
     Inputs: one provider response content string. Output: normalized flat fields. Side effects:
     none. Pick this after the hosted call; rejected output becomes an unknown failure upstream.
     """
-    data = json.loads(content)
-    expected = {"screenshot_decision", "screenshot_app", "screenshot_app_confidence", "screenshot_app_basis"}
+    if not isinstance(content, str):
+        raise TypeError("classifier content is not text")
+    value = content.strip()
+    if value.startswith("```"):
+        match = FENCE.fullmatch(value)
+        if match is None:
+            raise ValueError("classifier fence is invalid")
+        value = match.group("body").strip()
+    data = json.loads(value)
+    expected = {"decision", "app", "confidence", "basis"}
     if not isinstance(data, dict) or set(data) != expected:
         raise ValueError("classifier JSON fields are invalid")
-    decision, app, confidence, basis = (data[k] for k in (
-        "screenshot_decision", "screenshot_app", "screenshot_app_confidence", "screenshot_app_basis"
-    ))
+    decision, app, confidence, basis = (data[k] for k in ("decision", "app", "confidence", "basis"))
     if decision not in DECISIONS or app not in APPS:
         raise ValueError("classifier decision or app is invalid")
     if type(confidence) is not int or not 0 <= confidence <= 100:
@@ -122,6 +144,8 @@ def _cache_result(target: Path, result: dict[str, Any], *, retry_after: float = 
         payload = {"result": {k: v for k, v in result.items() if not k.startswith("_")}, "retry_after": retry_after}
         if result.get("_usage"):
             payload["usage"] = result["_usage"]
+        if result.get("_diagnostic"):
+            payload["diagnostic"] = result["_diagnostic"]
         partial.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
         partial.replace(target)
     except OSError:
@@ -143,12 +167,14 @@ async def classify(path: Path, digest: str, output_dir: Path, key: str, client: 
             stored = json.loads(target.read_text(encoding="utf-8"))
             cached = stored.get("result", {})
             if cached.get("screenshot_classifier_version") == VERSION and (cached.get("screenshot_classifier_status") in {"model_ok", "model_unknown"} or stored.get("retry_after", 0) > time.time()):
-                return {**cached, "_cache_hit": True}
+                return {**cached, "_cache_hit": True, "_diagnostic": stored.get("diagnostic", {})}
         except (OSError, ValueError, TypeError, AttributeError):
             pass
     if not key:
         return unknown("missing_key")
     request_made = False
+    usage: dict[str, int] = {}
+    diagnostic: dict[str, str] = {}
     try:
         image = jpeg_derivative(path, edge=1024, quality=75)
         if len(image) > 1_000_000:
@@ -173,7 +199,6 @@ async def classify(path: Path, digest: str, output_dir: Path, key: str, client: 
             _cache_result(target, failure, retry_after=time.time() + 300)
             return {**failure, "_request_made": True}
         payload = response.json()
-        result = validate_reply(payload["choices"][0]["message"]["content"])
         raw_usage = payload.get("usage", {})
         if isinstance(raw_usage, dict):
             usage = {
@@ -181,10 +206,21 @@ async def classify(path: Path, digest: str, output_dir: Path, key: str, client: 
                 for field in ("prompt_tokens", "completion_tokens", "total_tokens")
                 if type(value := raw_usage.get(field)) is int and 0 <= value <= 1_000_000
             }
-            if usage:
-                result["_usage"] = usage
+        choice = payload["choices"][0]
+        finish = choice.get("finish_reason", "")
+        diagnostic["finish_reason"] = finish if isinstance(finish, str) and re.fullmatch(r"[a-z_]{1,32}", finish) else "other"
+        content = choice["message"]["content"]
+        diagnostic["content_format"] = content_format(content)
+        result = validate_reply(content)
+        if usage:
+            result["_usage"] = usage
+        result["_diagnostic"] = diagnostic
     except (httpx.HTTPError, OSError, ValueError, KeyError, IndexError, TypeError) as exc:
         failure = unknown(f"model_failed_{type(exc).__name__}")
+        if usage:
+            failure["_usage"] = usage
+        if diagnostic:
+            failure["_diagnostic"] = diagnostic
         _cache_result(target, failure, retry_after=time.time() + 300)
         return {**failure, "_request_made": request_made}
     _cache_result(target, result)

@@ -40,12 +40,15 @@ def _reply(decision: str, app: str, confidence: int) -> dict:
     Inputs: decision, app and score. Output: provider response. Side effects: none. Pick this for
     request and stage contract tests without external inference.
     """
-    return {"choices": [{"message": {"content": json.dumps({
-        "screenshot_decision": decision,
-        "screenshot_app": app,
-        "screenshot_app_confidence": confidence,
-        "screenshot_app_basis": "Visible navigation chrome",
-    })}}]}
+    return {
+        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({
+            "decision": decision,
+            "app": app,
+            "confidence": confidence,
+            "basis": "Visible navigation chrome",
+        })}}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+    }
 
 
 def test_classifier_rejects_structurally_invalid_result():
@@ -55,11 +58,15 @@ def test_classifier_rejects_structurally_invalid_result():
     boundary before a model proposal reaches Parquet or Weaviate.
     """
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"screenshot_decision": "yes", "screenshot_app": "messages", "screenshot_app_confidence": True, "screenshot_app_basis": "UI"}))
+        validate_reply(json.dumps({"decision": "yes", "app": "messages", "confidence": True, "basis": "UI"}))
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"screenshot_decision": "no", "screenshot_app": "whatsapp", "screenshot_app_confidence": 50, "screenshot_app_basis": "UI"}))
+        validate_reply(json.dumps({"decision": "no", "app": "whatsapp", "confidence": 50, "basis": "UI"}))
     with pytest.raises(ValueError):
-        validate_reply(json.dumps({"screenshot_decision": "yes", "screenshot_app": "messages", "screenshot_app_confidence": 90, "screenshot_app_basis": "UI", "extra": "text"}))
+        validate_reply(json.dumps({"decision": "yes", "app": "messages", "confidence": 90, "basis": "UI", "extra": "text"}))
+    valid = _reply("yes", "messages", 77)["choices"][0]["message"]["content"]
+    assert validate_reply(f"```json\n{valid}\n```")["screenshot_app"] == "messages"
+    with pytest.raises(ValueError):
+        validate_reply(f"Here is the answer: {valid}")
 
 
 @pytest.mark.asyncio
@@ -118,6 +125,7 @@ async def test_existing_facts_gain_model_fields_and_published_row_is_patched(tmp
         receipt = await image_stage.run_facts(tmp_path, tmp_path / "spool", sl, settings=enabled, classifier_key="placeholder-key", classifier_client=client)
     upgraded = pq.read_table(table_path(tmp_path, "facts", "s1")).to_pylist()[0]
     assert receipt["screenshot_classifier_requests"] == 1
+    assert receipt["screenshot_classifier_usage"] == {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}
     assert (upgraded["kind"], upgraded["screenshot_decision"], upgraded["screenshot_app"]) == ("photo", "no", "unknown")
     old_ledger = image_stage._ledger(item.identity, "ok", "", str(uuid4()), sl, "run", datetime.now(UTC))
     path = table_path(tmp_path, "published", "s1")
@@ -196,3 +204,28 @@ async def test_http_failure_is_unknown_cached_briefly_without_response_body(tmp_
     assert first["screenshot_decision"] == second["screenshot_decision"] == "unknown"
     assert len(calls) == 1 and second["_cache_hit"]
     assert "PRIVATE_PROVIDER_BODY_DO_NOT_PERSIST" not in cache_path(tmp_path, digest).read_text()
+
+
+@pytest.mark.asyncio
+async def test_invalid_json_keeps_usage_and_shape_only(tmp_path: Path):
+    """Retain token cost and controlled format diagnostics when HTTP 200 carries prose.
+
+    Inputs: synthetic image and mocked prose response. Output: unknown failure with usage and
+    content category. Side effects: private test cache only. Pick this for the real-proof failure.
+    """
+    source = tmp_path / "source.png"
+    source.write_bytes(_image())
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    secret_prose = "PRIVATE_MODEL_PROSE_DO_NOT_PERSIST"
+    payload = {
+        "choices": [{"finish_reason": "stop", "message": {"content": secret_prose}}],
+        "usage": {"prompt_tokens": 95, "completion_tokens": 38, "total_tokens": 133},
+    }
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=payload))) as client:
+        result = await classify(source, digest, tmp_path, "placeholder-key", client)
+    assert result["screenshot_decision"] == "unknown"
+    assert result["screenshot_classifier_status"] == "model_failed_JSONDecodeError"
+    assert result["_usage"]["total_tokens"] == 133
+    assert result["_diagnostic"] == {"finish_reason": "stop", "content_format": "prose"}
+    stored = cache_path(tmp_path, digest).read_text()
+    assert secret_prose not in stored and '"total_tokens": 133' in stored
