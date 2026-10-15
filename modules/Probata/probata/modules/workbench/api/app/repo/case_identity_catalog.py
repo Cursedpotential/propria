@@ -69,14 +69,32 @@ def events(identifier: str, match_on: str, *, before: str | None = None, limit: 
         raise CatalogError("Invalid identifier", 422)
     column = "counterparty_phone" if match_on == "counterparty_phone" else "sender"
     limit = max(1, min(limit, 200))
-    rows = intake_discovery._query(
-        f"""SELECT dedup_key, event_ts_utc, event_kind, source_format, direction, sender, recipients,
+    # The expression index is (norm_phone(column), event_ts_utc DESC), which
+    # stores NULL timestamps first. "ORDER BY event_ts_utc DESC NULLS LAST" could
+    # not use it, so Postgres read every matching row to sort them: 16 s for a
+    # 67,881-event name, a 503 under the 4 s statement timeout (owner UX test
+    # 2026-10-15). Walk the index in order for timestamped rows, then top up the
+    # first page with untimestamped rows -- exactly the old NULLS LAST result,
+    # since a NULL timestamp never satisfies the `before` cursor.
+    select = f"""SELECT dedup_key, event_ts_utc, event_kind, source_format, direction, sender, recipients,
                contact_name, counterparty_phone, conversation_title, left(body, 600) AS body, n_sources
         FROM {EVENTS}
-        WHERE raw_duck.norm_phone({column}) = %s AND (%s::timestamptz IS NULL OR event_ts_utc < %s::timestamptz)
-        ORDER BY event_ts_utc DESC NULLS LAST LIMIT %s""",
-        (identifier, before, before, limit + 1),
-    )
+        WHERE raw_duck.norm_phone({column}) = %s"""
+    if before is None:
+        rows = intake_discovery._query(
+            select + " AND event_ts_utc IS NOT NULL ORDER BY event_ts_utc DESC LIMIT %s",
+            (identifier, limit + 1),
+        )
+        if len(rows) <= limit:
+            rows += intake_discovery._query(
+                select + " AND event_ts_utc IS NULL ORDER BY dedup_key LIMIT %s",
+                (identifier, limit + 1 - len(rows)),
+            )
+    else:
+        rows = intake_discovery._query(
+            select + " AND event_ts_utc < %s::timestamptz ORDER BY event_ts_utc DESC LIMIT %s",
+            (identifier, before, limit + 1),
+        )
     more = len(rows) > limit
     rows = rows[:limit]
     return {
