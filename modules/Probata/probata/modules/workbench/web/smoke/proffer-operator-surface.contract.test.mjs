@@ -93,7 +93,7 @@ test("entities come from the extraction panel; relationships and graph stay trut
   // 2026-09-26 (Claude Code · Opus 5.5): the Entities tab renders the entity/event extraction panel
   // (propose, correct, commit) instead of the old "unavailable" placeholder.
   assert.match(surface, /tab === "entities" && \(preview\.results\?\.source_kind === "ai_chat"/);
-  assert.match(surface, /: <EntitiesPanel previewHandle=\{snapshot\.preview_handle\} mode=\{snapshot\.matter_mode\} \/>/);
+  assert.match(surface, /: <EntitiesPanel previewHandle=\{snapshot\.preview_handle\} mode=\{snapshot\.matter_mode\} extractionUnavailableReason=/);
   assert.match(surface, /Relationship rows will appear here when the backend returns/);
   assert.match(surface, /This view needs a read API that returns attempt-bound nodes, relationships, and write receipts/);
   assert.doesNotMatch(surface, /demoEntit|sampleNode|mockRelationship|fakeGraph/i);

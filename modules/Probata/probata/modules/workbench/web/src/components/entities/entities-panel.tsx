@@ -50,7 +50,7 @@ function inFlight(workflowId: string | null, progress: { data?: WorkflowProgress
  * A validation belongs to the proposals it read: any change hides it and the
  * workflow needs a fresh one (the engine also refuses a stale digest).
  */
-export function EntitiesPanel({ previewHandle, mode }: { previewHandle: string; mode: MatterMode }) {
+export function EntitiesPanel({ previewHandle, mode, extractionUnavailableReason }: { previewHandle: string; mode: MatterMode; extractionUnavailableReason?: string | null }) {
   const proposals = useEntityProposals(previewHandle, mode);
   const actions = useEntityActions(previewHandle, mode);
   const writing = useEntityWritesPending(previewHandle, mode);
@@ -89,6 +89,7 @@ export function EntitiesPanel({ previewHandle, mode }: { previewHandle: string; 
   };
 
   const extract = () => run(async () => {
+    if (extractionUnavailableReason) throw new Error(extractionUnavailableReason);
     const started = await actions.extract.mutateAsync({ useModel, key: newIdempotencyKey("extract") });
     setExtractionId(started.workflow_id);
   });
@@ -97,6 +98,7 @@ export function EntitiesPanel({ previewHandle, mode }: { previewHandle: string; 
     setValidation({ report: await actions.validate.mutateAsync(), basis });
   });
   const commitNow = () => run(async () => {
+    if (extractionUnavailableReason) throw new Error(extractionUnavailableReason);
     if (!report?.ok) return;
     const started = await actions.commit.mutateAsync({ digest: report.digest, key: newIdempotencyKey("commit") });
     setCommitId(started.workflow_id);
@@ -121,9 +123,9 @@ export function EntitiesPanel({ previewHandle, mode }: { previewHandle: string; 
       <header className="flex flex-wrap items-center gap-2 border bg-card px-3 py-2">
         <h2 className="text-sm font-semibold">Entities and events</h2>
         <label className="ml-auto inline-flex items-center gap-1 text-xs" title="Also read message text with the extraction model: names, places, organizations and events">
-          <input type="checkbox" checked={useModel} onChange={(change) => setUseModel(change.target.checked)} /> Read message text
+          <input type="checkbox" checked={useModel} disabled={Boolean(extractionUnavailableReason)} onChange={(change) => setUseModel(change.target.checked)} /> Read message text
         </label>
-        <Button type="button" size="sm" onClick={() => void extract()} disabled={extracting || committing} data-testid="extract-entities-button">
+        <Button type="button" size="sm" onClick={() => void extract()} disabled={Boolean(extractionUnavailableReason) || extracting || committing} title={extractionUnavailableReason ?? undefined} data-testid="extract-entities-button">
           <ScanSearch /> {extracting ? "Extracting…" : "Extract entities"}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => void validate()} disabled={!data || writing || actions.validate.isPending || committing}>
@@ -134,13 +136,14 @@ export function EntitiesPanel({ previewHandle, mode }: { previewHandle: string; 
           size="sm"
           variant="outline"
           onClick={() => void commitNow()}
-          disabled={!report?.ok || writing || committing}
+          disabled={Boolean(extractionUnavailableReason) || !report?.ok || writing || committing}
           title={report?.ok ? "Commit these proposals to the registry and the timeline" : "Validate first; every check must pass"}
           data-testid="run-entity-workflow-button"
         >
           <Play /> Run workflow
         </Button>
       </header>
+      {extractionUnavailableReason && <p className="border bg-card p-3 text-sm text-muted-foreground" role="status">{extractionUnavailableReason}</p>}
 
       {runs.length > 0 && (
         <p className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground">

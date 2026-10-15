@@ -179,6 +179,10 @@ export interface CallsPage {
 }
 
 export interface SearchHit {
+  corpus?: string | null;
+  source_kind?: string | null;
+  source_format?: string | null;
+  record_kind?: string | null;
   id: string;
   collection?: string;
   object_id?: string | null;

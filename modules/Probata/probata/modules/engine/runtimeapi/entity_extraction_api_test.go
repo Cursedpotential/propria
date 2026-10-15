@@ -24,9 +24,32 @@ import (
 const extractionHandle = "handle_abcdefghijklmnopqrstuvwxyz0123"
 
 type apiStore struct {
-	entities []entities.Proposal
-	events   []events.Proposal
-	message  entities.MessageView
+	workerPreviewUnavailable bool
+	entities                 []entities.Proposal
+	events                   []events.Proposal
+	message                  entities.MessageView
+}
+
+// StandaloneWorkerPreview exposes the fake worker prerequisite for standalone dispatch tests.
+// Inputs: ignored test run. Outputs: configured availability. Effects: none; choose for HTTP admission fixtures.
+func (s *apiStore) StandaloneWorkerPreview(context.Context, flow.RunRef) (bool, error) {
+	return !s.workerPreviewUnavailable, nil
+}
+
+// TestStandaloneExtractionRefusesUnpublishedSavedArtifactsBeforeDispatch preserves reads while refusing incompatible work.
+// Inputs: saved generation without worker preview. Outputs: 409 mutations and 200 reads. Effects: no workflow starts.
+func TestStandaloneExtractionRefusesUnpublishedSavedArtifactsBeforeDispatch(t *testing.T) {
+	handler, store, workflows := extractionTestHandler(t)
+	store.workerPreviewUnavailable = true
+	response := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/extract", map[string]any{"preview_handle": extractionHandle, "matter_mode": "LIVE"}, "bounded-fixture"))
+	require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), "Saved records remain readable")
+	require.Empty(t, workflows.extractions)
+	commit := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/commit", map[string]any{"preview_handle": extractionHandle, "matter_mode": "LIVE", "digest": "unpublished"}, "bounded-commit-fixture"))
+	require.Equal(t, http.StatusConflict, commit.Code, commit.Body.String())
+	require.Empty(t, workflows.commits)
+	read := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodGet, "/reference-import/entities/proposals?preview_handle="+extractionHandle+"&matter_mode=LIVE", nil, ""))
+	require.Equal(t, http.StatusOK, read.Code, read.Body.String())
 }
 
 func (s *apiStore) ResolveRun(_ context.Context, handle string) (flow.RunRef, error) {

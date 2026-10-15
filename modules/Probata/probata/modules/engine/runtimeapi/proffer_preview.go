@@ -28,9 +28,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
+	"github.com/Cursedpotential/probata/engine/sourceformat"
 )
 
 const (
@@ -741,6 +743,17 @@ func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// nativeAIFormat recognizes existing AI format and provider declarations without inferring generic JSON.
+// Inputs: declared format. Outputs: whether the native context workflow owns it. Effects: none.
+// Choose before legacy workflow starts; exact byte detection remains a separate source inspection concern.
+func nativeAIFormat(format string) bool {
+	format = strings.ToLower(strings.TrimSpace(format))
+	return contextsearch.IsAIChatFormat(format) || format == "chatgpt" || format == "claude" || format == "gemini_markdown" || format == sourceformat.ChatGPTMarkdown || format == sourceformat.ClaudeMarkdown
+}
+
+// start validates a legacy source declaration before starting its workflow and saving the binding.
+// Inputs: admitted source/case/mode request. Outputs: handle or refusal. Effects: workflow start and binding on admission only.
+// Choose for non-AI legacy processing; recognized AI declarations must use the native context source route.
 func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	var req previewStartRequest
 	if err := decodePreviewJSON(w, r, &req); err != nil {
@@ -749,6 +762,10 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.RequestID) == "" || strings.TrimSpace(req.SourceRef) == "" || strings.TrimSpace(req.DeclaredFormat) == "" || strings.TrimSpace(req.ParserOptionsRef) == "" {
 		previewError(w, 400, errors.New("start request is incomplete"))
+		return
+	}
+	if nativeAIFormat(req.DeclaredFormat) {
+		previewError(w, http.StatusConflict, errors.New("AI chat processing uses the native context source route (/reference-import/context/sources); no legacy workflow or binding was created"))
 		return
 	}
 	mode, err := caseidentity.ParseMode(req.OperatingMode)

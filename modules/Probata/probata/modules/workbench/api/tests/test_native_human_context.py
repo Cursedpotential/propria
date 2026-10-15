@@ -48,7 +48,8 @@ def test_sms_routes_relay_exact_source_and_native_pages(monkeypatch):
     assert "get" in paths["/api/context/sources/workflows/{workflow_id}/candidates"]
 
 
-def test_native_search_does_not_need_legacy_case_or_thread_rows(monkeypatch):
+@pytest.mark.parametrize("corpus,record_kind,expect_human", [("native_human_context","conversation_chunk",True), (None,"conversation_chunk",False), ("native_ai_context","ai_chat",False), ("native_human_context","ai_chat",False)])
+def test_native_search_does_not_need_legacy_case_or_thread_rows(monkeypatch,corpus,record_kind,expect_human):
     """A native chunk opens its registered source handle while legacy case scope stays separate."""
     def no_case():
         raise service.ImportedError("no fixed case")
@@ -69,12 +70,12 @@ def test_native_search_does_not_need_legacy_case_or_thread_rows(monkeypatch):
             class Response:
                 status_code = 200
                 def json(self):
-                    return {"data": {"Get": {service.settings.imported_weaviate_class: [{"origin_system": "probata-native-context", "source_version_ids": [version], "record_kind": "conversation_chunk", "text": "synthetic SMS passage", "first_message_id": f"native-record:{version}:26:0:20"}]}}}
+                    return {"data": {"Get": {service.settings.imported_weaviate_class: [{"origin_system": "probata-native-context", "corpus":corpus,"source_version_ids": [version], "record_kind":record_kind, "text": "synthetic native passage", "first_message_id": f"native-record:{version}:26:0:20"}]}}}
             return Response()
     monkeypatch.setattr(service.httpx, "AsyncClient", Client)
     result = asyncio.run(imported_search.search("synthetic", limit=10, offset=0))
     item = result["items"][0]
-    assert item["preview_handle"] == "human-" + version
+    assert item["preview_handle"] == ("human-" + version if expect_human else None)
     assert item["thread_id"] is None
     assert item["source_version_id"] == version
     assert '"matter_id"' not in sent[0]

@@ -74,7 +74,9 @@ type batchStartRequest struct {
 	AutoApproval string `json:"auto_approval"`
 }
 
-// startBatch validates the folder and starts one batch workflow.
+// startBatch validates a non-AI folder declaration and starts one legacy batch workflow.
+// Inputs: authorized folder, case, mode and declared format. Outputs: batch identifiers or refusal.
+// Effects: batch start on admission only; choose native context sources for recognized AI exports.
 func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) {
 	if h.batch == nil {
 		previewError(w, http.StatusServiceUnavailable, errors.New("batch import is not configured on this service"))
@@ -88,6 +90,10 @@ func (h *PreviewHTTPHandler) startBatch(w http.ResponseWriter, r *http.Request) 
 	if strings.TrimSpace(req.BatchID) == "" || strings.TrimSpace(req.FolderRef) == "" ||
 		strings.TrimSpace(req.DeclaredFormat) == "" || strings.TrimSpace(req.ParserOptionsRef) == "" {
 		previewError(w, http.StatusBadRequest, errors.New("start-batch request is incomplete"))
+		return
+	}
+	if nativeAIFormat(req.DeclaredFormat) {
+		previewError(w, http.StatusConflict, errors.New("AI chat processing uses the native context source route (/reference-import/context/sources); no legacy batch workflow was created"))
 		return
 	}
 	if !batchIDPattern.MatchString(req.BatchID) {

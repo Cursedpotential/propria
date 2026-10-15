@@ -87,6 +87,10 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
   const sources = hit.navigation?.sources ?? [];
   const locator = hit.citation.locator;
   const target = nativeSearchTargets({
+    corpus: hit.corpus ?? hit.citation.corpus ?? locator.corpus,
+    source_kind: hit.source_kind ?? hit.citation.source_kind ?? locator.source_kind,
+    source_format: hit.source_format ?? hit.citation.source_format ?? locator.source_format ?? locator.declared_format,
+    record_kind: hit.record_kind ?? hit.citation.record_kind ?? locator.record_kind ?? locator.record_type,
     origin_system: hit.origin_system ?? hit.citation.origin_system ?? locator.origin_system,
     preview_handle: hit.preview_handle ?? hit.citation.preview_handle ?? locator.preview_handle,
     source_version_ref: locator.source_version_ref,
@@ -116,7 +120,7 @@ function SearchHit({ hit, query }: { hit: RetrievalHit; query: string }) {
     <div className="flex flex-wrap gap-3">{links.map((source) =>
       <AppLink className="text-sm underline underline-offset-4" key={source.id}
         href={source.href}>Read {source.name}</AppLink>)}</div>
-    {target.native && !links.length ? <p className="text-xs text-muted-foreground">This indexed passage has no usable native source-version reference.</p> : null}
+    {target.native && !links.length ? <p className="text-xs text-muted-foreground">This indexed passage has no verified human-source reader reference. Its excerpt and source coordinates remain available.</p> : null}
     {hit.location?.href.startsWith("/sources?") ? <AppLink className="inline-block text-sm underline underline-offset-4"
       href={hit.location.href}>Locate original file</AppLink> : null}
     {hit.navigation?.status === "unavailable" ? <p className="text-xs text-muted-foreground">The source lookup could not complete.</p> : null}

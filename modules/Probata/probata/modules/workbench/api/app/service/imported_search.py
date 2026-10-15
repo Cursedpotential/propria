@@ -39,7 +39,8 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
     """Search the conversation chunks (and the call-log files) of the live case.
 
     One hit is a chunk: a run of consecutive messages that the Proffer chunker kept together, each line one message.
-    It opens its thread at the chunk's first message. A call-log file is one entry per file and opens no thread.
+    Verified human corpus hits open their source reader; unclassified native hits retain excerpts without inferred handles.
+    A call-log file is one entry per file and opens no legacy thread.
     Inputs are query text and bounded pagination; outputs include every source
     version and known original locator alongside the display preview. Reads
     Weaviate and PostgreSQL without writes. Use this for ingested conversations,
@@ -60,7 +61,7 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
         "{ Get { %s(limit: %d, offset: %d, "
         "hybrid: {query: %s, alpha: 0, properties: [\"text\"]}, "
         "where: %s) "
-        "{ text origin_system participant_names start_at first_message_id source_version_ids source_version_id record_kind "
+        "{ text origin_system corpus participant_names start_at first_message_id source_version_ids source_version_id record_kind "
         "message_count _additional { id score } } } }"
     ) % (imported.settings.imported_weaviate_class, limit + 1, offset, json.dumps(text), scope)
     try:
@@ -94,6 +95,7 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
     items = []
     for hit in hits:
         is_native = hit.get("origin_system") == "probata-native-context"
+        native_human = is_native and hit.get("corpus") == "native_human_context" and hit.get("record_kind") != "ai_chat"
         is_calls = hit.get("record_kind") == "call_log_file"
         versions = versions_of(hit)
         first_version = versions[0] if versions else None
@@ -103,8 +105,10 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
             "id": hit.get("first_message_id") or first_version or "",
             "collection": imported.settings.imported_weaviate_class,
             "origin_system": hit.get("origin_system"),
+            "corpus": hit.get("corpus"),
+            "record_kind": hit.get("record_kind"),
             "source_version_id": first_version,
-            "preview_handle": "human-" + first_version if is_native and first_version else None,
+            "preview_handle": "human-" + first_version if native_human and first_version else None,
             "object_id": (hit.get("_additional") or {}).get("id"),
             "source_version_ids": versions,
             "source_versions": [{"id": version,
@@ -121,7 +125,7 @@ async def search(query: str, *, limit: int, offset: int) -> dict[str, Any]:
             "message_count": hit.get("message_count"),
         })
     return {"query": text, "mode": "keyword", "items": items, "next_offset": offset + limit if more else None,
-            "note": "Keyword match on conversation text; each result is a run of messages, and opens the thread at its first message. "
+            "note": "Keyword match on indexed conversation text. Verified human sources open in their source reader; other native passages retain excerpts and source coordinates without a guessed human-reader link. "
                     "Meaning-based matching needs an embedding credential the Workbench does not hold yet."}
 
 

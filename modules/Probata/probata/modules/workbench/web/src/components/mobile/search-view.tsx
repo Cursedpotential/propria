@@ -96,7 +96,7 @@ export function SearchView() {
                 <li key={`${hit.collection ?? "imported"}:${hit.object_id ?? `${hit.id}-${hit.thread_id}`}`}>
                   {target.native ? <div className="rounded-xl border border-border bg-card p-4">{card}
                     <div className="mt-2 flex flex-wrap gap-3">{target.handles.map((handle) => <AppLink key={handle} href={attemptReadHref(handle, mode)} className="text-sm underline">Read source messages{target.handles.length > 1 ? ` · ${handle.slice(6)}` : ""}</AppLink>)}</div>
-                    {!target.handles.length && <p className="mt-2 text-xs text-muted-foreground">This indexed passage has no usable native source-version reference.</p>}
+                    {!target.handles.length && <p className="mt-2 text-xs text-muted-foreground">This indexed passage has no verified human-source reader reference. Its excerpt and source coordinates remain available.</p>}
                   </div> : hit.thread_id ? (
                     <AppLink href={`/m/thread/${encodeURIComponent(hit.thread_id)}?${new URLSearchParams({ focus: hit.id })}`} className="block rounded-xl border border-border bg-card p-4 active:bg-muted">{card}</AppLink>
                   ) : <div className="rounded-xl border border-border bg-card p-4">{card}</div>}

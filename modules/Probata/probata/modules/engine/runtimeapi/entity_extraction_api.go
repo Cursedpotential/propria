@@ -160,6 +160,29 @@ type extractRequest struct {
 	UseModel *bool `json:"use_model,omitempty"`
 }
 
+// admitWorkerPreview refuses dispatch that the deployed extraction worker cannot consume.
+// Inputs: exact resolved run. Outputs: prerequisite refusal or admission. Effects: one read, no workflow start.
+// Choose for standalone worker starts; result/proposal reads do not require a published preview.
+func (h *EntityExtractionHTTPHandler) admitWorkerPreview(w http.ResponseWriter, r *http.Request, run flow.RunRef) bool {
+	store, ok := h.store.(interface {
+		StandaloneWorkerPreview(context.Context, flow.RunRef) (bool, error)
+	})
+	if !ok {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction worker preview prerequisite is unavailable; no workflow was started"))
+		return false
+	}
+	available, err := store.StandaloneWorkerPreview(r.Context(), run)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, errors.New("Extraction worker preview prerequisite could not be verified; no workflow was started"))
+		return false
+	}
+	if !available {
+		previewError(w, http.StatusConflict, errors.New("Saved records remain readable, but the current extraction worker requires a published preview for this exact source and generation. Extraction is unavailable for this attempt; no workflow was started"))
+		return false
+	}
+	return true
+}
+
 func (h *EntityExtractionHTTPHandler) extract(w http.ResponseWriter, r *http.Request) {
 	var body extractRequest
 	if err := decodePreviewJSON(w, r, &body); err != nil {
@@ -174,6 +197,9 @@ func (h *EntityExtractionHTTPHandler) extract(w http.ResponseWriter, r *http.Req
 	run, status, err := h.resolveRun(r.Context(), body.PreviewHandle, body.MatterMode, true)
 	if err != nil {
 		previewError(w, status, err)
+		return
+	}
+	if !h.admitWorkerPreview(w, r, run) {
 		return
 	}
 	useModel := body.UseModel == nil || *body.UseModel
@@ -460,6 +486,9 @@ func (h *EntityExtractionHTTPHandler) commit(w http.ResponseWriter, r *http.Requ
 	}
 	if run.MatterMode == "" {
 		previewError(w, http.StatusUnprocessableEntity, errors.New("matter_mode is required"))
+		return
+	}
+	if !h.admitWorkerPreview(w, r, run) {
 		return
 	}
 	report, err := service.Validate(r.Context(), h.store, run)

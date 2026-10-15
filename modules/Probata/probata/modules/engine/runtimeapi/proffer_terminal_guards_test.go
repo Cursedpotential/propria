@@ -2,6 +2,8 @@ package runtimeapi
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,6 +11,50 @@ import (
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/stretchr/testify/require"
 )
+
+// legacyAIBatchStub counts workflow starts without performing external work.
+// Inputs: batch request. Outputs: empty test identifiers. Effects: test counter only; choose for admission regressions.
+type legacyAIBatchStub struct{ starts int }
+
+// StartBatch records dispatch attempts in the admission fixture without external effects.
+// Inputs: ignored request. Outputs: empty IDs. Effects: counter increment; choose only for start refusal tests.
+func (s *legacyAIBatchStub) StartBatch(context.Context, proffer.BatchInput) (string, string, error) {
+	s.starts++
+	return "", "", nil
+}
+// BatchStatus satisfies the fixture boundary with no runtime lookup.
+// Inputs: ignored ID. Outputs: empty status. Effects: none; choose only for admission fixtures.
+func (s *legacyAIBatchStub) BatchStatus(context.Context, string) (proffer.BatchStatus, error) {
+	return proffer.BatchStatus{}, nil
+}
+
+// TestLegacyStartsRejectKnownAIBeforeWorkflowOrBinding protects the native AI route at both legacy starts.
+// Inputs: recognized AI declarations. Outputs: 409 with the supported route. Effects: no workflow/binding writes.
+func TestLegacyStartsRejectKnownAIBeforeWorkflowOrBinding(t *testing.T) {
+	formats := []string{"chatgpt", "claude", "gemini_markdown", "chatgpt_official_json", "chatgpt_json_array", "chatgpt_conversations_json", "claude_conversations_json", "claude_ai_export_json", "gemini_activity_json", "ai_markdown_transcript", "ai_generic_json", "ai_conversations_json", "ai_chat_file", "chatgpt_markdown", "claude_markdown"}
+	for _, format := range formats {
+		t.Run(format, func(t *testing.T) {
+			handler, store, workflow := previewTestHandler(t)
+			batch := &legacyAIBatchStub{}
+			require.NoError(t, handler.UseBatchWorkflow(batch))
+			body, err := json.Marshal(map[string]string{"request_id": "ai-source", "source_ref": "upload://" + strings.Repeat("a", 64), "declared_format": format, "parser_options_ref": "options"})
+			require.NoError(t, err)
+			response := servePreview(handler.Routes(), http.MethodPost, "/reference-import/start", body)
+			require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
+			require.Contains(t, response.Body.String(), "/reference-import/context/sources")
+			require.Empty(t, workflow.started.RequestID)
+			require.Empty(t, store.entries)
+			body, err = json.Marshal(map[string]string{"batch_id": strings.Repeat("b", 32), "folder_ref": "b2://source/folder", "declared_format": format, "parser_options_ref": "options"})
+			require.NoError(t, err)
+			response = servePreview(handler.Routes(), http.MethodPost, "/reference-import/start-batch", body)
+			require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
+			require.Zero(t, batch.starts)
+		})
+	}
+	for _, format := range []string{"json", "message_export_json", "markdown", "ndjson"} {
+		require.False(t, nativeAIFormat(format), "generic format must not infer AI")
+	}
+}
 
 func TestTerminalStaleGatesNeverPersistDecisions(t *testing.T) {
 	for _, lifecycle := range []proffer.OperationLifecycle{proffer.OperationCancelled, proffer.OperationFailed, proffer.OperationCompleted, proffer.OperationRerunRequired} {
