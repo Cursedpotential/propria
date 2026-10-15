@@ -50,7 +50,7 @@ test("fresh deep links browse the exact folder, while explicit Find file still s
     listProfferSources: async (request) => { requests.push(request); },
     setAppliedFilter: (value) => { context.appliedFilter = value; },
     setSelectedRef: (value) => { context.selectedRef = value; },
-    setPerspectiveChoice() {}, setSelectedFolder() {}, setCheckedRefs() {}, setLocalSource() {}, setScrollRow() {}, setSearchSummary() {},
+    setPerspectiveChoice() {}, setSelectedFolder() {}, setSelectedFolders() {}, setCheckedRefs() {}, setLocalSource() {}, setScrollRow() {}, setSearchSummary() {},
   };
   const code = Object.entries(callbacks).map(([name, node]) => `globalThis.${name} = ${node.getText(ast)};`).join("\n");
   runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
@@ -93,13 +93,23 @@ test("fresh deep links browse the exact folder, while explicit Find file still s
 });
 
 test("Back restores exact object metadata, version, checked targets and scroll within one route scope", () => {
-  const value = { selectedRef: "b2://fixture/source.md", selectedFolder: null, checkedRefs: ["b2://fixture/source.md"], providerVersion: "immutable-v1", query: "source", appliedFilter: "source", scrollRow: 42, aiExportSelection: "b2://fixture/source.md", aiProvider: "gemini_markdown",
+  const value = { selectedRef: "b2://fixture/source.md", selectedFolder: null, selectedFolders: [], checkedRefs: ["b2://fixture/source.md"], providerVersion: "immutable-v1", query: "source", appliedFilter: "source", scrollRow: 42, aiExportSelection: "b2://fixture/source.md", aiProvider: "gemini_markdown",
     selectedObject: { source_ref: "b2://fixture/source.md", key: "source.md", name: "source.md", byte_length: 90, etag: '"opaque-etag"' } };
   saveSourceNavigation("LIVE:fixture:folder", value);
   assert.deepEqual(JSON.parse(JSON.stringify(restoreSourceNavigation("LIVE:fixture:folder"))), value);
   assert.equal(restoreSourceNavigation("DEV:fixture:folder"), null);
   assert.equal(restoreSourceNavigation("LIVE:other:folder"), null);
   assert.equal(restoreSourceNavigation("LIVE:fixture:other-folder"), null);
+});
+
+test("Back preserves three separate folder selections only within their actual root scope", () => {
+  const value = { selectedRef: null, selectedFolder: "Incoming/Chris/", selectedFolders: ["Incoming/Ada/", "Incoming/Beth/", "Incoming/Chris/"], checkedRefs: [],
+    selectedObject: null, providerVersion: null, query: "", appliedFilter: "", scrollRow: 0 };
+  saveSourceNavigation("LIVE:root-a:Incoming", value);
+  assert.deepEqual(JSON.parse(JSON.stringify(restoreSourceNavigation("LIVE:root-a:Incoming"))), value);
+  assert.equal(restoreSourceNavigation("LIVE:root-b:Incoming"), null);
+  storage.set("sources-navigation-v1:bad-folders", JSON.stringify({ ...value, selectedFolders: ["Incoming/Ada/", 7] }));
+  assert.equal(restoreSourceNavigation("bad-folders"), null);
 });
 
 test("Malformed session metadata cannot restore an unrelated selected object", () => {
@@ -144,7 +154,7 @@ test("Back keeps v1 pinned until an explicit listed-row selection requests v2 wi
     objects: [v2], rows: [{ sourceRef: ref }], linkedFile: "", mode: "LIVE", activeRootId: "fixture",
     setRestored: (value) => { context.restored = value; },
     setSelectedRef: (value) => { context.selectedRef = value; },
-    setPerspectiveChoice() {}, setLocalSource() {}, setSelectedFolder() {}, setHandlerOverride() {},
+    setPerspectiveChoice() {}, setLocalSource() {}, setSelectedFolder() {}, setSelectedFolders() {}, setHandlerOverride() {},
     previewProfferSource: async (object, mode, root, signal, version) => { calls.push({ object, version }); return { provider_version_id: version ?? "version-v2" }; },
   };
   const compiled = ts.transpileModule(`globalThis.selectObject = ${selectObject.getText(ast)}; globalThis.selectRow = ${selectRow.getText(ast)}; globalThis.inspect = ${inspect.getText(ast)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;

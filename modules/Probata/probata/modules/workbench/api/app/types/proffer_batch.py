@@ -10,7 +10,7 @@ single-start path does.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +21,11 @@ BatchItemStatus = Literal["queued", "running", "waiting_on_gate", "done", "faile
 
 
 class ProfferBatchStartRequest(BaseModel):
-    """One folder, one batch. The folder locator is validated by the engine."""
+    """Identify one durable ordinary folder batch or a bounded set of separate units.
+
+    Inputs: actual mode/case, common folder and optional unit roots. Output: engine
+    request. Effects: none; choose unit_roots to preserve packages instead of flat fan-out.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -29,6 +33,7 @@ class ProfferBatchStartRequest(BaseModel):
     matter_id: UUID
     court_case_id: UUID
     folder_ref: str = Field(min_length=8, max_length=2048)
+    unit_roots: list[Annotated[str, Field(min_length=8, max_length=2048)]] | None = Field(default=None, min_length=1, max_length=32)
     declared_format: str = Field(min_length=1, max_length=128)
     parser_options_ref: str = Field(min_length=1, max_length=256)
     source_context_ref: str | None = None
@@ -61,6 +66,9 @@ class ProfferBatchItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str
     source_ref: str = ""
+    unit_root: str | None = None
+    unit_manifest_ref: str | None = None
+    member_count: int | None = Field(default=None, ge=0)
     request_id: str = ""
     preview_handle: str = ""
     status: BatchItemStatus

@@ -3,6 +3,7 @@ import type { ProfferSourceObject } from "@/lib/shared/types";
 export interface SourceNavigationState {
   selectedRef: string | null;
   selectedFolder: string | null;
+  selectedFolders?: string[];
   checkedRefs: string[];
   selectedObject: ProfferSourceObject | null;
   providerVersion: string | null;
@@ -36,6 +37,8 @@ export function restoreSourceNavigation(key: string): SourceNavigationState | nu
         || (value.selectedRef !== null && typeof value.selectedRef !== "string")
         || (value.selectedFolder !== null && typeof value.selectedFolder !== "string")
         || (value.providerVersion !== null && typeof value.providerVersion !== "string")) return null;
+    if (value.selectedFolders !== undefined && (!Array.isArray(value.selectedFolders)
+        || !value.selectedFolders.every((folder: unknown) => typeof folder === "string" && folder.length > 0))) return null;
     if ((value.aiExportSelection !== undefined && value.aiExportSelection !== null && typeof value.aiExportSelection !== "string")
         || (value.aiProvider !== undefined && !["", "chatgpt", "claude", "gemini_markdown"].includes(value.aiProvider))) return null;
     const object = value.selectedObject;

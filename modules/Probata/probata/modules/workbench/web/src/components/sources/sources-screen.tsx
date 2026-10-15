@@ -30,6 +30,7 @@ import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-
 import { SourceSearch } from "@/components/sources/source-search";
 import { ContextSearch } from "@/components/read/context-search";
 import { SourceTree } from "@/components/sources/source-tree";
+import { folderSelectionPlan, markFolderUnits } from "@/components/sources/folder-selection";
 import { detectedFormat, runsBySource, sourceRunHistory, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
@@ -93,6 +94,7 @@ function SourcesScreenMode() {
   const [appliedFilter, setAppliedFilter] = useState(restored?.appliedFilter ?? (linkedScope ? "" : linkedFile));
   const [selectedRef, setSelectedRef] = useState<string | null>(restored ? restored.selectedRef : linkedScope ? linkedFile || null : null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(restored ? restored.selectedFolder : searchParams.get("select_folder") === "1" ? prefix : null);
+  const [selectedFolders, setSelectedFolders] = useState<ReadonlySet<string>>(() => new Set(restored?.selectedFolders ?? (restored?.selectedFolder ? [restored.selectedFolder] : searchParams.get("select_folder") === "1" && prefix ? [prefix] : [])));
   const [checkedRefs, setCheckedRefs] = useState<ReadonlySet<string>>(() => new Set(restored?.checkedRefs ?? []));
   const [scrollRow, setScrollRow] = useState(restored?.scrollRow ?? 0);
   const [handlerOverride, setHandlerOverride] = useState("");
@@ -192,7 +194,7 @@ function SourcesScreenMode() {
     [decodedQuery.data, runsIndex],
   );
 
-  const folderKeys = useMemo(() => prefixes.map((entry) => entry.prefix.replace(/\/$/, "")), [prefixes]);
+  const folderKeys = useMemo(() => [...new Set([...prefixes.map((entry) => entry.prefix.replace(/\/$/, "")), ...(selectedFolder ? [selectedFolder.replace(/\/$/, "")] : [])])], [prefixes, selectedFolder]);
   const objectKeys = useMemo(() => objects.map((object) => object.key), [objects]);
   const unitsQuery = useQuery({
     queryKey: ["sources", "units", folderKeys, objectKeys],
@@ -235,12 +237,12 @@ function SourcesScreenMode() {
 
   useEffect(() => {
     saveSourceNavigation(navigationKey, {
-      selectedRef: selectedObject?.source_ref ?? selectedRef, selectedFolder, checkedRefs: [...checkedRefs], selectedObject,
+        selectedRef: selectedObject?.source_ref ?? selectedRef, selectedFolder, selectedFolders: [...selectedFolders], checkedRefs: [...checkedRefs], selectedObject,
       providerVersion: inspectionQuery.data?.provider_version_id ?? (restored?.selectedRef === selectedRef ? restored.providerVersion : null),
       query, appliedFilter, scrollRow,
       aiExportSelection, aiProvider,
     });
-  }, [navigationKey, selectedRef, selectedFolder, checkedRefs, selectedObject, inspectionQuery.data, restored, query, appliedFilter, scrollRow, aiExportSelection, aiProvider]);
+  }, [navigationKey, selectedRef, selectedFolder, selectedFolders, checkedRefs, selectedObject, inspectionQuery.data, restored, query, appliedFilter, scrollRow, aiExportSelection, aiProvider]);
 
   const manifestQuery = useQuery({
     queryKey: ["sources", "manifest", selectedObject?.source_ref],
@@ -256,11 +258,18 @@ function SourcesScreenMode() {
     retry: false,
   });
 
-  const folderNames = useMemo(() => objects.map((object) => object.name), [objects]);
+  const selectedFolderQuery = useQuery({
+    queryKey: ["sources", "selected-folder-listing", mode, activeRootId, selectedFolder],
+    queryFn: ({ signal }) => listProfferSources({ mode, rootId: activeRootId, prefix: selectedFolder!, pageSize: 200, signal }),
+    enabled: Boolean(selectedFolder && (selectedFolder !== prefix || appliedFilter)),
+    retry: false,
+  });
+  const selectedFolderListing = selectedFolder !== prefix || appliedFilter ? selectedFolderQuery.data : listing;
+  const folderNames = useMemo(() => [...(selectedFolderListing?.objects ?? []).map((object) => object.name), ...(selectedFolderListing?.prefixes ?? []).map((folder) => folder.name)], [selectedFolderListing]);
   const proposalQuery = useQuery({
-    queryKey: ["sources", "unit-proposal", selectedFolder, folderNames],
+    queryKey: ["sources", "unit-proposal", activeRootId, selectedFolder, folderNames],
     queryFn: ({ signal }) => proposeSourceUnit(selectedFolder!, folderNames, signal),
-    enabled: Boolean(selectedFolder),
+    enabled: Boolean(selectedFolder && selectedFolderListing),
     retry: false,
   });
 
@@ -314,7 +323,7 @@ function SourcesScreenMode() {
   const selectedIndex = rows.findIndex((row) => row.sourceRef === (selectedObject?.source_ref ?? selectedRef));
 
   const proposal = proposalQuery.data ?? null;
-  const markKind: SourceUnitKind = unitMarkKind || proposal?.looks_like || "other";
+  const markKind: SourceUnitKind = unitMarkKind || (selectedFolders.size > 1 ? "other" : proposal?.looks_like) || "other";
 
   const selection: SourceSelection = selectedFolder
     ? {
@@ -340,10 +349,11 @@ function SourcesScreenMode() {
     () => objects.filter((object) => checkedRefs.has(object.source_ref)),
     [checkedRefs, objects],
   );
+  const folderPlan = folderSelectionPlan(listing?.available_roots.find((root) => root.root_id === activeRootId)?.root_ref ?? "", selectedFolders);
   const processTarget = showContentSearch ? null : localSource ? localSource.file.name : selectedFiles.length
     ? `${selectedFiles.length} file(s)`
-    : selectedFolder
-      ? `folder ${selectedFolder} · recursive scope, at most 2,000 files per batch, derived outputs excluded; exact count unknown until inventory`
+      : selectedFolders.size
+        ? `${selectedFolders.size} separate folder unit${selectedFolders.size === 1 ? "" : "s"}`
       : selectedObject
         ? selectedObject.name
         : null;
@@ -374,6 +384,7 @@ function SourcesScreenMode() {
     setPerspectiveChoice(null);
     setSelectedRef(null);
     setSelectedFolder(null);
+    setSelectedFolders(new Set());
     setCheckedRefs(new Set()); setLocalSource(null); setScrollRow(0);
     setSearchSummary(`Names and paths across the entire selected location: “${text}”. Browsed folder: ${prefix || "root"}.`);
   }, [query, prefix]);
@@ -382,7 +393,7 @@ function SourcesScreenMode() {
     setQuery("");
     setAppliedFilter("");
     setSearchSummary(null);
-    setSelectedRef(null); setSelectedFolder(null); setCheckedRefs(new Set()); setScrollRow(0);
+    setSelectedRef(null); setSelectedFolder(null); setSelectedFolders(new Set()); setCheckedRefs(new Set()); setScrollRow(0);
   }, []);
 
   /** Browse an exact source location with a bookmarkable URL and fresh selection.
@@ -422,7 +433,7 @@ function SourcesScreenMode() {
    * Byline: Codex · GPT-6 · 2026-10-06.
    */
   async function process() {
-    if (processBusy.current || showContentSearch || !processTarget || unsupportedMedia || aiProcessBlocked) return;
+    if (processBusy.current || showContentSearch || !processTarget || folderPlan.issue || unsupportedMedia || aiProcessBlocked) return;
     if (hasAIProcessTarget) {
       await addAIChatToContext();
       return;
@@ -529,12 +540,12 @@ function SourcesScreenMode() {
         setProcessMessage(`${accepted} of ${files.length} files submitted. ${outcomes.join(" · ")}`);
         if (submissionErrors.length) setProcessError(`${submissionErrors.join(" · ")} Retry keeps the accepted files and resends only the unfinished requests.`);
         void runsQuery.refetch();
-      } else if (selectedFolder && listing) {
+      } else if (selectedFolders.size && listing) {
         if (!matter || !primaryCourtCase) throw new Error("Legacy folder processing needs a fixed case.");
-        const root = listing.available_roots.find((entry) => entry.root_id === activeRootId);
-        if (!root) throw new Error("This folder has no confirmed source location.");
-        const folderRef = `${root.root_ref.replace(/\/$/, "")}/${selectedFolder.replace(/^\//, "")}`;
-        const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, folderRef, handlerOverride]);
+        const folderRef = folderPlan.folderRef;
+        const unitRoots = folderPlan.units.map((unit) => unit.sourceRef).filter((ref): ref is string => Boolean(ref)).sort();
+        if (!folderRef || unitRoots.length !== selectedFolders.size) throw new Error("These folders have no confirmed source location.");
+        const key = JSON.stringify([matter.id, primaryCourtCase.id, mode, folderRef, unitRoots, handlerOverride]);
         const batchId = batchRequests.current.get(key) ?? newBatchId();
         batchRequests.current.set(key, batchId);
         const started = await startProfferBatch({
@@ -542,13 +553,14 @@ function SourcesScreenMode() {
           matter_id: matter.id,
           court_case_id: primaryCourtCase.id,
           folder_ref: folderRef,
-          declared_format: handlerOverride || detectedFormat(selectedFolder),
+          unit_roots: unitRoots,
+          declared_format: handlerOverride || "unknown_binary",
           parser_options_ref: "pending-handler-selection/v1",
           matter_mode: mode,
         });
         setBatchIdent(started.batch_id);
         setActivityHref(`/activity?${new URLSearchParams({ batch: started.batch_id, mode })}`);
-        setProcessMessage(`Batch started for ${selectedFolder}.`);
+        setProcessMessage(`Batch started for ${unitRoots.length} separate folder unit${unitRoots.length === 1 ? "" : "s"}. Follow each unit in Activity.`);
       }
     } catch (error) {
       setProcessError(errorText(error));
@@ -592,8 +604,9 @@ function SourcesScreenMode() {
     setMarkPending(true);
     setMarkError(null);
     try {
-      const mark = await recordSourceUnitMark({ unit_root: selectedFolder, unit_type: markKind, confirm });
-      setLocalMarks((current) => [mark, ...current.filter((item) => item.unit_root !== mark.unit_root)]);
+      const result = await markFolderUnits(selectedFolders.size ? [...selectedFolders] : [selectedFolder], markKind, confirm, recordSourceUnitMark);
+      setLocalMarks((current) => [...result.marks, ...current.filter((item) => !result.marks.some((mark) => mark.unit_root === item.unit_root))]);
+      if (result.failures.length) setMarkError(result.failures.join(" · "));
     } catch (error) {
       setMarkError(errorText(error));
     } finally {
@@ -621,7 +634,7 @@ function SourcesScreenMode() {
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
         <Button size="sm" variant={showContentSearch ? "default" : "outline"}
           aria-expanded={showContentSearch} onClick={() => {
-            setSelectedRef(null); setSelectedFolder(null); setCheckedRefs(new Set()); setLocalSource(null); setPerspectiveChoice(null);
+            setSelectedRef(null); setSelectedFolder(null); setSelectedFolders(new Set()); setCheckedRefs(new Set()); setLocalSource(null); setPerspectiveChoice(null);
             setShowContentSearch((value) => !value);
           }}>
           {showContentSearch ? "Back to files" : "Search content and relationships"}
@@ -631,6 +644,7 @@ function SourcesScreenMode() {
             const file = event.target.files?.[0];
             if (file) {
               setPerspectiveChoice(null);
+              setSelectedFolder(null); setSelectedFolders(new Set()); setSelectedRef(null); setCheckedRefs(new Set());
               setLocalSource({ file, requestId: `proffer-${matter?.id ?? "upload"}-${crypto.randomUUID()}` });
               setProcessMessage(null); setProcessError(null); setActivityHref(null);
             }
@@ -655,7 +669,7 @@ function SourcesScreenMode() {
         )}
         <Button
           size="sm"
-          disabled={processing || !processTarget || unsupportedMedia || aiProcessBlocked || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
+          disabled={processing || !processTarget || Boolean(folderPlan.issue) || unsupportedMedia || aiProcessBlocked || (!hasNativeProcessTarget && (!matter || !primaryCourtCase))}
           onClick={() => void process()}
         >
           {processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Process
@@ -664,6 +678,12 @@ function SourcesScreenMode() {
           {hasAIProcessTarget ? aiProcessBlocked ? "AI chat target: select one export and choose its provider; exact source version must be available before native context processing." : `Ready: ${processTarget} · native AI context route to Weaviate` : unsupportedMedia ? "Original media can be inspected; no registered audio/video extractor is available in this Process route." : uploadProgress !== null ? `Uploading ${uploadProgress}%` : processTarget ? `Ready: ${processTarget}` : "Select files or a folder."}
         </span>
         {processFiles.length > 0 && !showContentSearch && <details className="max-w-full text-[11px]"><summary className="cursor-pointer">Exact processing target ({processFiles.length} file{processFiles.length === 1 ? "" : "s"}; no folder recursion)</summary><ul className="max-h-40 overflow-auto">{processFiles.map((object) => <li className="break-all" key={object.source_ref}>{object.name} · {object.source_ref} · {object.byte_length} bytes · ETag {object.etag ?? "not supplied"}</li>)}</ul></details>}
+        {folderPlan.units.length > 0 && !showContentSearch && <details className="w-full text-xs"><summary className="cursor-pointer">Selected folder units ({folderPlan.units.length} separate roots)</summary>
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">{folderPlan.units.map((unit) => <li key={unit.prefix}>{unit.name}</li>)}</ul>
+          <p className="mt-1 text-muted-foreground">Each folder keeps its own files and attachments. Unit marking does not move the originals.</p>
+          <details className="mt-1"><summary className="cursor-pointer">Original folder locations</summary><ul>{folderPlan.units.map((unit) => <li key={unit.prefix} className="break-all">{unit.sourceRef ?? "Loading source location"}</li>)}</ul></details>
+          {folderPlan.issue && <p role="alert" className="text-destructive">{folderPlan.issue}</p>}
+        </details>}
         {localSource && <Button size="icon" variant="ghost" aria-label="Clear local file selection" disabled={processing} onClick={() => { setLocalSource(null); setPerspectiveChoice(null); }}><X className="h-3.5 w-3.5" /></Button>}
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
         {humanWorkflows.map((workflow) => <HumanProcessStatus key={workflow.workflowID} workflowID={workflow.workflowID} name={workflow.name} mode={mode} />)}
@@ -719,6 +739,7 @@ function SourcesScreenMode() {
             loading={listingQuery.isPending}
             unitRoots={unitRoots}
             selectedFolder={selectedFolder}
+            selectedFolders={selectedFolders}
             onRootChange={(nextRoot) => {
               browse(nextRoot, "");
             }}
@@ -726,11 +747,11 @@ function SourcesScreenMode() {
               browse(activeRootId, nextPrefix);
             }}
             onSelectFolder={(nextFolder) => {
-              if (nextFolder !== prefix) {
-                void router.navigate({ href: `/sources?${new URLSearchParams({ root: activeRootId, prefix: nextFolder, select_folder: "1", mode })}` });
-              } else {
-                clearSearch(); setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedFolder(nextFolder); setSelectedRef(null); setUnitMarkKind("");
-              }
+              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedFolder(nextFolder); setSelectedFolders((current) => current.has(nextFolder) ? current : new Set([nextFolder])); setSelectedRef(null); setUnitMarkKind(""); setShowContentSearch(false);
+            }}
+            onToggleFolder={(nextFolder, checked) => {
+              setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set()); setSelectedRef(null); setSelectedFolder(nextFolder); setUnitMarkKind(""); setShowContentSearch(false);
+              setSelectedFolders((current) => { const next = new Set(current); if (checked) next.add(nextFolder); else next.delete(nextFolder); return next; });
             }}
           />
         </Panel>
@@ -757,9 +778,10 @@ function SourcesScreenMode() {
                       setLocalSource(null);
                       setSelectedRef(rows[index]?.sourceRef ?? null);
                       setSelectedFolder(null);
+                      setSelectedFolders(new Set());
                       setHandlerOverride("");
                     }}
-                    onToggleChecked={(refs) => { setRestored(null); setPerspectiveChoice(null); setLocalSource(null); setCheckedRefs(new Set(refs)); }}
+                    onToggleChecked={(refs) => { setRestored(null); setPerspectiveChoice(null); setLocalSource(null); setSelectedFolder(null); setSelectedFolders(new Set()); setCheckedRefs(new Set(refs)); }}
                     onReachEnd={() => { if (!appliedFilter && !nextPageError) loadNextPage(); }}
                     initialScrollRow={restored?.scrollRow ?? 0}
                     onScrollRowChange={setScrollRow}
@@ -817,9 +839,9 @@ function SourcesScreenMode() {
             unitMarkKind={markKind}
             onUnitMarkKindChange={setUnitMarkKind}
             onMarkUnit={(confirm) => void markUnit(confirm)}
+            selectedFolderCount={selectedFolders.size || (selectedFolder ? 1 : 0)}
             markPending={markPending}
             markError={markError}
-            markStorage={marksQuery.data?.storage ?? "the Workbench data volume"}
             batch={batchQuery.data ?? null}
             canonicalHomeOffered
           />

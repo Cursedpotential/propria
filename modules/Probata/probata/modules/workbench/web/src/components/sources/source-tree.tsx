@@ -17,6 +17,10 @@ function breadcrumbParts(prefix: string) {
   return parts.map((label, index) => ({ label, prefix: `${parts.slice(0, index + 1).join("/")}/` }));
 }
 
+/** Show folder selection, independent checkbox inclusion and compact browse controls.
+ * Inputs: one rooted listing and controlled selection. Output: keyboard-accessible
+ * folder rows and current-folder action. Effects: parent callbacks only; choose for Sources.
+ */
 export function SourceTree({
   roots,
   activeRootId,
@@ -28,6 +32,8 @@ export function SourceTree({
   onPrefixChange,
   onSelectFolder,
   selectedFolder,
+  selectedFolders,
+  onToggleFolder,
 }: {
   roots: readonly ProfferSourceRoot[];
   activeRootId: string;
@@ -40,6 +46,8 @@ export function SourceTree({
   onPrefixChange: (prefix: string) => void;
   onSelectFolder: (prefix: string) => void;
   selectedFolder: string | null;
+  selectedFolders: ReadonlySet<string>;
+  onToggleFolder: (prefix: string, checked: boolean) => void;
 }) {
   const parts = breadcrumbParts(prefix);
 
@@ -77,7 +85,9 @@ export function SourceTree({
               type="button"
               className="max-w-40 truncate px-1 py-0.5 hover:text-primary"
               title={part.label}
-              onClick={() => onPrefixChange(part.prefix)}
+              aria-label={part.prefix === prefix ? `Select current folder ${part.label}` : `Browse folder ${part.label}`}
+              aria-pressed={part.prefix === prefix ? selectedFolder === prefix : undefined}
+              onClick={() => part.prefix === prefix ? onSelectFolder(prefix) : onPrefixChange(part.prefix)}
             >
               {part.label}
             </button>
@@ -105,12 +115,14 @@ export function SourceTree({
                       selected && "bg-accent text-accent-foreground",
                     )}
                   >
+                    <input type="checkbox" className="shrink-0" aria-label={`Include folder ${entry.name}`} checked={selectedFolders.has(entry.prefix)} onChange={(event) => onToggleFolder(entry.prefix, event.target.checked)} />
                     <button
                       type="button"
                       className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left hover:text-primary"
-                      onClick={() => onPrefixChange(entry.prefix)}
-                      aria-label={`Browse folder ${entry.name}`}
-                      title={entry.prefix}
+                      onClick={() => onSelectFolder(entry.prefix)}
+                      aria-label={`Select folder ${entry.name}`}
+                      aria-pressed={selected}
+                      title={entry.name}
                     >
                       <FolderOpen className="h-3.5 w-3.5 shrink-0" />
                       <span className="truncate">{entry.name}</span>
@@ -123,11 +135,11 @@ export function SourceTree({
                     <button
                       type="button"
                       className="shrink-0 px-1 py-1.5 text-muted-foreground hover:text-primary"
-                      aria-label={`Select folder ${entry.name} for processing`}
-                      aria-pressed={selected}
-                      onClick={() => onSelectFolder(entry.prefix)}
+                      aria-label={`Open folder ${entry.name}`}
+                      title={`Open ${entry.name}`}
+                      onClick={() => onPrefixChange(entry.prefix)}
                     >
-                      Select
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 </li>

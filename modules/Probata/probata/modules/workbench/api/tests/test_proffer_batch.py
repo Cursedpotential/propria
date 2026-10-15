@@ -8,12 +8,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from app.runtime import operating_mode
 from app.runtime.proffer_batch import router
 from app.service import proffer_batch as service
 from app.service.proffer_errors import ProfferError
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 BATCH_ID = "batch" + "0123456789abcdef" * 2
 MATTER_ID = "11111111-1111-4111-8111-111111111111"
@@ -72,6 +73,54 @@ def test_start_batch_passes_the_folder_through_and_echoes_the_mode(client, monke
     assert "matter_mode" not in seen["json"]
     assert seen["json"]["operating_mode"] == "LIVE"
     assert seen["json"]["folder_ref"] == "b2://salem-data/consignatio/vault/v1/calls/"
+    assert "unit_roots" not in seen["json"]
+
+
+def test_three_package_roots_are_forwarded_as_one_batch_without_combining_units(client, monkeypatch):
+    parent = "b2://fixture/vault/Incoming/"
+    roots = [parent + name + "/" for name in ("+15550000001 - Ada", "+15550000002 - Beth", "+15550000003 - Chris")]
+    monkeypatch.setenv("SOURCE_ROOTS_JSON", json.dumps([{"id": "fixture", "label": "Fixture", "url": "b2://fixture/vault/"}]))
+    monkeypatch.setattr(service, "require_scope", lambda *args: None)
+    calls = []
+
+    async def request(method, path, **kwargs):
+        calls.append((method, path, kwargs.get("json")))
+        return _response(200, _status()) if method == "GET" else _response(201, {"batch_id": BATCH_ID})
+
+    monkeypatch.setattr(service, "_request", request)
+    response = client.post("/api/proffer/start-batch?mode=LIVE", json=_body(folder_ref=parent, unit_roots=roots))
+    assert response.status_code == 201
+    starts = [body for method, _, body in calls if method == "POST"]
+    assert len(starts) == 1
+    assert starts[0]["folder_ref"] == parent
+    assert starts[0]["unit_roots"] == roots
+
+
+@pytest.mark.parametrize("roots", [
+    [], ["b2://fixture/vault/Incoming/A/"] * 2,
+    ["b2://fixture/vault/Incoming/A/", "b2://fixture/vault/Incoming/A/attachments/"],
+    ["b2://fixture/vault/Incoming/A/", "b2://other/vault/Incoming/B/"],
+    ["b2://fixture/vault/IncomingWrong/A/"], ["b2://fixture/outside/Incoming/A/"],
+    ["b2://fixture/vault/Incoming/../outside/"], ["b2://fixture/vault/Incoming/%2e%2e/outside/"],
+    ["b2://fixture/vault/Incoming/A/?versionId=not-a-folder-version"],
+    ["b2://fixture/vault/Incoming/A/", "b2://fixture/vault/Incoming/%41/"],
+    [f"b2://fixture/vault/Incoming/{index}/" for index in range(33)],
+])
+def test_invalid_package_roots_never_reach_engine(client, monkeypatch, roots):
+    monkeypatch.setenv("SOURCE_ROOTS_JSON", json.dumps([{"id": "fixture", "label": "Fixture", "url": "b2://fixture/vault/"}]))
+    monkeypatch.setattr(service, "require_scope", lambda *args: None)
+
+    async def never(*args, **kwargs):
+        raise AssertionError("invalid unit roots must not reach engine")
+
+    monkeypatch.setattr(service, "_request", never)
+    response = client.post("/api/proffer/start-batch?mode=LIVE", json=_body(folder_ref="b2://fixture/vault/Incoming/", unit_roots=roots))
+    assert response.status_code == 422
+
+
+def test_package_parent_may_be_the_explicitly_configured_bucket_root(monkeypatch):
+    monkeypatch.setenv("SOURCE_ROOTS_JSON", json.dumps([{"id": "fixture", "label": "Fixture", "url": "b2://fixture/"}]))
+    service.validate_unit_roots("b2://fixture/", ["b2://fixture/Incoming/A/", "b2://fixture/Incoming/B/"])
 
 
 def test_a_body_mode_that_contradicts_the_query_is_refused(client, monkeypatch):

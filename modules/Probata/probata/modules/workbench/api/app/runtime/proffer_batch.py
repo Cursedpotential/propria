@@ -27,6 +27,11 @@ BatchID = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
 async def start_batch_endpoint(
     body: ProfferBatchStartRequest, mode: OperatingMode
 ):
+    """Start one case-bound folder or separate-unit batch through the existing engine.
+
+    Inputs: verified mode and bounded package coordinates. Output: durable batch ID.
+    Effects: engine start and policy readback; choose over separate starts for selected units.
+    """
     try:
         return await start_batch(body, mode=mode)
     except ProfferError as error:

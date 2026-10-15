@@ -97,7 +97,7 @@ export function SourceMetadataPanel({
   onMarkUnit,
   markPending,
   markError,
-  markStorage,
+  selectedFolderCount,
   batch,
   canonicalHomeOffered,
 }: {
@@ -119,7 +119,7 @@ export function SourceMetadataPanel({
   onMarkUnit: (confirm: boolean) => void;
   markPending: boolean;
   markError: string | null;
-  markStorage: string;
+  selectedFolderCount: number;
   batch: ProfferBatchStatus | null;
   canonicalHomeOffered: boolean;
 }) {
@@ -136,7 +136,7 @@ export function SourceMetadataPanel({
           onMarkUnit={onMarkUnit}
           markPending={markPending}
           markError={markError}
-          markStorage={markStorage}
+          selectedFolderCount={selectedFolderCount}
           batch={batch}
           canonicalHomeOffered={canonicalHomeOffered}
         />
@@ -168,7 +168,7 @@ function FolderDetail({
   onMarkUnit,
   markPending,
   markError,
-  markStorage,
+  selectedFolderCount,
   batch,
   canonicalHomeOffered,
 }: {
@@ -179,7 +179,7 @@ function FolderDetail({
   onMarkUnit: (confirm: boolean) => void;
   markPending: boolean;
   markError: string | null;
-  markStorage: string;
+  selectedFolderCount: number;
   batch: ProfferBatchStatus | null;
   canonicalHomeOffered: boolean;
 }) {
@@ -191,7 +191,8 @@ function FolderDetail({
     <div className="min-h-0 flex-1 overflow-auto">
       <header className="border-b px-3 py-2">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Folder</p>
-        <strong className="block break-all text-sm">{selection.prefix}</strong>
+        <strong className="block break-all text-sm">{selection.prefix.replace(/\/$/, "").split("/").at(-1)}</strong>
+        <details className="mt-1 text-xs"><summary className="cursor-pointer">Folder location</summary><p className="break-all">{selection.prefix}</p></details>
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {unit && (
             <span className="border border-[#4051b9] bg-[#e9ecfb] px-1 text-[9px] font-semibold uppercase text-[#2b3785] dark:bg-[#313a66] dark:text-[#c9d0fb]">
@@ -213,28 +214,31 @@ function FolderDetail({
           <Field label="Unit kind" value={unit.unit_type.replaceAll("_", " ")} />
           <Field label="Members" value={unit.member_count.toLocaleString()} />
           <Field label="Total size" value={formatBytes(unit.total_bytes)} />
-          <Field label="Members without sha1" value={unit.members_without_sha1.toLocaleString()} />
-          <Field label="Parent unit" value={unit.parent_unit_id ? String(unit.parent_unit_id) : "none"} />
-          <Field label="Recorded root" value={unit.unit_root} mono />
+          <details className="px-3 py-2 text-xs"><summary className="cursor-pointer">Catalog source details</summary>
+            <Field label="Members without a recorded fingerprint" value={unit.members_without_sha1.toLocaleString()} />
+            <Field label="Parent unit" value={unit.parent_unit_id ? String(unit.parent_unit_id) : "none"} />
+            <Field label="Recorded root" value={unit.unit_root} mono />
+          </details>
         </dl>
       )}
 
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Mark as unit</p>
+        {selectedFolderCount > 1 && <p className="mt-1 text-xs">Each of the {selectedFolderCount} selected folders will be marked as a separate unit.</p>}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <select
-            className="h-8 border bg-background px-2 text-xs"
+            className="h-8 min-w-0 max-w-full border bg-background px-2 text-xs"
             value={unitMarkKind}
             aria-label="Unit kind to mark"
             onChange={(event) => onUnitMarkKindChange(event.target.value as SourceUnitKind)}
           >
             {["takeout", "takeout_zip", "facebook", "snapchat", "cube_acr", "git_repo", "obsidian_vault", "other"].map((kind) => (
-              <option key={kind} value={kind}>{kind.replaceAll("_", " ")}</option>
+              <option key={kind} value={kind}>{kind === "other" ? "Folder package" : kind.replaceAll("_", " ")}</option>
             ))}
           </select>
-          <Button size="sm" variant="outline" disabled={markPending} onClick={() => onMarkUnit(needsConfirm)}>
+          <Button size="sm" variant="outline" className="h-auto min-h-8 max-w-full whitespace-normal py-1" disabled={markPending} onClick={() => onMarkUnit(needsConfirm)}>
             {markPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {needsConfirm ? "Confirm and mark" : "Mark as unit"}
+            {needsConfirm ? "Confirm and mark" : selectedFolderCount > 1 ? `Mark ${selectedFolderCount} separate units` : "Mark as unit"}
           </Button>
         </div>
         {takeout.map((set) => (
@@ -249,7 +253,7 @@ function FolderDetail({
         ))}
         {markError && <p className="mt-2 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">{markError}</p>}
         <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-          Hand-marked units are stored by the Workbench ({markStorage}). The catalog&apos;s own unit tables stay read-only.
+          Your unit marks are saved in Workbench. The catalog&apos;s own unit tables stay read-only.
         </p>
         {canonicalHomeOffered && (
           <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
@@ -263,6 +267,10 @@ function FolderDetail({
   );
 }
 
+/** Display actual batch counts and any package-unit provenance returned by the engine.
+ * Input: durable batch status. Output: progress and original-member references.
+ * Effects: navigation only; choose for selected units without inferring attachment jobs.
+ */
 function BatchProgress({ batch }: { batch: ProfferBatchStatus }) {
   const { counts } = batch;
   return (
@@ -273,6 +281,15 @@ function BatchProgress({ batch }: { batch: ProfferBatchStatus }) {
         {" "}of {counts.total}
       </p>
       {batch.listing_truncated && <p className="mt-1 text-[11px] text-muted-foreground">This folder holds more members than one batch imports.</p>}
+      <ul className="mt-2 space-y-2 text-xs">{batch.items.filter((item) => item.unit_root).map((item) => <li key={item.key}>
+        <p className="break-all font-medium">{item.unit_root!.replace(/\/$/, "").split("/").at(-1)} · {item.status.replaceAll("_", " ")}</p>
+        <p>{item.member_count == null ? "Member inventory not available yet." : `${item.member_count} members in this unit's recorded inventory.`}</p>
+        {item.reason && <p>{item.reason}</p>}
+        <details><summary className="cursor-pointer">Unit source details</summary><p className="break-all">{item.unit_root}</p>
+          {item.source_ref && <p className="break-all">Primary: {item.source_ref}</p>}
+          {item.unit_manifest_ref && <p className="break-all">Member inventory: {item.unit_manifest_ref}</p>}
+        </details>
+      </li>)}</ul>
       <AppLink className="mt-2 inline-block text-xs font-medium text-primary underline" href={`/activity?${new URLSearchParams({ batch: batch.batch_id, mode: batch.matter_mode })}`}>Follow this batch in Activity</AppLink>
     </section>
   );

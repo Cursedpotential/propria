@@ -1921,6 +1921,7 @@ export interface ProfferBatchStartRequest {
   matter_id: string;
   court_case_id: string;
   folder_ref: string;
+  unit_roots?: string[];
   declared_format: string;
   parser_options_ref: string;
   source_context_ref?: string | null;
@@ -1946,6 +1947,9 @@ export interface ProfferBatchCounts {
 export interface ProfferBatchItem {
   key: string;
   source_ref: string;
+  unit_root?: string | null;
+  unit_manifest_ref?: string | null;
+  member_count?: number | null;
   request_id: string;
   preview_handle: string;
   status: ProfferBatchItemStatus;

@@ -1390,7 +1390,11 @@ export function getDiscoveryUnitMembers(unitId: number, signal?: AbortSignal, cu
 // Byline: Claude Code · Opus 5 · 2026-09-22. Sources screen: folder batches,
 // decode-state marks, catalog units and provenance, hand-marked units.
 
-/** Start one durable batch over one folder (engine POST /reference-import/start-batch). */
+/** Start one durable folder batch or a batch of separately preserved selected units.
+ * Inputs: actual case/mode, common folder and optional exact unit roots. Output:
+ * confirmed batch ID. Effects: existing engine start; choose unit_roots so package
+ * attachments remain members of their unit rather than independent processing jobs.
+ */
 export function startProfferBatch(payload: ProfferBatchStartRequest) {
   const query = new URLSearchParams({ mode: payload.matter_mode });
   return apiFetch<ProfferBatchStartResponse>(`/api/proffer/start-batch?${query.toString()}`, {
