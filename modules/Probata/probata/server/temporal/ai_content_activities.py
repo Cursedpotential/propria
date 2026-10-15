@@ -209,9 +209,13 @@ class AIContextParams:
     package_ref: str | None = None
     source_format: str | None = None
     source_sha256: str | None = None
+    source_version_id: str | None = None
+    historical_source_version_id: str | None = None
+    workflow_id: str | None = None
     request_id: str = ""
     temporal_run_id: str = ""
     temporal_activity_id: str = ""
+    decoded_ref: str = ""
     prepared_ref: str = ""
     work_products_ref: str = ""
     candidates_ref: str = ""
@@ -242,12 +246,24 @@ def _run_context(name: str, params: AIContextParams) -> dict[str, Any]:
         raise ApplicationError(str(error), type="AIContextInvalid", non_retryable=True) from None
 
 
+@activity.defn(name="ai_context_decode_activity")
+def ai_context_decode_activity(params: AIContextParams) -> dict[str, Any]:
+    """Decode one exact source through bounded native DuckDB projections.
+
+    Inputs: source/provider/version/hash and limits. Output: decoded_ref and
+    counts; effects: source read and external files, never chat rows in PG.
+    Choose before work products and chunking on new versioned Go requests.
+    """
+    return _run_context("decode", params)
+
+
 @activity.defn(name="ai_context_prepare_activity")
 def ai_context_prepare_activity(params: AIContextParams) -> dict[str, Any]:
-    """Prepare original AI conversation text and Neural topic chunks.
+    """Chunk previously decoded native conversations into coherent Neural topics.
 
-    Inputs: source_ref, provider version and bounds. Outputs: prepared ref.
-    Effects: bounded source read and derived files. Choose first for context.
+    Inputs: decoded_ref and bounds. Outputs: prepared ref. Effects: decoded
+    file reads, Neural inference and derived files. Choose after work products;
+    requests without decoded_ref preserve the historical preparation behavior.
     """
     return _run_context("prepare", params)
 
@@ -256,8 +272,8 @@ def ai_context_prepare_activity(params: AIContextParams) -> dict[str, Any]:
 def ai_context_extract_work_products_activity(params: AIContextParams) -> dict[str, Any]:
     """Retain complete created-work files from AI conversation text.
 
-    Inputs: prepared_ref. Outputs: work_products_ref. Effects: derived files.
-    Choose before optional candidate extraction.
+    Inputs: decoded_ref (new) or prepared_ref (historical). Outputs: works ref.
+    Effects: derived files. Choose before chunks and optional model extraction.
     """
     return _run_context("extract_work_products", params)
 
@@ -303,6 +319,7 @@ def ai_context_verify_publication_activity(params: AIContextParams) -> dict[str,
 
 
 AI_CONTEXT_ACTIVITIES = (
+    ai_context_decode_activity,
     ai_context_prepare_activity,
     ai_context_extract_work_products_activity,
     ai_context_extract_candidates_activity,
