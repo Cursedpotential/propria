@@ -30,7 +30,7 @@ import { SourceRowsGrid, type SourceGridRow } from "@/components/sources/source-
 import { SourceSearch } from "@/components/sources/source-search";
 import { ContextSearch } from "@/components/read/context-search";
 import { SourceTree } from "@/components/sources/source-tree";
-import { detectedFormat, runsBySource, sourceState } from "@/components/sources/source-state";
+import { detectedFormat, runsBySource, sourceRunHistory, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
@@ -305,10 +305,10 @@ function SourcesScreenMode() {
         name: object.name,
         byteLength: object.byte_length,
         lastModified: object.last_modified ?? null,
-        state: sourceState(object.source_ref, facts),
+        state: sourceState(object.source_ref, facts, inspectionQuery.data?.source_ref === object.source_ref ? inspectionQuery.data.provider_version_id : undefined),
         unitMark: memberUnits.get(object.key)?.replaceAll("_", " ") ?? "",
       })),
-    [facts, memberUnits, objects],
+    [facts, memberUnits, objects, inspectionQuery.data],
   );
   const selectedIndex = rows.findIndex((row) => row.sourceRef === (selectedObject?.source_ref ?? selectedRef));
 
@@ -330,7 +330,7 @@ function SourcesScreenMode() {
       ? {
           kind: "file",
           object: selectedObject,
-          state: sourceState(selectedObject.source_ref, facts),
+          state: sourceState(selectedObject.source_ref, facts, inspectionQuery.data?.provider_version_id),
           memberOfUnit: memberUnits.get(selectedObject.key) ?? null,
         }
       : null;
@@ -805,7 +805,8 @@ function SourcesScreenMode() {
             inspectionError={inspectionQuery.error ? errorText(inspectionQuery.error) : null}
             onRetryInspection={() => void inspectionQuery.refetch()}
             manifest={manifestQuery.data ?? null}
-            runs={selectedObject ? runsIndex.get(selectedObject.source_ref) ?? [] : []}
+            runs={selectedObject ? sourceRunHistory(selectedObject.source_ref, facts, inspectionQuery.data?.provider_version_id).exact : []}
+            unpinnedRuns={selectedObject ? sourceRunHistory(selectedObject.source_ref, facts, inspectionQuery.data?.provider_version_id).unpinned : []}
             provenance={provenanceQuery.data ?? null}
             provenanceMissing={Boolean(provenanceQuery.error) || provenanceQuery.data?.items.length === 0}
             handlerOverride={handlerOverride}

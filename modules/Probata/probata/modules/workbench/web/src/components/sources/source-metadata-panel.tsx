@@ -86,6 +86,7 @@ export function SourceMetadataPanel({
   onRetryInspection,
   manifest,
   runs,
+  unpinnedRuns,
   provenance,
   provenanceMissing,
   handlerOverride,
@@ -107,6 +108,7 @@ export function SourceMetadataPanel({
   onRetryInspection: () => void;
   manifest: DecodedManifest | null;
   runs: readonly ProfferProposalResource[];
+  unpinnedRuns: readonly ProfferProposalResource[];
   provenance: CatalogProvenance | null;
   provenanceMissing: boolean;
   handlerOverride: string;
@@ -147,6 +149,7 @@ export function SourceMetadataPanel({
           onRetryInspection={onRetryInspection}
           manifest={manifest}
           runs={runs}
+          unpinnedRuns={unpinnedRuns}
           provenance={provenance}
           provenanceMissing={provenanceMissing}
           handlerOverride={handlerOverride}
@@ -283,6 +286,7 @@ function FileDetail({
   onRetryInspection,
   manifest,
   runs,
+  unpinnedRuns,
   provenance,
   provenanceMissing,
   handlerOverride,
@@ -295,6 +299,7 @@ function FileDetail({
   onRetryInspection: () => void;
   manifest: DecodedManifest | null;
   runs: readonly ProfferProposalResource[];
+  unpinnedRuns: readonly ProfferProposalResource[];
   provenance: CatalogProvenance | null;
   provenanceMissing: boolean;
   handlerOverride: string;
@@ -444,7 +449,7 @@ function FileDetail({
       </section>
 
       <details className="border-b px-3 py-3">
-        <summary className="cursor-pointer text-xs font-medium">Processing history</summary>
+        <summary className="cursor-pointer text-xs font-medium">Processing history for the inspected version</summary>
         {runs.length ? (
           <ul className="mt-1 space-y-1 text-[11px]">
             {runs.slice(0, 6).map((run) => (
@@ -455,9 +460,18 @@ function FileDetail({
             ))}
           </ul>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">No run has touched this source.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{inspection?.provider_version_id ? "No matching run is recorded for this provider version." : "No provider version is available to verify current-version processing history."}</p>
         )}
       </details>
+
+      {unpinnedRuns.length > 0 && <details className="border-b px-3 py-3">
+        <summary className="cursor-pointer text-xs font-medium">Legacy history without a provider version ({unpinnedRuns.length})</summary>
+        <p className="mt-1 text-xs text-muted-foreground">These receipts name this source path without an immutable provider version. They do not establish the inspected version&apos;s processing status.</p>
+        <ul className="mt-2 space-y-1 text-[11px]">{unpinnedRuns.map((run) => <li key={run.preview_handle} className="flex flex-wrap gap-2">
+          <AppLink className="text-primary underline" href={`/activity?${new URLSearchParams({ preview_handle: run.preview_handle, mode })}`}>{new Date(run.created_at).toLocaleString()} · {run.lifecycle.replaceAll("_", " ")}</AppLink>
+          <AppLink className="text-primary underline" href={`/read?${new URLSearchParams({ resource: run.preview_handle, mode })}`}>Inspect legacy result</AppLink>
+        </li>)}</ul>
+      </details>}
 
       <details className="border-b px-3 py-3">
         <summary className="cursor-pointer text-xs font-medium">
