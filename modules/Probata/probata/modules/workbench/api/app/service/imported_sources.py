@@ -165,6 +165,48 @@ async def _export_for(source_id: str) -> dict[str, Any]:
     raise imported.ImportedError("Unknown source", 404)
 
 
+async def source_history(source_id: str, *, limit: int, offset: int) -> dict[str, Any]:
+    """Read exact retained source versions grouped by one imported export key.
+    Inputs: authenticated existing Imported source ID and bounded page.
+    Outputs: recorded source-version coordinates and attempt state, never inferred equality.
+    Side effects: PostgreSQL/catalog reads only. Use for history/lineage triage before
+    proposing any derivation, duplicate or cleanup relationship.
+    """
+    selected = await imported._export_for(source_id)
+    export_key = selected["export_key"]
+    matter = imported.live_matter()
+    rows = await asyncio.to_thread(
+        lambda: imported._cached(f"sv:{matter}", 15, lambda: imported.pg.source_versions(matter))
+    )
+    related = [row for row in rows if row["export_key"] == export_key]
+    related.sort(
+        key=lambda row: (row["acquired_at"] or datetime.min.replace(tzinfo=UTC),
+                         row["version_ordinal"], row["id"]), reverse=True
+    )
+    page = related[offset:offset + limit]
+    items = [{
+        "source_version_id": row["id"],
+        "source_key": row["source_key"],
+        "export_key": row["export_key"],
+        "relation": "export_root" if row["source_key"] == export_key else "same_recorded_export",
+        "version_ordinal": row["version_ordinal"],
+        "acquired_at": imported._iso(row["acquired_at"]),
+        "published": bool(row["published"]),
+        "approved": bool(row["approved"]),
+        "rejected": bool(row["rejected"]),
+        "raw": row["raw_n"],
+        "normalized": row["norm_n"],
+        "messages": row["msgs"],
+        "calls": row["calls"],
+    } for row in page]
+    return {
+        "source_id": source_id, "export_key": export_key, "items": items,
+        "total": len(related),
+        "next_offset": offset + limit if offset + limit < len(related) else None,
+        "relation_basis": "exact_recorded_export_key",
+    }
+
+
 async def summary() -> dict[str, Any]:
     """Project version outcomes into source files, export pages and summary totals.
     Inputs: the read scope and pagination arguments in this signature.
