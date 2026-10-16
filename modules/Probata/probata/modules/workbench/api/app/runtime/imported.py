@@ -55,6 +55,22 @@ async def sources_endpoint(
         raise _translate(error) from None
 
 
+@router.get("/sources/{source_id}/history")
+async def source_history_endpoint(
+    source_id: Opaque,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+):
+    """Show the selected export's retained versions and associated derived source keys.
+    Inputs: existing opaque export ID and bounded pagination. Output: recorded versions.
+    Effects: read-only; selection and approval stay outside this endpoint.
+    """
+    try:
+        return await service.source_history(source_id, limit=limit, offset=offset)
+    except service.ImportedError as error:
+        raise _translate(error) from None
+
+
 @router.get("/sources/{source_id}/threads")
 async def threads_endpoint(
     source_id: Opaque,
