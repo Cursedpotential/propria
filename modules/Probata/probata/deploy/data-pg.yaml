@@ -39,6 +39,16 @@ services:
       # init SQL — ABSOLUTE host binds (gotcha #5); run once on an EMPTY data dir
       # THE database: fresh volumes bootstrap from the snapshot (migrations retired 2026-09-07, D-153); file lives on the host
       - /data/probata/config/sql/schema_snapshot_20260907.sql:/docker-entrypoint-initdb.d/01_schema_snapshot.sql:ro
+      # Retained originals, READ-ONLY, at the proffer worker's own path, so the file://
+      # object_uri recorded for every retained source resolves here unchanged and
+      # DuckDB structured ELT reads the exact hash-verified bytes (owner decision
+      # 2026-10-16). Claude Code · Opus 5.5 · 2026-10-16
+      - /data/probata/volumes/proffer/source-objects:/data/proffer/source-objects:ro
+    # The retained objects are 10001:10001, mode 0440/0750 (the proffer worker's
+    # uid). Group membership lets postgres read them without changing any custody
+    # file's owner or mode.
+    group_add:
+      - "10001"
     environment:
       POSTGRES_USER: ${DB_USER:-ai}
       POSTGRES_PASSWORD: ${DB_PASS:-ai}
