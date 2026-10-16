@@ -13,7 +13,8 @@ import { attemptReadHref } from "@/lib/workflow-links";
 import { useFixedCase } from "@/lib/fixed-case-context";
 
 const families: { id: RetrievalLeg; label: string }[] = [
-  { id: "intake", label: "Case Bible / Intake" }, { id: "proffer", label: "Ingested material" },
+  { id: "intake", label: "Case Bible / Intake" }, { id: "proffer", label: "Imported material" },
+  { id: "casebible", label: "Super Index" },
 ];
 
 /** Search before and after ingestion while retaining original citations and explicit source failures.
@@ -21,49 +22,106 @@ const families: { id: RetrievalLeg; label: string }[] = [
  * Effects: bounded read-only requests and source navigation, never ingestion or evidence writes.
  * Use on both Sources and Read instead of duplicating retrieval logic in page components.
  */
-export function ContextSearch({ initialQuery = "", onSubmit }: { initialQuery?: string; onSubmit?: (query: string) => void }) {
+export interface ContextSearchSelection {
+  mode: RetrievalMode;
+  legs: RetrievalLeg[];
+  pathPrefix: string;
+  sourceId: string;
+}
+
+export function ContextSearch({
+  initialQuery = "", initialMode = "hybrid", initialLegs = ["intake", "proffer"],
+  initialPathPrefix = "", initialSourceId = "", onSubmit,
+}: {
+  initialQuery?: string; initialMode?: RetrievalMode; initialLegs?: RetrievalLeg[];
+  initialPathPrefix?: string; initialSourceId?: string;
+  onSubmit?: (query: string, selection: ContextSearchSelection) => void;
+}) {
   const [draft, setDraft] = useState(initialQuery);
-  const [mode, setMode] = useState<RetrievalMode>("hybrid");
-  const [legs, setLegs] = useState<RetrievalLeg[]>(["intake", "proffer"]);
-  const [submitted, setSubmitted] = useState<{ text: string; mode: RetrievalMode; legs: RetrievalLeg[]; id: string } | null>(
-    () => initialQuery ? { text: initialQuery, mode: "hybrid", legs: ["intake", "proffer"], id: crypto.randomUUID() } : null,
-  );
-  const [previousInitialQuery, setPreviousInitialQuery] = useState(initialQuery);
-  if (previousInitialQuery !== initialQuery) {
-    setPreviousInitialQuery(initialQuery);
+  const [mode, setMode] = useState<RetrievalMode>(initialMode);
+  const [legs, setLegs] = useState<RetrievalLeg[]>(initialLegs);
+  const [pathPrefix, setPathPrefix] = useState(initialPathPrefix);
+  const [sourceId, setSourceId] = useState(initialSourceId);
+  const [submitted, setSubmitted] = useState<{
+    text: string; mode: RetrievalMode; legs: RetrievalLeg[];
+    pathPrefix: string; sourceId: string; id: string;
+  } | null>(() => initialQuery ? {
+    text: initialQuery, mode: initialMode, legs: initialLegs,
+    pathPrefix: initialPathPrefix, sourceId: initialSourceId, id: crypto.randomUUID(),
+  } : null);
+  const initialKey = [initialQuery, initialMode, initialLegs.join(","), initialPathPrefix, initialSourceId].join("\u0000");
+  const [previousInitialKey, setPreviousInitialKey] = useState(initialKey);
+  if (previousInitialKey !== initialKey) {
+    setPreviousInitialKey(initialKey);
     setDraft(initialQuery);
-    setSubmitted((previous) => previous?.text === initialQuery ? previous : initialQuery
-      ? { text: initialQuery, mode: previous?.mode ?? "hybrid", legs: previous?.legs ?? ["intake", "proffer"], id: crypto.randomUUID() }
-      : null);
+    setMode(initialMode);
+    setLegs(initialLegs);
+    setPathPrefix(initialPathPrefix);
+    setSourceId(initialSourceId);
+    setSubmitted(initialQuery ? {
+      text: initialQuery, mode: initialMode, legs: initialLegs,
+      pathPrefix: initialPathPrefix, sourceId: initialSourceId, id: crypto.randomUUID(),
+    } : null);
   }
+  const scoped = Boolean(pathPrefix.trim() || sourceId.trim());
   const query = useQuery({
     queryKey: ["context-retrieval", submitted],
-    queryFn: ({ signal }) => searchContext(submitted!.text, submitted!.mode, submitted!.legs, submitted!.id, signal),
+    queryFn: ({ signal }) => searchContext(
+      submitted!.text, submitted!.mode, submitted!.legs, submitted!.id, signal,
+      { pathPrefix: submitted!.pathPrefix.trim(), sourceId: submitted!.sourceId.trim() },
+    ),
     enabled: Boolean(submitted), retry: false,
   });
   return <section className="space-y-3 rounded-md border bg-card p-3" aria-label="Search content across sources">
     <form className="space-y-3" role="search" onSubmit={(event) => {
       event.preventDefault();
       if (!draft.trim() || !legs.length) return;
-      setSubmitted({ text: draft.trim(), mode, legs: [...legs], id: crypto.randomUUID() });
-      onSubmit?.(draft.trim());
+      const selection = { mode, legs: [...legs], pathPrefix: pathPrefix.trim(), sourceId: sourceId.trim() };
+      setSubmitted({ text: draft.trim(), ...selection, id: crypto.randomUUID() });
+      onSubmit?.(draft.trim(), selection);
     }}>
       <label className="block text-sm font-semibold" htmlFor="combined-search-query">Search content</label>
       <div className="flex gap-2">
         <input id="combined-search-query" type="search" className="min-w-0 flex-1 rounded border bg-background px-3 py-2 text-sm"
           value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={2000} placeholder="Find a passage, topic, or phrase" />
         <Button disabled={!draft.trim() || !legs.length || query.isFetching} type="submit">{query.isFetching ? "Searching…" : "Search"}</Button>
-        {submitted ? <Button type="button" variant="outline" onClick={() => { setSubmitted(null); setDraft(""); onSubmit?.(""); }}>Clear</Button> : null}
+        {submitted ? <Button type="button" variant="outline" onClick={() => { setSubmitted(null); setDraft(""); setPathPrefix(""); setSourceId(""); onSubmit?.("", { mode, legs, pathPrefix: "", sourceId: "" }); }}>Clear</Button> : null}
       </div>
       <div className="flex flex-wrap items-center gap-4 text-xs">
         <label>Match <select className="ml-2 rounded border bg-background px-2 py-1" value={mode} onChange={(event) => setMode(event.target.value as RetrievalMode)}>
           <option value="hybrid">Words and meaning</option><option value="keyword">Full text</option><option value="vector">Meaning</option>
         </select></label>
         {families.map((family) => <label className="flex items-center gap-1.5" key={family.id}>
-          <input type="checkbox" checked={legs.includes(family.id)} onChange={(event) => setLegs((current) => event.target.checked ? [...current, family.id] : current.filter((value) => value !== family.id))} />
+          <input type="checkbox" checked={legs.includes(family.id)}
+            disabled={scoped && family.id !== "casebible"}
+            onChange={(event) => setLegs((current) => event.target.checked ? [...current, family.id] : current.filter((value) => value !== family.id))} />
           {family.label}
         </label>)}
       </div>
+      <details className="rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium">Advanced search · exact source filters</summary>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Source and path filters narrow Super Index before results are ranked. Clear both to search other sources together.
+        </p>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span className="block">Vault path prefix</span>
+            <input className="h-9 w-full rounded border bg-background px-2 text-sm text-foreground"
+              value={pathPrefix} onChange={(event) => {
+                setPathPrefix(event.target.value);
+                if (event.target.value.trim()) setLegs(["casebible"]);
+              }} placeholder="source-packages/" />
+          </label>
+          <label className="space-y-1 text-xs text-muted-foreground">
+            <span className="block">Exact source ID</span>
+            <input className="h-9 w-full rounded border bg-background px-2 text-sm text-foreground"
+              value={sourceId} onChange={(event) => {
+                setSourceId(event.target.value);
+                if (event.target.value.trim()) setLegs(["casebible"]);
+              }} placeholder="Catalog source identifier" />
+          </label>
+        </div>
+      </details>
     </form>
     {submitted && query.isPending ? <Loading /> : null}
     {submitted && query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : null}
