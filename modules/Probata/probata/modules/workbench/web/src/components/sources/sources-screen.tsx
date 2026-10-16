@@ -681,7 +681,7 @@ function SourcesScreenMode() {
         {alreadyImported.map((earlier) => (
           <div key={`${earlier.name}:${earlier.sourceKey}`} role="status" className="text-[11px]">
             <span className="font-medium">{earlier.name ? `${earlier.name}: ` : ""}{earlier.status === "in_progress" ? "An import of this content is already in progress." : "This has already been imported."}</span>
-            {earlier.importedAt ? <span className="text-muted-foreground"> Imported {new Date(earlier.importedAt).toLocaleString()}.</span> : null}
+            {earlier.importedAt ? <span className="text-muted-foreground"> {earlier.status === "in_progress" ? "Started" : "Imported"} {new Date(earlier.importedAt).toLocaleString()}.</span> : null}
             {" "}<AppLink className="underline underline-offset-4" href={readSourceHref(earlier.sourceKey)}>View it</AppLink>
             <span className="block break-all text-muted-foreground">{earlier.sourceKey}</span>
           </div>
