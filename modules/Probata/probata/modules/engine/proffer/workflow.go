@@ -109,7 +109,19 @@ func fingerprintVocabularyFor(ctx workflow.Context) fingerprintVocabulary {
 // Outputs: compact registered-context or legacy Proffer result. Effects: named Temporal Activities.
 // Choose the tagged branch for source discovery and parsing before case/custody gates;
 // untagged histories keep their recorded 26-stage commands and approval behavior.
-func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, error) {
+func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (result WorkflowResult, err error) {
+	// The operator-facing failure reason is the error that ended the run.
+	// Many paths `return r.result(""), err` without recording err, and
+	// result() could only guess from the last stage result -- which surfaced a
+	// harmless not_applicable note ("source has no applicable source-level
+	// metadata") when recommend_handler_activity had actually failed (owner UX
+	// test 2026-10-15). Query state only; no workflow command changes.
+	var r *run
+	defer func() {
+		if err != nil && r != nil {
+			r.recordFailureReason(err)
+		}
+	}()
 	if in.ContextContract != "" && in.ContextContract != ContextContractVersion {
 		return WorkflowResult{}, errors.New("unknown context import contract")
 	}
@@ -132,7 +144,7 @@ func ProfferWorkflow(ctx workflow.Context, in WorkflowInput) (WorkflowResult, er
 		}
 	}
 	contextChunkingInput := in.contextChunkingInput()
-	r := &run{
+	r = &run{
 		operatingMode: in.OperatingMode,
 		requestID:     in.RequestID,
 		matterID:      in.MatterID,
@@ -1510,6 +1522,26 @@ func (r *run) branch(ctx workflow.Context, fn func(workflow.Context) (Ref, error
 
 // result builds the terminal WorkflowResult from everything recorded so
 // far. publicationRef is empty on any non-success path.
+// recordFailureReason makes the error that ended a failed run its
+// operator-facing reason. Cancelled and rerun-required runs keep their own.
+func (r *run) recordFailureReason(err error) {
+	if err == nil || r.operation.Lifecycle != OperationFailed {
+		return
+	}
+	r.operation.Reason = err.Error()
+}
+
+// lastFailedStageReason is the reason of the most recent stage that actually
+// failed. A not_applicable or successful stage never stands in for a failure.
+func lastFailedStageReason(results []StageResult) string {
+	for index := len(results) - 1; index >= 0; index-- {
+		if results[index].Status == StatusFailed && results[index].Reason != "" {
+			return results[index].Reason
+		}
+	}
+	return ""
+}
+
 func (r *run) result(publicationRef Ref) WorkflowResult {
 	status := StatusSuccess
 	r.operation.ActiveStages = []ActivityName{}
@@ -1525,8 +1557,8 @@ func (r *run) result(publicationRef Ref) WorkflowResult {
 		} else if r.operation.Lifecycle != OperationRerunRequired {
 			r.operation.Lifecycle = OperationFailed
 		}
-		if r.operation.Reason == "" && len(r.results) > 0 {
-			r.operation.Reason = r.results[len(r.results)-1].Reason
+		if r.operation.Reason == "" {
+			r.operation.Reason = lastFailedStageReason(r.results)
 		}
 	} else {
 		r.operation.Lifecycle = OperationCompleted
