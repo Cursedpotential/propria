@@ -41,7 +41,7 @@ def test_superindex_exact_filters_are_forwarded_before_ranking(client, monkeypat
     assert "source_id" not in kwargs["json"]
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("bad_filter", [
     {"legs": ["intake", "casebible"], "path_prefix": "folder/"},
     {"legs": ["proffer"], "path_prefix": "folder/"},
     {"legs": ["casebible"], "path_prefix": "../folder"},
@@ -53,9 +53,9 @@ def test_superindex_exact_filters_are_forwarded_before_ranking(client, monkeypat
     {"legs": ["evidence"]},
     {"scope": {"matter_id": "another-case"}},
 ])
-def test_rejects_unsupported_or_untrusted_scope(client, monkeypatch, request):
+def test_rejects_unsupported_or_untrusted_scope(client, monkeypatch, bad_filter):
     monkeypatch.setattr(service, "spine_json", lambda *args, **kwargs: pytest.fail("invalid request reached Platform"))
-    result = client.post("/api/retrieval/search", json={"request_id": "bad1", "query": "synthetic", **request})
+    result = client.post("/api/retrieval/search", json={"request_id": "bad1", "query": "synthetic", **bad_filter})
     assert result.status_code == 422
 
 
