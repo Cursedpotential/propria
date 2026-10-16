@@ -21,8 +21,11 @@ def search(payload: SearchRequest) -> dict:
     Input is SearchRequest; output is the full cited retrieval response including
     partial failures. Sends one read-only POST; creates no run or evidence item.
     """
+    source_scope = {key: value for key in ("source_id", "path_prefix")
+                    if (value := getattr(payload, key)) is not None}
     result = spine_json("POST", "/v1/context/retrieve", json={
-        **payload.model_dump(mode="json"), "scope": {},
+        **payload.model_dump(mode="json", exclude={"source_id", "path_prefix"}),
+        "scope": source_scope,
         "per_leg_limit": min(100, max(50, payload.limit)), "leg_timeout_seconds": 25.0,
     })
     return _attach_read_locations(_attach_file_locations(result))
@@ -96,7 +99,7 @@ def _attach_file_locations(result: dict) -> dict:
     """
     roots = list(configured_source_roots().values())
     for item in result.get("items", []):
-        if "intake" not in item.get("legs", []):
+        if not ({"intake", "casebible"} & set(item.get("legs", []))):
             continue
         locator = item.get("citation", {}).get("locator", {})
         value = locator.get("vault_key", "")
