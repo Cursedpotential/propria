@@ -12,7 +12,7 @@ import { formatCount, statusLabel } from "@/components/mobile/mobile-format";
 import { readHref } from "@/components/read/read-location";
 import { importedApi, type SourceStatus } from "@/lib/imported-client";
 import {
-  filterImportedLibrary, libraryFormat, possibleSameNameImports,
+  libraryFormat, possibleSameNameImports,
   type LibraryFormat, type LibraryOwnerFilter,
 } from "./library-facets";
 
@@ -48,6 +48,7 @@ export function ImportedLibrary({ params, selectedSourceId }: {
   const router = useRouter();
   const [format, setFormat] = useState<LibraryFormat>(() => libraryFormat(params.get("lib_format")));
   const [search, setSearch] = useState(params.get("lib_q") ?? "");
+  const [appliedSearch, setAppliedSearch] = useState(params.get("lib_q") ?? "");
   const [status, setStatus] = useState<"all" | SourceStatus>(() => {
     const value = params.get("lib_status");
     return STATUSES.find((item) => item.id === value)?.id ?? "all";
@@ -59,8 +60,14 @@ export function ImportedLibrary({ params, selectedSourceId }: {
   });
 
   const query = useInfiniteQuery({
-    queryKey: ["m-sources", "library", format],
-    queryFn: ({ pageParam, signal }) => importedApi.sources(pageParam, format === "all" ? undefined : format, signal),
+    queryKey: ["m-sources", "library", format, status, ownerFilter, appliedSearch],
+    queryFn: ({ pageParam, signal }) => importedApi.sources(
+      pageParam, format === "all" ? undefined : format, signal, {
+        status: status === "all" ? undefined : status,
+        owner: ownerFilter === "all" ? undefined : ownerFilter,
+        q: appliedSearch || undefined,
+      }
+    ),
     initialPageParam: 0,
     getNextPageParam: (last) => last.next_offset ?? undefined,
   });
@@ -73,14 +80,11 @@ export function ImportedLibrary({ params, selectedSourceId }: {
   });
   const historyRows = history.data?.pages.flatMap((page) => page.items) ?? [];
   const rows = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
-  const shown = useMemo(
-    () => filterImportedLibrary(rows, { text: search, status, owner: ownerFilter }),
-    [rows, search, status, ownerFilter],
-  );
+  const shown = rows;
   const selected = rows.find((source) => source.id === selectedSourceId);
   const candidateNames = selected ? possibleSameNameImports(selected, rows) : [];
   const total = query.data?.pages[0]?.total;
-  const hasDisplayFilter = Boolean(search.trim()) || status !== "all" || ownerFilter !== "all";
+  const hasDisplayFilter = Boolean(appliedSearch.trim()) || status !== "all" || ownerFilter !== "all";
 
   function preserve(filters: {
     lib_format?: LibraryFormat;
@@ -92,7 +96,7 @@ export function ImportedLibrary({ params, selectedSourceId }: {
     around?: string | null;
   }) {
     const changes: Record<string, string | null> = {};
-    const next = { lib_format: format, lib_status: status, lib_owner: ownerFilter, lib_q: search, ...filters };
+    const next = { lib_format: format, lib_status: status, lib_owner: ownerFilter, lib_q: appliedSearch, ...filters };
     changes.lib_format = next.lib_format === "all" ? null : next.lib_format;
     changes.lib_status = next.lib_status === "all" ? null : next.lib_status;
     changes.lib_owner = next.lib_owner === "all" ? null : next.lib_owner;
@@ -136,8 +140,8 @@ export function ImportedLibrary({ params, selectedSourceId }: {
       </div>
 
       <div className="space-y-2 border-b p-3">
-        <form role="search" onSubmit={(event) => { event.preventDefault(); preserve({ lib_q: search }); }}>
-          <label className="mb-1 block text-xs font-medium" htmlFor="imported-library-filter">Filter loaded imports</label>
+        <form role="search" onSubmit={(event) => { event.preventDefault(); setAppliedSearch(search.trim()); preserve({ lib_q: search.trim() }); }}>
+          <label className="mb-1 block text-xs font-medium" htmlFor="imported-library-filter">Find across imported sources</label>
           <div className="flex items-center gap-2">
             <Input id="imported-library-filter" type="search" value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -174,11 +178,11 @@ export function ImportedLibrary({ params, selectedSourceId }: {
           </label>
         </div>
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {hasDisplayFilter ? "Display filters apply to loaded rows. " : ""}
+          {hasDisplayFilter ? "Filters apply across all recorded imports. " : ""}
           {format === "all" ? "All recorded formats" : "Recorded " + format + " sources"}
           {typeof total === "number" ? " · " + formatCount(total) + " total" : ""}
           {" · " + formatCount(rows.length) + " loaded"}
-          {hasDisplayFilter ? " · " + formatCount(shown.length) + " matching" : ""}
+          {hasDisplayFilter ? " · " + formatCount(shown.length) + " loaded matches" : ""}
         </p>
       </div>
 
@@ -210,7 +214,7 @@ export function ImportedLibrary({ params, selectedSourceId }: {
           </ul>
           {!shown.length ? (
             <p className="px-3 py-7 text-sm text-muted-foreground">
-              No matching sources in the pages loaded so far. Try another filter or load more.
+              No recorded imported sources match these filters.
             </p>
           ) : null}
           {query.hasNextPage ? (
