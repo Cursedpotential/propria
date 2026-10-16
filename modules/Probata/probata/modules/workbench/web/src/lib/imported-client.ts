@@ -280,8 +280,8 @@ async function getJson<T>(path: string, params: Record<string, string | number |
 
 export const importedApi = {
   summary: (signal?: AbortSignal) => getJson<ImportedSummary>("/api/imported/summary", {}, signal),
-  sources: (offset: number, format?: string, signal?: AbortSignal) =>
-    getJson<SourcesPage>("/api/imported/sources", { limit: 20, offset, format }, signal),
+  sources: (offset: number, format?: string, signal?: AbortSignal, filters?: { q?: string; status?: string; owner?: string }) =>
+    getJson<SourcesPage>("/api/imported/sources", { limit: 20, offset, format, ...filters }, signal),
   sourceHistory: (sourceId: string, offset: number, signal?: AbortSignal) =>
     getJson<ImportedSourceHistory>(`/api/imported/sources/${encodeURIComponent(sourceId)}/history`, { limit: 30, offset }, signal),
   threads: (sourceId: string, offset: number, signal?: AbortSignal) =>
