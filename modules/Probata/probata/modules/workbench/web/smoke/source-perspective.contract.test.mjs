@@ -240,7 +240,8 @@ test("explicit selection applies perspective only to the selected files, not ano
 
 test("non-message sources keep normal Process without a perspective requirement", () => {
   assert.equal(requiresMessagePerspective("report.xml", "xml"), false);
-  assert.equal(requiresMessagePerspective("chatgpt.json", "message_export_json"), false);
+  assert.equal(requiresMessagePerspective("chatgpt.json", "chatgpt_official_json"), false);
+  assert.equal(requiresMessagePerspective("facebook-messages.json", "message_export_json"), true);
   assert.equal(requiresMessagePerspective("sms-20251102230302.xml", "xml"), true);
   assert.deepEqual(JSON.parse(JSON.stringify(processingIdentity([], "selection", null, false))), {});
 });
