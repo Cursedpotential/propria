@@ -221,10 +221,19 @@ func (a FirstPartyContextActivities) resolve(ctx context.Context, req proffer.St
 		return proffer.StageResult{}, err
 	}
 	aiChat := input.AIChatSource || contextsearch.IsAIChatFormat(input.Source.DeclaredFormat)
-	if aiChat || len(input.StatedIdentifiers) == 0 {
+	// A generation with no message records (a plain-text or HTML document) has no
+	// conversation participants to resolve, so it must not demand the messaging
+	// owner/perspective references -- the same "no message records" rule the
+	// propose step already applies (firstPartyNotApplicableReason). Owner UX test
+	// 2026-10-16: a plain-text import passed 24 stages, then failed here.
+	noMessages := len(input.Messages) == 0
+	if aiChat || noMessages || len(input.StatedIdentifiers) == 0 {
 		reason := "the normalized generation states no participant identifier"
-		if aiChat {
+		switch {
+		case aiChat:
 			reason = "AI chat roles remain source labels and are not resolved as human participants"
+		case noMessages:
+			reason = "the normalized generation holds no message records"
 		}
 		_, receiptRef, err := a.Store.PersistParticipantResolution(ctx, ParticipantResolutionSpec{
 			RequestID: req.RequestID, SourceVersionRef: req.SourceVersionRef, NormalizedGenerationRef: generationRef,
