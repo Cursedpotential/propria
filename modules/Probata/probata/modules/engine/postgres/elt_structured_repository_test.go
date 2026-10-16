@@ -360,3 +360,35 @@ func TestPlainTextDocumentQueryIsDocumentShaped(t *testing.T) {
 		t.Fatal("an empty DuckDB source url was accepted")
 	}
 }
+
+// Owner decision 2026-10-16: DuckDB reads the retained, hash-verified original
+// from the shared read-only mount when it is a file under the retained root.
+func TestRetainedObjectLocalPathOnlyInsideTheRoot(t *testing.T) {
+	t.Setenv("DUCKDB_RETAINED_OBJECT_ROOT", "")
+	inside := "file:///data/proffer/source-objects/objects/sha256/d6/d6dea7.source"
+	if got, ok := retainedObjectLocalPath(inside); !ok || got != "/data/proffer/source-objects/objects/sha256/d6/d6dea7.source" {
+		t.Fatalf("inside the root: %q %v", got, ok)
+	}
+	for _, refused := range []string{
+		"s3://bucket/key", "r2://bucket/key", "upload://abc", "",
+		"file:///etc/passwd",
+		"file:///data/proffer/source-objects/",
+		"file:///data/proffer/source-objects/../secrets/x",
+		"file:///data/proffer/source-objects/objects/./x",
+		"file:///data/proffer/source-objectsX/x",
+		"file:///data/proffer/source-objects/x?versionId=1",
+		"file:///data/proffer/source-objects/x$" + eltDuckDBQuoteTag + "$",
+	} {
+		if got, ok := retainedObjectLocalPath(refused); ok {
+			t.Fatalf("%q was accepted as %q", refused, got)
+		}
+	}
+	t.Setenv("DUCKDB_RETAINED_OBJECT_ROOT", "off")
+	if _, ok := retainedObjectLocalPath(inside); ok {
+		t.Fatal("local reads were not disabled")
+	}
+	t.Setenv("DUCKDB_RETAINED_OBJECT_ROOT", "/mnt/objects")
+	if got, ok := retainedObjectLocalPath("file:///mnt/objects/a.source"); !ok || got != "/mnt/objects/a.source" {
+		t.Fatalf("override root: %q %v", got, ok)
+	}
+}

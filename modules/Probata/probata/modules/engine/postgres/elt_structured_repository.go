@@ -103,18 +103,19 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 		}
 	}()
 
-	var sourceKey, workflowID, sourceStatus, declaredFormat string
+	var sourceKey, retainedURI, workflowID, sourceStatus, declaredFormat string
 	var byteLength int64
 	if err := session.QueryRow(ctx, `
 		SELECT CASE WHEN object.object_uri LIKE 'r2://%' OR object.object_uri LIKE 's3://%'
 		            THEN object.object_uri ELSE source.source_key END,
+		       object.object_uri,
 		       version.workflow_id, version.status, version.declared_format, object.byte_length
 		FROM context.source_version version
 		JOIN context.source source ON source.id = version.source_id
 		JOIN context.retained_object object ON object.id = version.original_object_id
 		WHERE version.id = $1::uuid AND version.original_object_id = $2::uuid`,
 		sourceID, originalID,
-	).Scan(&sourceKey, &workflowID, &sourceStatus, &declaredFormat, &byteLength); err != nil {
+	).Scan(&sourceKey, &retainedURI, &workflowID, &sourceStatus, &declaredFormat, &byteLength); err != nil {
 		return nil, fmt.Errorf("resolve structured elt source locator: %w", err)
 	}
 	if workflowID != req.RequestID || sourceStatus != "retained" {
@@ -126,9 +127,16 @@ func (r *StructuredELTRepository) OpenStructuredELTRows(
 	if format == activities.StructuredELTFormatClaudeJSON && !contextsearch.IsAIChatFormat(declaredFormat) {
 		return nil, errors.New("native Claude detection conflicts with the retained non-AI source declaration")
 	}
-	sourceURL, err := duckDBSourceURL(sourceKey)
-	if err != nil {
-		return nil, err
+	// The retained original is the exact, hash-verified bytes. When it is a
+	// file under the shared retained-object root (mounted read-only into the
+	// database at the same path), DuckDB reads it directly; otherwise the
+	// object-store locator is used as before (owner decision 2026-10-16).
+	sourceURL, retainedLocal := retainedObjectLocalPath(retainedURI)
+	if !retainedLocal {
+		sourceURL, err = duckDBSourceURL(sourceKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if isHTMLFormat(format) && byteLength > htmlMaximumFileSize() {
 		// Measured 2026-10-02: parse_html + XPath over a 62 MB page ran past 300 s and 960 MB. The
@@ -315,6 +323,49 @@ func (r *structuredELTRows) Close() error {
 		r.release()
 	}
 	return nil
+}
+
+// defaultRetainedObjectRoot is where the worker retains originals
+// (file:///data/proffer/source-objects/objects/sha256/..). The database mounts
+// the same host folder read-only at the same path (deploy/data-pg.yaml).
+const defaultRetainedObjectRoot = "/data/proffer/source-objects/"
+
+// retainedObjectRoot is the database-visible retained-object folder;
+// DUCKDB_RETAINED_OBJECT_ROOT overrides it and "off" disables local reads.
+func retainedObjectRoot() string {
+	root := strings.TrimSpace(os.Getenv("DUCKDB_RETAINED_OBJECT_ROOT"))
+	switch root {
+	case "":
+		return defaultRetainedObjectRoot
+	case "off":
+		return ""
+	}
+	return strings.TrimSuffix(root, "/") + "/"
+}
+
+// retainedObjectLocalPath returns the local path of a file:// retained object
+// inside the retained-object root. Anything else -- another scheme, a path
+// outside the root, a traversal segment, the reserved quote tag -- is refused
+// and the caller falls back to the object-store locator.
+func retainedObjectLocalPath(objectURI string) (string, bool) {
+	root := retainedObjectRoot()
+	trimmed := strings.TrimSpace(objectURI)
+	if root == "" || !strings.HasPrefix(trimmed, "file://") {
+		return "", false
+	}
+	local := strings.TrimPrefix(trimmed, "file://")
+	if !strings.HasPrefix(local, root) || len(local) == len(root) {
+		return "", false
+	}
+	if strings.ContainsAny(local, "?#\x00") || strings.Contains(local, "$"+eltDuckDBQuoteTag+"$") {
+		return "", false
+	}
+	for _, segment := range strings.Split(local, "/") {
+		if segment == ".." || segment == "." {
+			return "", false
+		}
+	}
+	return local, true
 }
 
 // duckDBSourceURL maps only locators that the PostgreSQL-hosted DuckDB can
