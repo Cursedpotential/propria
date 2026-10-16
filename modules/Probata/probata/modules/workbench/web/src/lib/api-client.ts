@@ -252,10 +252,11 @@ export async function getHealth() {
  * Inputs: query, real retrieval mode, source families and request ID; output: cited results.
  * Effects: one abortable POST, no processing or promotion. Choose for combined content search.
  */
-export function searchContext(query: string, mode: RetrievalMode, legs: RetrievalLeg[], requestId: string, signal?: AbortSignal) {
+export function searchContext(query: string, mode: RetrievalMode, legs: RetrievalLeg[], requestId: string, signal?: AbortSignal, filter?: { pathPrefix?: string; sourceId?: string }) {
   return apiFetch<RetrievalResult>("/api/retrieval/search", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request_id: requestId, query, mode, legs, limit: 30 }), signal,
+    body: JSON.stringify({ request_id: requestId, query, mode, legs, limit: 30,
+      path_prefix: filter?.pathPrefix || undefined, source_id: filter?.sourceId || undefined }), signal,
   });
 }
 
