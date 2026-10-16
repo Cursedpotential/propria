@@ -24,7 +24,10 @@ export function sourcePerspectiveScope(mode: string, sources: Array<[string, str
  * Effects: none. Generic XML/JSON, AI exports and non-message files gain no new processing gate.
  */
 export function requiresMessagePerspective(name: string, format: string): boolean {
-  return ["smsbackuprestore_xml", "callsbackuprestore_xml", "facebook_messenger_json", "facebook_messenger_html", "imessage_html"].includes(format)
+  // message_export_json is the Sources label for message JSON (Facebook message_N.json); it
+  // reached the engine without a perspective and failed "requires explicit owner_person_id
+  // and perspective_person_id" (owner UX test 2026-10-15).
+  return ["smsbackuprestore_xml", "callsbackuprestore_xml", "facebook_messenger_json", "facebook_messenger_html", "imessage_html", "message_export_json"].includes(format)
     || (format === "xml" && /^(sms|calls)[-_].*\.xml$/i.test(name));
 }
 
@@ -44,4 +47,39 @@ export function processingIdentity(people: CasePerson[], scope: string, choice: 
     ...(owner ? { owner_person_id: owner.id } : {}),
     ...(person ? { perspective_person_id: person.id } : {}),
   };
+}
+
+const DEVICE_FOLDER = /\/(sms-backup-restore(?:-calls)?)\/(\d{10})(?:\/|$)/;
+const PICTURE = /\.(png|jpe?g|heic|heif|gif|webp|bmp|tiff?)$/i;
+
+function lastTenDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(-10);
+}
+
+/** Owner rule 2026-10-15 for one B2 source: a device number owned by a confirmed registry
+ * person -> that person (Katrina's number -> hers); any other device number, or an account
+ * export with no device number -> the case owner; screenshots/photos -> no default (decided
+ * per item). A name in the path is never evidence: Facebook files threads under the OTHER
+ * person's name. Byline: Claude Code · Opus 5.5 · 2026-10-16
+ */
+export function ruleSourcePerson(people: CasePerson[], sourceRef: string): CasePerson | null {
+  if (PICTURE.test(sourceRef.split("?")[0])) return null;
+  const device = DEVICE_FOLDER.exec(sourceRef);
+  if (device) {
+    const holder = people.find((person) => person.verification_state === "confirmed"
+      && person.identifiers.some((id) => id.kind === "phone" && id.status === "confirmed" && lastTenDigits(id.normalized || id.raw_value) === device[2]));
+    if (holder) return holder;
+  }
+  return confirmedCaseOwner(people);
+}
+
+/** The rule's default "whose phone/export" for a B2 selection: one person shared by every
+ * selected file, else none (the owner chooses). Local uploads carry no device folder, so they
+ * never get a default.
+ */
+export function defaultSourcePerspective(people: CasePerson[], sourceRefs: string[]): CasePerson | null {
+  if (sourceRefs.length === 0) return null;
+  const persons = sourceRefs.map((ref) => ruleSourcePerson(people, ref));
+  const first = persons[0];
+  return first && persons.every((person) => person?.id === first.id) ? first : null;
 }

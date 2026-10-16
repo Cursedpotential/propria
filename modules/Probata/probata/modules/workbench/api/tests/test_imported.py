@@ -61,7 +61,9 @@ def test_export_description_names_format_device_and_owner():
     calls = service.describe_export(KEY.replace("messaging/sms-backup-restore", "telephony/sms-backup-restore-calls"), people)
     assert calls["format"] == "Calls"
     fb = service.describe_export("b2://salem-data/consignatio/casevault/SourceCorpus/messaging/facebook-messenger/meta-1/katrinakinzel_1/message_1.json", people)
-    assert (fb["format"], fb["owner"], fb["device"]) == ("Facebook", "Katrina", None)
+    # Owner rule 2026-10-15: the thread folder names the OTHER person; an account export
+    # with no device number is the case owner's, never inferred from a name in the path.
+    assert (fb["format"], fb["owner"], fb["device"]) == ("Facebook", "Matt", None)
 
 
 def test_participants_mark_the_users_own_side():
@@ -253,3 +255,17 @@ def test_reading_calls_never_replaces_the_summary_function(monkeypatch):
     assert page["summary"]["first_at"] == service._iso(first)
     assert service.summary is imported_sources.summary
     assert callable(service.summary)
+
+
+def test_source_owner_follows_the_device_number_rule():
+    """Owner rule 2026-10-15: Katrina's number -> hers; otherwise mine; screenshots decided per item."""
+    people = service._People(PEOPLE)
+    fb = "b2://salem-data/consignatio/casevault/SourceCorpus/messaging/facebook-messenger/meta-2025-08-18/katrinakinzel_1614217831996100/message_3.json"
+    assert service.describe_export(fb, people)["owner"] == "Matt", "a thread folder named after Katrina is not her export"
+    assert service.describe_export(KEY, people)["owner"] == "Katrina"
+    unknown_device = "b2://salem-data/consignatio/casevault/SourceCorpus/messaging/sms-backup-restore/2485550199/sms-2024-01-01.xml"
+    assert service.describe_export(unknown_device, people)["owner"] == "Matt"
+    placeholder_device = "b2://salem-data/consignatio/casevault/SourceCorpus/messaging/sms-backup-restore/3135550101/sms-2024-01-01.xml"
+    assert service.describe_export(placeholder_device, people)["owner"] == "Matt", "an unconfirmed placeholder does not own a device"
+    shot = "b2://salem-data/consignatio/casevault/SourceCorpus/screenshots/Screenshot_20250601.png"
+    assert service.describe_export(shot, people)["owner"] is None

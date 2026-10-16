@@ -57,6 +57,11 @@ class _People:
         """Resolve a supplied phone value against the indexed registry."""
         return self.by_phone.get(imported._digits(value or "")) if value else None
 
+    def case_owner(self) -> dict[str, str] | None:
+        """The one confirmed case owner (role "user"), or None when not exactly one."""
+        owners = [who for who in self.by_person.values() if who["role"] == "user"]
+        return owners[0] if len(owners) == 1 else None
+
     def in_path(self, path: str) -> dict[str, str] | None:
         """Find the first indexed name embedded in an export path."""
         lowered = path.lower()
@@ -90,6 +95,29 @@ def _pretty_phone(value: str) -> str:
     return value
 
 
+_PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".heic", ".heif", ".gif", ".webp", ".bmp", ".tif", ".tiff")
+
+
+def source_owner(export_key: str, device_phone: str | None, people: imported._People) -> dict[str, str] | None:
+    """Whose phone/account an export came from (owner rule 2026-10-15).
+
+    A device number the registry assigns to a person -> that person (Katrina's number ->
+    hers). Any other device number, or an export with no device number (Facebook, Takeout
+    and other account exports) -> the case owner. Screenshots and photos of a phone could
+    be either and get no owner: they are decided per item. A name appearing in the path is
+    never evidence of ownership -- a Facebook export files each thread under the OTHER
+    person's name (katrinakinzel_...), which mislabelled the owner's own export as hers.
+    Byline: Claude Code · Opus 5.5 · 2026-10-16
+    """
+    if export_key.lower().endswith(_PICTURE_SUFFIXES):
+        return None
+    if device_phone:
+        holder = people.phone(device_phone)
+        if holder and not holder.get("unconfirmed"):
+            return holder
+    return people.case_owner()
+
+
 def describe_export(export_key: str, people: imported._People) -> dict[str, Any]:
     """Format, device phone and owner, read from the casevault key of an export."""
     lowered = export_key.lower()
@@ -103,7 +131,7 @@ def describe_export(export_key: str, people: imported._People) -> dict[str, Any]
         label = "Other"
     device = imported._PATH_DEVICE.search(export_key)
     device_phone = device.group(2) if device else None
-    owner = people.phone(device_phone) if device_phone else people.in_path(export_key.split("/messaging/")[-1])
+    owner = source_owner(export_key, device_phone, people)
     return {
         "format": label,
         "device": imported._pretty_phone(device_phone) if device_phone else None,

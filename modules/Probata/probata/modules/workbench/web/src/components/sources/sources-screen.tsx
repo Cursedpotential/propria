@@ -34,7 +34,7 @@ import { detectedFormat, runsBySource, sourceRunHistory, sourceState } from "@/c
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
 import { processSelection, readSourceHref, type AlreadyImported, type SourceSubmission } from "@/components/sources/process-selection";
-import { confirmedCaseOwner, processingIdentity, requiresMessagePerspective, sourcePerspectiveScope, type SourcePerspectiveChoice } from "@/components/sources/source-perspective";
+import { confirmedCaseOwner, defaultSourcePerspective, processingIdentity, requiresMessagePerspective, sourcePerspectiveScope, type SourcePerspectiveChoice } from "@/components/sources/source-perspective";
 import { getCaseIdentity } from "@/lib/case-identity-client";
 import {
   ApiError,
@@ -366,6 +366,11 @@ function SourcesScreenMode() {
     : processFiles.map((object) => [object.source_ref, object.etag, object.byte_length]));
   const registryPeople = identityQuery.data?.people ?? [];
   const registryOwner = confirmedCaseOwner(registryPeople);
+  // Owner rule 2026-10-15: B2 selections are pre-set by device number; uploads and pictures still ask.
+  const rulePerspective = localSource ? null : defaultSourcePerspective(registryPeople, processFiles.map((object) => object.source_ref));
+  const effectivePerspective: SourcePerspectiveChoice | null = perspectiveChoice?.scope === perspectiveScope
+    ? perspectiveChoice
+    : rulePerspective ? { scope: perspectiveScope, personId: rulePerspective.id } : null;
 
   // --- actions -------------------------------------------------------------
   const runSearch = useCallback(() => {
@@ -441,8 +446,8 @@ function SourcesScreenMode() {
       if (localSource) {
         const native = isSMSContextSource(localSource.file.name, handlerOverride || detectedFormat(localSource.file.name));
         if (!native && (!matter || !primaryCourtCase)) throw new Error(`${localSource.file.name}: legacy processing needs a fixed case.`);
-        const humanAttribution = native ? humanContextAttribution(registryPeople, perspectiveScope, perspectiveChoice) : undefined;
-        const identity = native ? {} : processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, requiresMessagePerspective(localSource.file.name, detectedFormat(localSource.file.name)));
+        const humanAttribution = native ? humanContextAttribution(registryPeople, perspectiveScope, effectivePerspective) : undefined;
+        const identity = native ? {} : processingIdentity(registryPeople, perspectiveScope, effectivePerspective, requiresMessagePerspective(localSource.file.name, detectedFormat(localSource.file.name)));
         // Acquisition returns a verified canonical receipt; re-trying start must not upload twice.
         const sealed = localUploads.current.get(localSource.requestId) ?? await uploadProfferSource(localSource.file, mode, setUploadProgress);
         localUploads.current.set(localSource.requestId, sealed);
@@ -491,7 +496,7 @@ function SourcesScreenMode() {
           const format = handlerOverride || detectedFormat(object.name);
           try {
             if (isSMSContextSource(object.name, format)) {
-              const humanAttribution = humanContextAttribution(registryPeople, perspectiveScope, perspectiveChoice);
+              const humanAttribution = humanContextAttribution(registryPeople, perspectiveScope, effectivePerspective);
               const key = JSON.stringify([humanCase, mode, object.source_ref, object.etag, object.byte_length, handlerOverride, humanAttribution]);
               if (humanSubmissions.current.get(key)?.response) { accepted += 1; outcomes.push(`${object.name}: already submitted`); continue; }
               const version = await getProfferSourceVersion(object, activeRootId, undefined,
@@ -507,7 +512,7 @@ function SourcesScreenMode() {
               continue;
             }
             if (!matter || !primaryCourtCase) throw new Error("Legacy processing needs a fixed case.");
-            const identity = processingIdentity(registryPeople, perspectiveScope, perspectiveChoice, requiresMessagePerspective(object.name, format));
+            const identity = processingIdentity(registryPeople, perspectiveScope, effectivePerspective, requiresMessagePerspective(object.name, format));
             const inspected = inspectionQuery.data?.source_ref === object.source_ref ? inspectionQuery.data
               : await previewProfferSource(object, mode, activeRootId, undefined, object.source_ref === selectedObject?.source_ref ? restored?.providerVersion : undefined);
             const sourceRef = pinnedSourceRef(object.source_ref, inspected.provider_version_id);
@@ -652,7 +657,7 @@ function SourcesScreenMode() {
             Whose phone/export?
             <select aria-label="Whose phone/export?" className="rounded border bg-background px-2 py-1"
               disabled={processing || identityQuery.isPending}
-              value={perspectiveChoice?.scope === perspectiveScope ? perspectiveChoice.personId : ""}
+              value={effectivePerspective?.personId ?? ""}
               onChange={(event) => setPerspectiveChoice(event.target.value ? { scope: perspectiveScope, personId: event.target.value } : null)}>
               <option value="">Choose for selected file(s)</option>
               {registryOwner && <option value={registryOwner.id}>My phone/export</option>}
