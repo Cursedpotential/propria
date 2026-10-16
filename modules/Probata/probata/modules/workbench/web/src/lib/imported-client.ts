@@ -32,6 +32,32 @@ export interface ImportedSource {
   failed_attempts: number;
 }
 
+
+/** Each entry is an exact recorded source version, not an inferred duplicate. */
+export interface ImportedSourceVersion {
+  source_version_id: string;
+  source_key: string;
+  export_key: string;
+  relation: "export_root" | "same_recorded_export";
+  version_ordinal: number;
+  acquired_at: string | null;
+  published: boolean;
+  approved: boolean;
+  rejected: boolean;
+  raw: number;
+  normalized: number;
+  messages: number;
+  calls: number;
+}
+export interface ImportedSourceHistory {
+  source_id: string;
+  export_key: string;
+  items: ImportedSourceVersion[];
+  total: number;
+  next_offset: number | null;
+  relation_basis: "exact_recorded_export_key";
+}
+
 export interface SourcesPage {
   items: ImportedSource[];
   total: number;
@@ -256,6 +282,8 @@ export const importedApi = {
   summary: (signal?: AbortSignal) => getJson<ImportedSummary>("/api/imported/summary", {}, signal),
   sources: (offset: number, format?: string, signal?: AbortSignal) =>
     getJson<SourcesPage>("/api/imported/sources", { limit: 20, offset, format }, signal),
+  sourceHistory: (sourceId: string, offset: number, signal?: AbortSignal) =>
+    getJson<ImportedSourceHistory>(`/api/imported/sources/${encodeURIComponent(sourceId)}/history`, { limit: 30, offset }, signal),
   threads: (sourceId: string, offset: number, signal?: AbortSignal) =>
     getJson<ThreadsPage>(`/api/imported/sources/${encodeURIComponent(sourceId)}/threads`, { limit: 25, offset }, signal),
   messages: (threadId: string, params: { cursor?: string | null; around?: string | null }, signal?: AbortSignal) =>
