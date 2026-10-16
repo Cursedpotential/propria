@@ -41,7 +41,10 @@ func TestDeriveRoutingLeavesOtherSignaturesUnchanged(t *testing.T) {
 	for detected, wantPath := range map[string]string{
 		"csv": "duckdb", "ndjson": "duckdb", "chatgpt_official_json": "duckdb",
 		"messages_transcript": "duckdb", "callsbackuprestore_xml": "decoder",
-		"pdf": "decoder", "archive": "decoder", "text": "decoder",
+		"pdf": "decoder", "archive": "decoder",
+		// Owner decision 2026-10-15: unclaimed text is a plain document on the
+		// DuckDB path (plain_text_document_v1); no decoder declares "text".
+		"text": "duckdb",
 	} {
 		candidates := handlerCandidatesForDetectedFormat(detected, decoder)
 		require.Len(t, candidates, 1, detected)

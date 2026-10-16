@@ -235,6 +235,7 @@ func TestStructuredELTFormatForDeclaredFormat(t *testing.T) {
 		"facebook_messenger_json": StructuredELTFormatFacebookMessenger,
 		"facebook_messenger_html": StructuredELTFormatFacebookMessengerHTML,
 		"generic_html_document":   StructuredELTFormatGenericHTML,
+		"text":                    StructuredELTFormatPlainText,
 	}
 	for declared, want := range tests {
 		got, err := StructuredELTFormatForDeclaredFormat(declared)
@@ -260,6 +261,7 @@ func TestStructuredELTTemplateForFormat(t *testing.T) {
 		StructuredELTFormatFacebookMessenger:     "facebook_messenger_json_v1",
 		StructuredELTFormatFacebookMessengerHTML: "facebook_messenger_html_v1",
 		StructuredELTFormatGenericHTML:           "generic_html_document_v1",
+		StructuredELTFormatPlainText:             "plain_text_document_v1",
 	}
 	for format, want := range tests {
 		got, err := StructuredELTTemplateForFormat(format)

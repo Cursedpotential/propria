@@ -41,6 +41,11 @@ const (
 	// StructuredELTFormatGenericHTML is any other HTML file: one OBJECT row per
 	// structural block, so the text reaches the document path.
 	StructuredELTFormatGenericHTML StructuredELTFormat = "generic_html_document"
+	// StructuredELTFormatPlainText is any text file no more specific signature
+	// claims (detected format "text"): one OBJECT row per paragraph, so the text
+	// reaches the document path instead of failing handler selection (owner
+	// decision 2026-10-15). Byline: Claude Code · Opus 5.5 · 2026-10-15
+	StructuredELTFormatPlainText StructuredELTFormat = "plain_text_document"
 )
 
 const (
@@ -207,6 +212,8 @@ func StructuredELTFormatForDeclaredFormat(declared string) (StructuredELTFormat,
 		return StructuredELTFormatFacebookMessengerHTML, nil
 	case "generic_html_document":
 		return StructuredELTFormatGenericHTML, nil
+	case "text":
+		return StructuredELTFormatPlainText, nil
 	default:
 		return "", fmt.Errorf("declared format %q has no DuckDB structured-ELT template", declared)
 	}
@@ -236,6 +243,8 @@ func StructuredELTTemplateForFormat(format StructuredELTFormat) (string, error) 
 		return "facebook_messenger_html_v1", nil
 	case StructuredELTFormatGenericHTML:
 		return "generic_html_document_v1", nil
+	case StructuredELTFormatPlainText:
+		return "plain_text_document_v1", nil
 	default:
 		return "", fmt.Errorf("structured elt format %q has no pinned template", format)
 	}

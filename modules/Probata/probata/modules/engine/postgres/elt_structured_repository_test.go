@@ -333,3 +333,30 @@ func TestHTMLMaximumFileSizeIsConfigurableAndBounded(t *testing.T) {
 		t.Fatalf("invalid value must fall back, got %d", htmlMaximumFileSize())
 	}
 }
+
+func TestPlainTextDocumentQueryIsDocumentShaped(t *testing.T) {
+	query, err := structuredELTQueryFor(activities.StructuredELTFormatPlainText, "s3://bucket/o'brien/notes.txt", "b2://bucket/o'brien/notes.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"read_blob('s3://bucket/o''brien/notes.txt')", "string_split_regex(", "'duckdb_template', 'plain_text_document_v1'",
+		"'record_kind', 'object'", "'doc_text'", "'source_encoding'", "stored_bytes", "native_fields", "native_metadata",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("plain text query lacks %q:\n%s", fragment, query)
+		}
+	}
+	if strings.Contains(query, "'body'") {
+		t.Fatal("document text must not use the message body key")
+	}
+	if strings.Contains(query, "{{") || strings.Contains(strings.ToUpper(query), "INSERT ") {
+		t.Fatal("plain text query has an unfilled marker or writes a table")
+	}
+	if structuredELTRequiresWebbed(activities.StructuredELTFormatPlainText) {
+		t.Fatal("plain text needs no HTML extension")
+	}
+	if _, err := structuredELTQueryFor(activities.StructuredELTFormatPlainText, " ", "b2://bucket/notes.txt"); err == nil {
+		t.Fatal("an empty DuckDB source url was accepted")
+	}
+}

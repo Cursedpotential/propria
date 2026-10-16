@@ -218,6 +218,8 @@ var LocatorlessFormats = map[string]bool{
 	// The HTML flavors are re-serialized blocks, not byte ranges of the original.
 	"facebook_messenger_html": true,
 	"generic_html_document":   true,
+	// Plain text documents are re-serialized paragraphs, not byte ranges.
+	"text": true,
 }
 
 // AutoApprovalCheckPasses reports whether one check satisfies the clean_checks

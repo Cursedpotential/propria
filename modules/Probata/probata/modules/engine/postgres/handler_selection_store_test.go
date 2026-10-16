@@ -91,7 +91,11 @@ func TestHandlerCandidatesSelectOneSignatureHandlerWithoutDecoderAlternative(t *
 	require.Len(t, structured, 1)
 	require.Equal(t, "duckdb", string(structured[0].ExecutionPath))
 
-	for _, detected := range []string{"pdf", "docx", "archive", "json", "text", "binary"} {
+	text := handlerCandidatesForDetectedFormat("text", decoder)
+	require.Len(t, text, 1)
+	require.Equal(t, "duckdb", string(text[0].ExecutionPath), "unclaimed text is a plain document (owner 2026-10-15)")
+
+	for _, detected := range []string{"pdf", "docx", "archive", "json", "binary"} {
 		candidates := handlerCandidatesForDetectedFormat(detected, decoder)
 		require.Len(t, candidates, 1, detected)
 		require.Equal(t, decoder.ParserID, candidates[0].HandlerID, detected)

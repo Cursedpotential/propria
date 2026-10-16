@@ -35,6 +35,8 @@ func structuredELTQueryFor(format activities.StructuredELTFormat, sourceURL, sou
 		return facebookMessengerHTMLQuery(sourceURL, sourceLocator)
 	case activities.StructuredELTFormatGenericHTML:
 		return genericHTMLDocumentQuery(sourceURL)
+	case activities.StructuredELTFormatPlainText:
+		return plainTextDocumentQuery(sourceURL)
 	case activities.StructuredELTFormatFacebookMessenger:
 	default:
 		return structuredELTQuery(format, sourceURL)
