@@ -29,6 +29,12 @@ function StatusIcon({ status }: { status: string }) {
       return <X className="size-3.5 text-destructive" aria-label="failed" />;
     case "running":
       return <LoaderCircle className="size-3.5 animate-spin text-primary" aria-label="running" />;
+    case "retrying":
+      return <LoaderCircle className="size-3.5 animate-spin text-primary" aria-label="retrying" />;
+    case "partial":
+      return <Flag className="size-3.5 text-[#8a5a00]" aria-label="partial" />;
+    case "pending":
+      return <CircleDashed className="size-3.5 text-muted-foreground" aria-label="pending" />;
     case "skipped":
       return <MinusCircle className="size-3.5 text-muted-foreground" aria-label="skipped" />;
     default:
@@ -36,12 +42,16 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
+/** Render distinct business outcome and per-step execution states without deriving success from a green step.
+ * Inputs: actual/validated workflow progress and display title. Output: outcome and detailed step list.
+ * Effects: none. Pick for extraction/commit action progress; callers must preserve business failure semantics.
+ */
 export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress | undefined; title: string }) {
   if (!progress) return null;
   return (
     <section aria-label={title} className="border bg-card p-2 text-xs" data-testid={`workflow-steps-${title.toLowerCase().replaceAll(" ", "-")}`}>
       <p className="mb-1 font-semibold">
-        {title} <span className="font-normal text-muted-foreground">· {progress.outcome.replaceAll("_", " ")}</span>
+        {title} <span aria-label={`${title} outcome`} data-outcome={progress.outcome} className={cn("font-normal", progress.outcome === "failed" ? "font-semibold text-destructive" : progress.outcome === "partial" ? "font-semibold text-[#8a5a00] dark:text-[#ffd48a]" : "text-muted-foreground")}>· {progress.outcome.replaceAll("_", " ")}</span>
       </p>
       <ol className="space-y-1">
         {progress.steps.map((step) => (
@@ -50,6 +60,17 @@ export function WorkflowSteps({ progress, title }: { progress: WorkflowProgress 
             <span className="min-w-0">
               <span className={cn(step.status === "failed" && "text-destructive")}>{STEP_LABEL[step.step] ?? step.step}</span>
               {step.detail && <span className="text-muted-foreground"> — {step.detail}</span>}
+              {(step.workflow_id || step.run_id || step.activity_id || step.activity_type || typeof step.attempt === "number") && (
+                <dl className="mt-0.5 break-all text-[11px] text-muted-foreground">
+                  {step.workflow_id && <div><dt className="inline">Workflow: </dt><dd className="inline">{step.workflow_id}</dd></div>}
+                  {step.run_id && <div><dt className="inline">Run: </dt><dd className="inline">{step.run_id}</dd></div>}
+                  {step.activity_id && <div><dt className="inline">Activity: </dt><dd className="inline">{step.activity_id}</dd></div>}
+                  {step.activity_type && <div><dt className="inline">Activity type: </dt><dd className="inline">{step.activity_type}</dd></div>}
+                  {typeof step.attempt === "number" && <div><dt className="inline">Attempt: </dt><dd className="inline">{step.attempt}</dd></div>}
+                </dl>
+              )}
+              {step.last_failure && <span className="mt-0.5 block text-[11px] text-destructive">Last failure: {step.last_failure}</span>}
+              {Object.keys(step.counts ?? {}).length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">{Object.entries(step.counts ?? {}).map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`).join(" · ")}</span>}
               {step.flags.map((flag, index) => (
                 <span key={`${flag.code}-${index}`} className="mt-0.5 flex items-start gap-1 text-[11px] text-[#8a5a00] dark:text-[#ffd48a]">
                   <Flag className="mt-0.5 size-3 shrink-0" aria-hidden="true" />

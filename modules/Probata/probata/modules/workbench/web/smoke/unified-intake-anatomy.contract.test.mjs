@@ -78,7 +78,8 @@ test("remote sources open in a read-only viewer with source identity and checksu
 });
 
 test("parser decision is content-signature-derived, explicit, bounded, and durably read back", () => {
-  assert.match(parserPanel, /preview && preview\.phase !== "awaiting_handler_selection"/);
+  assert.match(parserPanel, /const liveHandlerGate = decisionAllowed !== false && preview\?\.phase === "awaiting_handler_selection" && !preview\.terminal/);
+  assert.match(parserPanel, /\["completed", "failed", "cancelled", "rerun_required", "unavailable"\]\.includes/);
   assert.match(parserPanel, /preview\.phase/);
   assert.match(parserPanel, /preview\.parser/);
   assert.match(parserPanel, /preview\.parser\.parser_id/);

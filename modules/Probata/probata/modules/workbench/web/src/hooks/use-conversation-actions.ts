@@ -12,6 +12,14 @@ export function useExtractors() {
   return useQuery({ queryKey: ["extractors"], queryFn: ({ signal }) => conversationApi.extractors(signal), staleTime: 5 * 60_000 });
 }
 
+/** Read the current exact target and extractor admission without starting work.
+ * Inputs: selected IDs and enabled state. Output: read-only workload query.
+ * Effects: preflight POST; use before the independently guarded dispatch.
+ */
+export function useExtractionPreflight(threadIds: readonly string[], extractors: readonly string[], enabled = true) {
+  return useQuery({ queryKey: ["extraction-preflight", threadIds, extractors], queryFn: ({ signal }) => conversationApi.preflight(threadIds, extractors, signal), enabled: enabled && threadIds.length > 0 && extractors.length > 0, retry: false, staleTime: 0 });
+}
+
 /** A set of checked conversation ids. */
 export function useSelection() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -28,12 +36,18 @@ export function useSelection() {
   return { selected, toggle, clear, setAll };
 }
 
-/** Start extraction. One Idempotency-Key per click; the mutation keeps it for an automatic retry of that click. */
+/** Start an independently selected or composed extractor request through the existing Temporal starter.
+ * Inputs: exact saved conversations/extractors and optional existing click key. Output: durable workflow/run IDs.
+ * Effects: POST and targeted extraction invalidation. One key is retained on the mutation variables
+ * for transport retries; a new explicit attempt uses new variables and a new key.
+ */
 export function useStartExtraction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ threadIds, extractors }: { threadIds: string[]; extractors: string[] }) =>
-      conversationApi.startExtraction(threadIds, extractors, newIdempotencyKey("extract")),
+    mutationFn: (input: { threadIds: string[]; extractors: string[]; key?: string; preflightToken?: string }) => {
+      input.key ??= newIdempotencyKey("extract");
+      return conversationApi.startExtraction(input.threadIds, input.extractors, input.key, input.preflightToken);
+    },
     onSuccess: (_started, { threadIds }) => {
       for (const id of threadIds) void queryClient.invalidateQueries({ queryKey: ["thread-extractions", id] });
     },
@@ -48,7 +62,11 @@ export function useStartSend() {
   });
 }
 
-/** Polls a workflow until it has an outcome other than running. Refreshes the extraction views as steps finish. */
+/** Poll actual conversation business progress while pending, running or retrying.
+ * Inputs: accepted workflow identity and affected conversations. Output: actual stage status/errors.
+ * Effects: status GET and targeted extraction invalidation; read errors stop polling for explicit refresh.
+ * Pick for standalone selections and composed extraction requests, never infer success from Temporal completion.
+ */
 export function useActionStatus(workflowId: string | null, threadIds: readonly string[] = []) {
   const queryClient = useQueryClient();
   return useQuery({
@@ -59,7 +77,7 @@ export function useActionStatus(workflowId: string | null, threadIds: readonly s
       for (const id of threadIds) void queryClient.invalidateQueries({ queryKey: ["thread-extractions", id] });
       return status;
     },
-    refetchInterval: (query) => (query.state.data && query.state.data.outcome !== "running" ? false : 2500),
+    refetchInterval: (query) => query.state.error ? false : query.state.data && !["pending", "queued", "running", "retrying"].includes(query.state.data.outcome) ? false : 2500,
   });
 }
 

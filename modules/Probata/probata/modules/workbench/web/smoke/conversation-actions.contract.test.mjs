@@ -15,12 +15,13 @@ const view = read("../src/components/conversations/extractions-view.tsx");
 const hooks = read("../src/hooks/use-conversation-actions.ts");
 const list = read("../src/components/sbv/conversation-list.tsx");
 
-test("both starts post with an Idempotency-Key; every other call is a GET", () => {
+test("starts carry an Idempotency-Key and selection preflight is a read-only POST", () => {
   assert.match(client, /"Idempotency-Key": key/);
   assert.match(client, /\/api\/imported\/threads\/extract/);
   assert.match(client, /\/api\/imported\/threads\/send-to-surreal/);
   const posts = client.match(/method: "POST"/g) ?? [];
-  assert.equal(posts.length, 1, "one shared POST helper");
+  assert.equal(posts.length, 2, "one mutation helper and one bounded read-only selection preflight");
+  assert.match(client, /extraction-preflight/);
   assert.match(client, /extractions: \(threadId: string, signal\?: AbortSignal\) =>\s+request<ThreadExtractions>/);
   assert.match(hooks, /newIdempotencyKey\("extract"\)/);
   assert.match(hooks, /newIdempotencyKey\("send"\)/);

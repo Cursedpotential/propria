@@ -117,8 +117,9 @@ def describe_export(export_key: str, people: imported._People) -> dict[str, Any]
 def _participant(identifier: str, people: imported._People, owner: str | None) -> dict[str, Any]:
     """One participant: a name when the registry knows the number, else the number itself.
 
-    `self` in an export is the phone's owner. `mine` marks the user's own side of a conversation
-    (the registry person whose role is `user`), so a chat reads the same whichever phone it came from.
+    Inputs: literal normalized identifier, registry lookup and source owner.
+    Output: resolved display identity; effects: none. Pick for display only.
+    `self` names the source account/device perspective, never a legal-party role.
     """
     if identifier == "self":
         who = people.by_person.get(owner or "")
@@ -129,7 +130,7 @@ def _participant(identifier: str, people: imported._People, owner: str | None) -
         label = who["name"] if who else (imported._pretty_phone(identifier) if looks_like_phone else identifier)
     number = imported._digits(identifier) if identifier != "self" and imported.looks_like_phone_value(identifier) else None
     return {
-        "id": identifier, "label": label, "mine": bool(who and who["role"] == "user"),
+        "id": identifier, "label": label, "mine": identifier == "self",
         "person": who["person"] if who else None,
         # The registry person this number belongs to, whether it is still a placeholder, and the
         # 10-digit number when nobody carries it yet (the "Who is this?" control starts from these).

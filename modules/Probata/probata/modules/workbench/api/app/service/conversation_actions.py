@@ -18,6 +18,7 @@ from typing import Any
 
 from app.repo import extractions_pg as pg
 from app.service import imported, proffer
+from app.service.matter_mode import configured_court_case_id
 from app.service.proffer_errors import ProfferError
 from app.types.conversation_actions import (
     ExtractConversationsRequest,
@@ -88,8 +89,11 @@ async def start_extraction(request: ExtractConversationsRequest, actor: ProfferD
     """Start extraction_request_workflow for the chosen conversations and extractors."""
     body = {
         "matter_id": imported.live_matter(),
+        "operating_mode": "LIVE",
+        "court_case_id": str(configured_court_case_id("LIVE")),
         "conversations": conversations(request.thread_ids),
         "extractors": list(dict.fromkeys(request.extractors)),
+        "preflight_token": request.preflight_token,
     }
     response = await proffer._request(
         "POST", "/reference-import/conversations/extract", json=body, headers=_actor_headers(actor, key)
@@ -97,10 +101,45 @@ async def start_extraction(request: ExtractConversationsRequest, actor: ProfferD
     return proffer._validated(WorkflowStarted, proffer._json_payload(response, "extraction start"), "extraction start")
 
 
+async def extraction_preflight(request: ExtractConversationsRequest) -> dict[str, Any]:
+    """Read exact extraction workload and durable admission without starting work.
+
+    Input: bounded existing thread/extractor selection. Output: engine preflight.
+    Effects: authenticated service read only; dispatch independently repeats admission.
+    """
+    body = {"matter_id": imported.live_matter(), "operating_mode": "LIVE",
+            "court_case_id": str(configured_court_case_id("LIVE")),
+            "conversations": conversations(request.thread_ids), "extractors": list(dict.fromkeys(request.extractors))}
+    response = await proffer._request("POST", "/reference-import/conversations/preflight", json=body)
+    payload = proffer._json_payload(response, "extraction preflight")
+    if not isinstance(payload, dict) or type(payload.get("eligible")) is not bool or not isinstance(payload.get("targets"), list) or not isinstance(payload.get("blockers"), list):
+        raise ProfferError("Extraction preflight returned invalid admission", 502)
+    return payload
+
+
+async def extraction_history(export_key: str, conv: str) -> dict[str, Any]:
+    """Read retained Temporal parent attempts matching exact conversation coordinates.
+
+    Inputs: decoded source/conversation. Output: pinned attempt history or unavailable.
+    Effects: bounded read only; missing output rows never erase failed parents.
+    """
+    try:
+        response = await proffer._request("GET", "/reference-import/conversations/history",
+            params={"matter_id": imported.live_matter(), "export_key": export_key, "conv": conv})
+        payload = proffer._json_payload(response, "extraction history")
+        if not isinstance(payload, dict) or not isinstance(payload.get("attempts"), list) or len(payload["attempts"]) > 20:
+            raise ProfferError("Invalid bounded extraction history", 502)
+        return payload
+    except ProfferError as error:
+        return {"available": False, "attempts": [], "truncated": False, "coverage": error.detail + "; absence of earlier attempts is not established"}
+
+
 async def start_send(request: SendConversationsRequest, actor: ProfferDecisionActor, key: str) -> WorkflowStarted:
     """Start send_to_surreal_workflow for the chosen conversations."""
     body = {
         "matter_id": imported.live_matter(),
+        "operating_mode": "LIVE",
+        "court_case_id": str(configured_court_case_id("LIVE")),
         "conversations": conversations(request.thread_ids),
         "include_extractions": request.include_extractions,
     }
@@ -227,10 +266,13 @@ async def extractions(thread_id: str) -> dict[str, Any]:
     truncated = len(entity_rows) > pg.MAX_ROWS or len(event_rows) > pg.MAX_ROWS
     registry = await _registry_by_run_extractor()
     grouped = group_by_extractor(run_rows, entity_rows[: pg.MAX_ROWS], event_rows[: pg.MAX_ROWS], registry)
-    return {"thread_id": thread_id, "extractors": grouped, "truncated": truncated}
+    history = await extraction_history(export_key, conv)
+    return {"thread_id": thread_id, "extractors": grouped, "truncated": truncated, "history": history}
 
 
 def _reset_registry_cache() -> None:
     """Forget the cached registry (tests)."""
     global _registry
     _registry = None
+
+

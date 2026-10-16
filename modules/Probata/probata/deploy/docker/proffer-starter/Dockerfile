@@ -1,6 +1,10 @@
 # Toolchain pinned to match modules/engine/go.mod (`go 1.26.6`).
 FROM golang:1.26-bookworm AS builder
 
+# Bound compilation alongside the managed worker build on the original host.
+# Inputs: vendored source. Output: starter binary. Effects: build resource limits only.
+ENV GOMAXPROCS=2 GOMEMLIMIT=2048MiB GOFLAGS=-p=1
+
 # Hermetic vendored build (repair post-restructure, 2026-09-02): engine/ moved to
 # modules/engine/ and sbv moved to modules/forks/sbv/ (a private, gitignored-locally
 # submodule Coolify's clone may not have credentials for). modules/engine/vendor/

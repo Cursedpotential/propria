@@ -66,17 +66,30 @@ async def source_threads(source_id: str, *, limit: int, offset: int) -> dict[str
 
 
 def _message(row: dict[str, Any], people: imported._People, owner: str | None) -> dict[str, Any]:
-    """Read conversation threads and cursor-paged message projections.
+    """Project a message using explicit participant roles and source perspective.
+
+    Inputs: normalized row, registry and source owner. Output: display/citation
+    attribution. Effects: none; choose for Imported messages, never infer a speaker.
     """
     plist = row["participants"] or []
     sender = next((p.get("identifier") for p in plist if p.get("role") == "sender"), None)
-    if sender is None and plist:
-        sender = plist[0].get("identifier")
     who = imported._participant(sender, people, owner) if sender else {"id": None, "label": "Unknown", "mine": False, "person": None}
+    recipients = [p.get("identifier") for p in plist if p.get("role") == "recipient" and p.get("identifier")]
+    direction = "sent" if sender == "self" else ("received" if sender and "self" in recipients else "unknown")
     projection = row["projection_kind"]
     return {
         "id": row["id"], "at": imported._iso(row["occurred_at"]), "body": row["body"] or "",
-        "sender": who, "outgoing": bool(who["mine"]),
+        "sender": who, "outgoing": direction == "sent",
+        "attribution": {"raw_sender": sender, "raw_recipients": recipients, "raw_participants": plist,
+            "direction": direction, "source_owner": owner,
+            "source_owner_basis": "Existing export-path and registry display inference; no source-context ownership receipt was read",
+            "acquisition_basis": "Persisted message projection classification; acquisition-context receipt not supplied here",
+            "authorship_kind": "unknown",
+            "basis": "Explicit normalized participant roles; self is the source account/device" if sender else "No explicit sender role was retained",
+            "status": "unconfirmed" if who.get("unconfirmed") else ("registry_resolved" if who.get("person") else "unresolved"),
+            "scope": "Registry identifier mapping applies globally; acquisition context revisions apply to their source operation",
+            "source_version_id": row.get("source_version_id"), "generation_id": row.get("generation_id"),
+            "record_ordinal": row.get("record_ordinal"), "preview_handle": row.get("preview_handle")},
         "party": "first_party" if projection == "first_party" else ("third_party" if projection else None),
         "attachments": int(row["attachment_count"] or 0) if row["has_attachments"] else 0,
         "certainty": row["certainty"],

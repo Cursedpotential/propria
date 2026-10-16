@@ -7,9 +7,14 @@
 // and anything unknown says so on the item itself, never as a caveat paragraph.
 "use client";
 
+import { useState } from "react";
+import { SourceMediaPreview } from "@/components/sources/source-media-preview";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { DecodedSourceViewer } from "@/components/sbv/decoded-source-viewer";
+import { SourceMessagePreview } from "@/components/sbv/source-message-preview";
 import {
   HANDLER_CHOICES,
   SOURCE_STATE_CLASS,
@@ -21,13 +26,14 @@ import { Button } from "@/components/ui/button";
 // Byline: Codex · GPT-6 · 2026-10-06 — source-to-result links retain exact attempt identity.
 import { AppLink } from "@/lib/router-compat";
 import { useFixedCase } from "@/lib/fixed-case-context";
+import { getProfferSourceText } from "@/lib/api-client";
 import type { DecodedManifest } from "@/lib/decoded-source-client";
 import type {
   CatalogProvenance,
   CatalogUnitLookup,
   ProfferBatchStatus,
   ProfferProposalResource,
-  ProfferSourceInspection,
+  ProfferSourcePreview,
   ProfferSourceObject,
   SourceUnitKind,
   SourceUnitMark,
@@ -77,8 +83,10 @@ export function SourceMetadataPanel({
   inspection,
   inspectionLoading,
   inspectionError,
+  onRetryInspection,
   manifest,
   runs,
+  unpinnedRuns,
   provenance,
   provenanceMissing,
   handlerOverride,
@@ -94,11 +102,13 @@ export function SourceMetadataPanel({
   canonicalHomeOffered,
 }: {
   selection: SourceSelection;
-  inspection: ProfferSourceInspection | null;
+  inspection: ProfferSourcePreview | null;
   inspectionLoading: boolean;
   inspectionError: string | null;
+  onRetryInspection: () => void;
   manifest: DecodedManifest | null;
   runs: readonly ProfferProposalResource[];
+  unpinnedRuns: readonly ProfferProposalResource[];
   provenance: CatalogProvenance | null;
   provenanceMissing: boolean;
   handlerOverride: string;
@@ -136,8 +146,10 @@ export function SourceMetadataPanel({
           inspection={inspection}
           inspectionLoading={inspectionLoading}
           inspectionError={inspectionError}
+          onRetryInspection={onRetryInspection}
           manifest={manifest}
           runs={runs}
+          unpinnedRuns={unpinnedRuns}
           provenance={provenance}
           provenanceMissing={provenanceMissing}
           handlerOverride={handlerOverride}
@@ -271,28 +283,82 @@ function FileDetail({
   inspection,
   inspectionLoading,
   inspectionError,
+  onRetryInspection,
   manifest,
   runs,
+  unpinnedRuns,
   provenance,
   provenanceMissing,
   handlerOverride,
   onHandlerOverrideChange,
 }: {
   selection: FileSelection;
-  inspection: ProfferSourceInspection | null;
+  inspection: ProfferSourcePreview | null;
   inspectionLoading: boolean;
   inspectionError: string | null;
+  onRetryInspection: () => void;
   manifest: DecodedManifest | null;
   runs: readonly ProfferProposalResource[];
+  unpinnedRuns: readonly ProfferProposalResource[];
   provenance: CatalogProvenance | null;
   provenanceMissing: boolean;
   handlerOverride: string;
   onHandlerOverrideChange: (value: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const object = selection.object;
   const { mode } = useFixedCase();
   const detected = inspection?.parser_preflight.declared_format ?? "";
+  const unsupportedMedia = detected === "unknown_binary" && ["audio", "video"].includes(inspection?.preview_kind ?? "");
   const catalogRow = provenance?.items[0] ?? null;
+  // Selection reads metadata first; only text needs a bounded Range request here.
+  // PDF/image/media use the existing stream URL and decoded sources keep the SBV reader.
+  const textPreview = useQuery({
+    queryKey: ["sources", "text-preview", inspection?.source_ref, inspection?.etag, inspection?.provider_version_id],
+    queryFn: ({ signal }) => getProfferSourceText(inspection!, signal),
+    enabled: Boolean(!manifest && detected !== "sms_export_xml" && inspection?.preview_kind === "text" && inspection.preview_url),
+    retry: false,
+  });
+
+  const preview = (
+      <section className="min-h-[220px] px-3 py-3" aria-label="Preview">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preview</p>
+          {!expanded && <Button size="sm" variant="outline" onClick={() => setExpanded(true)}>Expand preview</Button>}
+          {inspection?.preview_url && (
+            <div className="flex max-w-full flex-wrap gap-2"><a className="max-w-full break-words text-xs font-medium text-primary underline" href={inspection.preview_url} target="_blank" rel="noopener noreferrer">
+              Open original version
+            </a><a className="max-w-full break-words text-xs font-medium text-primary underline" href={`${inspection.preview_url}&download=true`} download={inspection.name}>Download original bytes</a></div>
+          )}
+        </div>
+        <div className="mt-2">
+          {manifest ? (
+            <DecodedSourceViewer sourceRef={object.source_ref} />
+          ) : detected === "sms_export_xml" && inspection ? (
+            <SourceMessagePreview key={`${inspection.source_ref}:${inspection.etag}`} selection={inspection} />
+          ) : inspectionLoading ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading file details</p>
+          ) : inspection && ["image", "audio", "video"].includes(inspection.preview_kind) && inspection.preview_url ? (
+            <SourceMediaPreview key={inspection.preview_url} inspection={inspection} />
+          ) : inspection?.preview_kind === "pdf" && inspection.preview_url ? (
+            <iframe className="h-[65vh] w-full border bg-white" src={inspection.preview_url} title={`View of ${inspection.name}`} />
+          ) : inspection?.preview_kind === "text" ? (
+            textPreview.isPending ? (
+              <p className="text-xs text-muted-foreground">Loading text</p>
+            ) : textPreview.error ? (
+              <div className="text-xs text-destructive" role="alert"><p>{textPreview.error.message}</p><Button size="sm" variant="outline" onClick={() => void textPreview.refetch()}>Retry text preview</Button></div>
+            ) : (
+              <>
+                <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words border bg-background p-2 font-mono text-[11px] leading-5">{textPreview.data?.text || "Empty file."}</pre>
+                {textPreview.data?.truncated && <p className="mt-1 text-[11px] text-muted-foreground">Showing the first 250 KB. Open original to read the whole file.</p>}
+              </>
+            )
+          ) : (
+            <p className="text-xs text-muted-foreground">No inline preview for this format.</p>
+          )}
+        </div>
+      </section>
+  );
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -311,12 +377,22 @@ function FileDetail({
         </div>
       </header>
 
+      {expanded ? <Dialog open onOpenChange={setExpanded}>
+        <DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-none flex-col overflow-auto sm:max-w-none">
+          <DialogTitle className="pr-8 break-all">{object.name}</DialogTitle>
+          <DialogDescription>Read the selected original or decoded source. Escape closes the expanded preview.</DialogDescription>
+          {preview}
+        </DialogContent>
+      </Dialog> : preview}
+
       <dl className="border-b">
         <Field label="Size" value={formatBytes(object.byte_length)} />
+        <Field label="Provider version" value={inspection?.provider_version_id ?? "not supplied by provider"} mono />
+        <Field label="ETag (provider identity, not a source hash)" value={inspection?.etag ?? object.etag ?? "unknown"} mono />
         <Field label="Modified" value={object.last_modified ? new Date(object.last_modified).toLocaleString() : "not reported"} />
         <Field
           label="Hash (sha256)"
-          value={inspectionLoading ? "reading and hashing" : inspection?.sha256 || "not hashed"}
+          value={inspection?.sha256 || "not hashed"}
           mono
         />
         <Field label="Detected format" value={inspectionLoading ? "inspecting" : detected || "not inspected"} />
@@ -325,21 +401,23 @@ function FileDetail({
       </dl>
 
       {inspectionError && (
-        <p className="flex items-start gap-1 border-b px-3 py-2 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
-          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {inspectionError}
-        </p>
+        <div className="border-b px-3 py-2 text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
+          <p><AlertTriangle className="inline h-3 w-3" /> Source inspection failed: {inspectionError}</p>
+          <Button size="sm" variant="outline" onClick={onRetryInspection}>Retry source inspection</Button>
+        </div>
       )}
 
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Handler</p>
         <p className="mt-1 text-xs">
-          Recommended: <strong>{HANDLER_CHOICES.find((choice) => choice.formats.includes(detected))?.label ?? "detected on the engine"}</strong>
+          {unsupportedMedia ? "Original media playback is available when the browser supports these bytes. This Process route has no registered audio/video extractor." : <>Recommended: <strong>{HANDLER_CHOICES.find((choice) => choice.formats.includes(detected))?.label ?? "detected on the engine"}</strong></>}
         </p>
         <label className="mt-2 grid gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
           Override before Process
           <select
-            className="h-8 border bg-background px-2 text-xs normal-case text-foreground"
+            className="h-8 min-w-0 max-w-full border bg-background px-2 text-xs normal-case text-foreground"
             value={handlerOverride}
+            disabled={unsupportedMedia}
             onChange={(event) => onHandlerOverrideChange(event.target.value)}
           >
             <option value="">Use the detected format</option>
@@ -353,18 +431,25 @@ function FileDetail({
       <section className="border-b px-3 py-3">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Decode</p>
         {manifest ? (
-          <p className="mt-1 text-xs">
+          <><p className="mt-1 text-xs">
             {manifest.records.toLocaleString()} records · {manifest.threads.length.toLocaleString()} threads ·{" "}
             {manifest.media_objects.toLocaleString()} media · {manifest.rejected.toLocaleString()} rejected
             {manifest.decoder ? ` · ${manifest.decoder}` : ""}
           </p>
+          <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ decoded_source_ref: object.source_ref, root: inspection?.root_id ?? "", mode })}`}>Open message viewer</AppLink>
+          </Button></>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          <><p className="mt-1 text-xs text-muted-foreground">Not decoded yet.</p>
+          {detected === "sms_export_xml" && inspection && <Button asChild variant="outline" size="sm" className="mt-2">
+            <AppLink href={`/read?${new URLSearchParams({ raw_message_source: object.source_ref, root: inspection.root_id,
+              key: inspection.key, bytes: String(inspection.byte_length), etag: inspection.etag, mode })}`}>Open message viewer</AppLink>
+          </Button>}</>
         )}
       </section>
 
-      <section className="border-b px-3 py-3">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Processing history</p>
+      <details className="border-b px-3 py-3">
+        <summary className="cursor-pointer text-xs font-medium">Processing history for the inspected version</summary>
         {runs.length ? (
           <ul className="mt-1 space-y-1 text-[11px]">
             {runs.slice(0, 6).map((run) => (
@@ -375,14 +460,23 @@ function FileDetail({
             ))}
           </ul>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">No run has touched this source.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{inspection?.provider_version_id ? "No matching run is recorded for this provider version." : "No provider version is available to verify current-version processing history."}</p>
         )}
-      </section>
+      </details>
 
-      <section className="border-b px-3 py-3">
-        <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+      {unpinnedRuns.length > 0 && <details className="border-b px-3 py-3">
+        <summary className="cursor-pointer text-xs font-medium">Legacy history without a provider version ({unpinnedRuns.length})</summary>
+        <p className="mt-1 text-xs text-muted-foreground">These receipts name this source path without an immutable provider version. They do not establish the inspected version&apos;s processing status.</p>
+        <ul className="mt-2 space-y-1 text-[11px]">{unpinnedRuns.map((run) => <li key={run.preview_handle} className="flex flex-wrap gap-2">
+          <AppLink className="text-primary underline" href={`/activity?${new URLSearchParams({ preview_handle: run.preview_handle, mode })}`}>{new Date(run.created_at).toLocaleString()} · {run.lifecycle.replaceAll("_", " ")}</AppLink>
+          <AppLink className="text-primary underline" href={`/read?${new URLSearchParams({ resource: run.preview_handle, mode })}`}>Inspect legacy result</AppLink>
+        </li>)}</ul>
+      </details>}
+
+      <details className="border-b px-3 py-3">
+        <summary className="cursor-pointer text-xs font-medium">
           Catalog provenance {provenanceMissing && <Flag>no catalog record</Flag>}
-        </p>
+        </summary>
         {catalogRow ? (
           <p className="mt-1 text-[11px]">
             {catalogRow.source ?? "source unknown"} · {catalogRow.scope ?? "scope unknown"}
@@ -392,26 +486,9 @@ function FileDetail({
         ) : (
           <p className="mt-1 text-xs text-muted-foreground">Not resolved in the pre-ingest catalog.</p>
         )}
-      </section>
+      </details>
 
-      <section className="min-h-[220px] px-3 py-3" aria-label="Preview">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preview</p>
-        <div className="mt-2">
-          {manifest ? (
-            <DecodedSourceViewer sourceRef={object.source_ref} />
-          ) : inspectionLoading ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading</p>
-          ) : inspection?.preview_kind === "image" && inspection.preview_url ? (
-            <img className="max-h-[320px] max-w-full border object-contain" src={inspection.preview_url} alt={`View of ${inspection.name}`} />
-          ) : inspection?.preview_kind === "pdf" && inspection.preview_url ? (
-            <iframe className="h-[320px] w-full border bg-white" src={inspection.preview_url} title={`View of ${inspection.name}`} />
-          ) : inspection?.preview_text ? (
-            <pre className="max-h-[320px] overflow-auto border bg-background p-2 font-mono text-[10px] leading-4">{inspection.preview_text.slice(0, 4000)}</pre>
-          ) : (
-            <p className="text-xs text-muted-foreground">No inline preview for this format.</p>
-          )}
-        </div>
-      </section>
+
     </div>
   );
 }

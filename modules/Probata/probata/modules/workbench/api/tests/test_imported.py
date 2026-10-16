@@ -233,3 +233,23 @@ def test_number_records_show_each_message_and_call_with_its_source_and_thread(mo
     assert message["source"]["file_name"] == "8102595720.0001.ndjson" and message["source"]["casevault_key"].startswith("SourceCorpus/messaging/")
     assert message["source"]["thread_id"] and message["source"]["device"] == "(810) 268-9630"
     assert TestClient(_app()).get("/api/imported/number-records", params={"number": "34428"}).status_code == 422
+
+
+def test_reading_calls_never_replaces_the_summary_function(monkeypatch):
+    """Regression (owner UX test 2026-10-15): calls() assigned its call totals to
+    the facade attribute `imported.summary`, replacing summary(); every later
+    GET /api/imported/summary then raised "'dict' object is not callable"."""
+    import asyncio
+
+    from app.service import imported_sources
+
+    monkeypatch.setattr(pg, "call_log_has_rows", lambda: False)
+    monkeypatch.setattr(pg, "calls_normalized", lambda *args, **kwargs: [])
+    first = datetime(2024, 1, 1, tzinfo=UTC)
+    last = datetime(2025, 7, 4, tzinfo=UTC)
+    monkeypatch.setattr(pg, "calls_summary", lambda matter: {"total": 0, "first_at": first, "last_at": last})
+
+    page = asyncio.run(service.calls(cursor=None, limit=5))
+    assert page["summary"]["first_at"] == service._iso(first)
+    assert service.summary is imported_sources.summary
+    assert callable(service.summary)

@@ -170,8 +170,15 @@ export interface ProposalsResponse {
 }
 
 export interface WorkflowStep {
+  /** Actual Temporal execution metadata; absent values stay unknown. */
+  workflow_id?: string;
+  run_id?: string;
+  activity_id?: string;
+  activity_type?: string;
+  attempt?: number;
+  last_failure?: string;
   step: string;
-  status: "pending" | "running" | "completed" | "skipped" | "failed";
+  status: "pending" | "running" | "retrying" | "completed" | "skipped" | "failed";
   detail: string;
   counts: Record<string, number>;
   flags: ExtractionFlag[];
@@ -179,6 +186,7 @@ export interface WorkflowStep {
 
 export interface WorkflowProgress {
   workflow_id: string;
+  run_id?: string;
   outcome: string;
   steps: WorkflowStep[];
 }

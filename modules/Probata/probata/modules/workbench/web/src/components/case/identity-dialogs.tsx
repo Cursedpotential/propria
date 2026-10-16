@@ -5,7 +5,8 @@
 // Idempotency-Key per opened dialog, so a retried click never writes twice.
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getIdentifierImpact } from "@/lib/case-identity-client";
 import { Loader2 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -73,6 +74,9 @@ function useCaseSave<T>(save: (body: T, key: string, mode: MatterMode) => Promis
     onSuccess: async (receipt) => {
       toast.success(receipt.replayed ? "Already saved (same click)" : "Saved", { description: `logged in registry.identity_change · ${receipt.kind} ${receipt.ref}` });
       await queryClient.invalidateQueries({ queryKey: ["case-identity"] });
+      await queryClient.invalidateQueries({ queryKey: ["identifier-impact"] });
+      await queryClient.invalidateQueries({ queryKey: ["m-messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["m-threads"] });
       onDone();
     },
     onError: (error: Error) => toast.error("Not saved", { description: error.message }),
@@ -98,18 +102,28 @@ export type IdentifierDialogTarget =
   | { mode: "edit"; person: CasePerson; people: CasePerson[]; identifier: CaseIdentifier; status?: "confirmed" | "candidate" | "retired" }
   | { mode: "add"; person: CasePerson | null; people: CasePerson[]; raw?: string; kind?: string; basis?: string };
 
+/** Open the existing audited identifier editor with visible global scope.
+ * Inputs: exact alias/person and close callback. Output: accessible edit dialog.
+ * Effects: read-only impact then explicit registry mutation; use for alias edits.
+ */
 export function IdentifierDialog({ target, onClose }: { target: IdentifierDialogTarget; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <IdentifierForm target={target} onClose={onClose} />
       </DialogContent>
     </Dialog>
   );
 }
 
+/** Preview affected alias scope and submit one deliberate registry revision.
+ * Inputs: current alias and known people. Output: impact/history/form/readback.
+ * Effects: scope GET and explicit audited save; never rewrites normalized source rows.
+ */
 function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; onClose: () => void }) {
   const existing = target.mode === "edit" ? target.identifier : null;
+  const { mode } = useFixedCase();
+  const impact = useQuery({ queryKey: ["identifier-impact", existing?.id, mode], queryFn: () => getIdentifierImpact(existing!.id, mode), enabled: Boolean(existing), retry: false });
   const [personId, setPersonId] = useState(target.mode === "edit" ? target.person.id : (target.person?.id ?? ""));
   const [raw, setRaw] = useState(existing?.raw_value ?? (target.mode === "add" ? (target.raw ?? "") : ""));
   const [kind, setKind] = useState(existing?.kind ?? (target.mode === "add" ? (target.kind ?? "phone") : "phone"));
@@ -137,7 +151,7 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
   const pending = add.isPending || edit.isPending;
   const ready =
     personId !== "" && raw !== "" && raw.trim() === raw && basis.trim() !== "" &&
-    (!editing || (reason.trim() !== "" && Object.keys(changed).length > 0));
+    (!editing || (impact.isSuccess && reason.trim() !== "" && Object.keys(changed).length > 0));
 
   return (
     <form
@@ -159,6 +173,15 @@ function IdentifierForm({ target, onClose }: { target: IdentifierDialogTarget; o
             : "The spelling is kept exactly as typed; every reader matches on its normalized form."}
         </DialogDescription>
       </DialogHeader>
+      {editing ? <section className="rounded border p-3 text-xs" aria-label="Identifier correction scope">
+        {impact.isPending ? <p role="status">Reading affected scope…</p> : impact.isError ? <p role="alert">Scope could not be read. Refresh before saving.</p> : impact.data ? <>
+          <p>{impact.data.scope}</p>
+          <p className="mt-2">Imported display impact: {impact.data.imported.available ? `${impact.data.imported.records} records in ${impact.data.imported.conversations} conversations and ${impact.data.imported.source_versions} source versions` : impact.data.imported.reason}.</p>
+          <p className="mt-2">Catalog sender/counterparty counts overlap and must not be added. {impact.data.catalog.available ? `${impact.data.catalog.unique_records} unique provenance record keys; ${impact.data.catalog.overlap} match both filters.` : impact.data.catalog.reason}</p>
+          <p className="mt-2">Saving changes registry resolution and future lookups. Original bytes, normalized participant labels, saved extraction results and approvals retain their versions.</p>
+          <details className="mt-2"><summary>Identifier revision history ({impact.data.history.length} returned)</summary><pre className="mt-2 whitespace-pre-wrap break-all">{JSON.stringify(impact.data.history, null, 2)}</pre></details>
+        </> : null}
+      </section> : null}
       <Field label="Person">
         <select className={selectClass} name="entity_id" value={personId} onChange={(event) => setPersonId(event.target.value)}>
           <option value="">Choose a person</option>

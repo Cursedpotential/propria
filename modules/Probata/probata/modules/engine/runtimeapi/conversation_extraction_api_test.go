@@ -41,18 +41,56 @@ func conversationHandler(t *testing.T) (*ConversationExtractionHTTPHandler, *con
 	recorder := &conversationRecorder{}
 	handler, err := NewConversationExtractionHTTPHandler(recorder, serviceTokenPath(t))
 	require.NoError(t, err)
+	handler.SetPreflightStore(admittedConversationPreflight{})
 	return handler, recorder
 }
 
+type admittedConversationPreflight struct{ blocked bool }
+
+// PreflightConversations supplies deterministic admission without a database.
+// Inputs: fixture selection. Output: eligible/blocked check; no effects.
+func (p admittedConversationPreflight) PreflightConversations(context.Context, string, []flow.ConversationRef, []string) (flow.ExtractionPreflight, error) {
+	return flow.ExtractionPreflight{Eligible: !p.blocked, Blockers: []string{"fixture prerequisite"}, Targets: []flow.ExtractionPreflightTarget{{Runs: []flow.RunRef{{PreviewHandle: "operation", GenerationID: "exact-generation", SourceVersionID: "exact-source", MatterMode: "LIVE"}}}}}, nil
+}
+
+// TestConversationExtractionAdmissionFailsBeforeDispatch proves fail-closed checks.
+// Inputs: valid request with missing or blocked admission. Output: refusal and no starts.
+// Effects: fake only; pick to guard the legacy-mode regression.
+func TestConversationExtractionAdmissionFailsBeforeDispatch(t *testing.T) {
+	handler, workflows := conversationHandler(t)
+	handler.SetPreflightStore(nil)
+	response := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/conversations/extract", conversationBody(nil), "click-admission"))
+	require.Equal(t, http.StatusServiceUnavailable, response.Code)
+	require.Empty(t, workflows.extractions)
+	handler.SetPreflightStore(admittedConversationPreflight{blocked: true})
+	response = servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/conversations/extract", conversationBody(nil), "click-admission"))
+	require.Equal(t, http.StatusConflict, response.Code)
+	require.Empty(t, workflows.extractions)
+}
+
 func conversationBody(extra map[string]any) map[string]any {
+	check, _ := (admittedConversationPreflight{}).PreflightConversations(context.Background(), "", nil, nil)
 	body := map[string]any{
-		"matter_id":     conversationMatter,
-		"conversations": []map[string]string{{"export_key": "exports/sms-001.xml", "conv": "8105550101"}},
+		"preflight_token": flow.PreflightToken(check),
+		"matter_id":       conversationMatter,
+		"conversations":   []map[string]string{{"export_key": "exports/sms-001.xml", "conv": "8105550101"}},
 	}
 	for key, value := range extra {
 		body[key] = value
 	}
 	return body
+}
+
+// TestConversationExtractionStaleConfirmationStartsNothing guards preview-to-dispatch drift.
+// Inputs: valid selection and stale or absent token. Output: conflict, no Temporal start.
+// Effects: fake reads only; choose for operator-approved workload race regression.
+func TestConversationExtractionStaleConfirmationStartsNothing(t *testing.T) {
+	handler, workflows := conversationHandler(t)
+	for _, token := range []string{"", "stale"} {
+		response := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/conversations/extract", conversationBody(map[string]any{"preflight_token": token}), "click-stale"))
+		require.Equal(t, http.StatusConflict, response.Code)
+		require.Empty(t, workflows.extractions)
+	}
 }
 
 // TestConversationRoutesRequireTheServiceToken proves the tailnet boundary.
@@ -101,6 +139,9 @@ func TestExtractStartsOneWorkflowPerClickWithTheChosenExtractors(t *testing.T) {
 	require.Equal(t, workflows.extractions[0].RequestID, workflows.extractions[1].RequestID, "a retried click joins the same workflow")
 	require.Equal(t, []string{flow.DefaultExtractorID, "semantica"}, workflows.extractions[0].Extractors)
 	require.Equal(t, conversationMatter, workflows.extractions[0].MatterID)
+	require.Empty(t, workflows.extractions[0].Conversations, "dispatch must never re-resolve the latest generation")
+	require.Equal(t, "exact-generation", workflows.extractions[0].Runs[0].GenerationID)
+	require.Equal(t, "8105550101", workflows.extractions[0].RequestedConversations[0].Conv)
 	require.Equal(t, "operator", workflows.extractions[0].Actor.Username)
 	other := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/conversations/extract", body, "click-2"))
 	require.Equal(t, http.StatusAccepted, other.Code)

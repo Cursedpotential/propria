@@ -19,7 +19,7 @@ export function SourceSearch({ query, searching, onQueryChange, onSubmit, onClea
     <Button type="submit" size="sm" disabled={searching || !query.trim()}>
       {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />} Find file
     </Button>
-    {query || resultSummary ? <Button type="button" size="sm" variant="outline" onClick={onClear}>Clear</Button> : null}
+    {query || resultSummary ? <Button type="button" size="sm" variant="outline" onClick={onClear}>{searching ? "Cancel and clear" : "Clear"}</Button> : null}
     {resultSummary ? <span className="text-[11px] text-muted-foreground" role="status">{resultSummary}</span> : null}
   </form>;
 }

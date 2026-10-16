@@ -9,6 +9,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/Cursedpotential/probata/engine/extraction/flow"
+	platformpostgres "github.com/Cursedpotential/probata/engine/postgres"
 	"github.com/Cursedpotential/probata/engine/runtimeapi"
 )
 
@@ -26,7 +27,7 @@ func mountConversationExtractionRoutes(existing, conversation http.Handler) (htt
 }
 
 // conversationExtractionHandler builds the routes over the starter's Temporal client (same task queue as the worker).
-func conversationExtractionHandler(temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
+func conversationExtractionHandler(db platformpostgres.DB, temporalClient client.Client, taskQueue, serviceTokenFile string) (http.Handler, error) {
 	starter, err := flow.NewStarter(temporalClient, taskQueue)
 	if err != nil {
 		return nil, err
@@ -35,5 +36,10 @@ func conversationExtractionHandler(temporalClient client.Client, taskQueue, serv
 	if err != nil {
 		return nil, err
 	}
+	store, err := platformpostgres.NewEntityExtractionStore(db)
+	if err != nil {
+		return nil, err
+	}
+	handler.SetPreflightStore(store)
 	return handler.Routes(), nil
 }

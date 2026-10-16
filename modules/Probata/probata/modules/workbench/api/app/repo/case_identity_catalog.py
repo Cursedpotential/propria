@@ -69,14 +69,32 @@ def events(identifier: str, match_on: str, *, before: str | None = None, limit: 
         raise CatalogError("Invalid identifier", 422)
     column = "counterparty_phone" if match_on == "counterparty_phone" else "sender"
     limit = max(1, min(limit, 200))
-    rows = intake_discovery._query(
-        f"""SELECT dedup_key, event_ts_utc, event_kind, source_format, direction, sender, recipients,
+    # The expression index is (norm_phone(column), event_ts_utc DESC), which
+    # stores NULL timestamps first. "ORDER BY event_ts_utc DESC NULLS LAST" could
+    # not use it, so Postgres read every matching row to sort them: 16 s for a
+    # 67,881-event name, a 503 under the 4 s statement timeout (owner UX test
+    # 2026-10-15). Walk the index in order for timestamped rows, then top up the
+    # first page with untimestamped rows -- exactly the old NULLS LAST result,
+    # since a NULL timestamp never satisfies the `before` cursor.
+    select = f"""SELECT dedup_key, event_ts_utc, event_kind, source_format, direction, sender, recipients,
                contact_name, counterparty_phone, conversation_title, left(body, 600) AS body, n_sources
         FROM {EVENTS}
-        WHERE raw_duck.norm_phone({column}) = %s AND (%s::timestamptz IS NULL OR event_ts_utc < %s::timestamptz)
-        ORDER BY event_ts_utc DESC NULLS LAST LIMIT %s""",
-        (identifier, before, before, limit + 1),
-    )
+        WHERE raw_duck.norm_phone({column}) = %s"""
+    if before is None:
+        rows = intake_discovery._query(
+            select + " AND event_ts_utc IS NOT NULL ORDER BY event_ts_utc DESC LIMIT %s",
+            (identifier, limit + 1),
+        )
+        if len(rows) <= limit:
+            rows += intake_discovery._query(
+                select + " AND event_ts_utc IS NULL ORDER BY dedup_key LIMIT %s",
+                (identifier, limit + 1 - len(rows)),
+            )
+    else:
+        rows = intake_discovery._query(
+            select + " AND event_ts_utc < %s::timestamptz ORDER BY event_ts_utc DESC LIMIT %s",
+            (identifier, before, limit + 1),
+        )
     more = len(rows) > limit
     rows = rows[:limit]
     return {
@@ -87,3 +105,25 @@ def events(identifier: str, match_on: str, *, before: str | None = None, limit: 
         "has_more": more,
         "next_before": rows[-1]["event_ts_utc"].isoformat() if more and rows[-1].get("event_ts_utc") else None,
     }
+
+
+def overlap(identifier: str) -> dict[str, Any]:
+    """Read bounded provenance-key overlap between sender and counterparty filters.
+
+    Input: normalized identifier. Output: distinct-key union/intersection or explicit
+    truncation. Effects: SELECT only; use to explain non-additive catalog counts.
+    """
+    rows = intake_discovery._query(f"""SELECT dedup_key,
+        raw_duck.norm_phone(sender)=%s AS sender_match,
+        raw_duck.norm_phone(counterparty_phone)=%s AS counterparty_match
+        FROM {EVENTS} WHERE raw_duck.norm_phone(sender)=%s
+        OR raw_duck.norm_phone(counterparty_phone)=%s LIMIT 10001""", (identifier,)*4)
+    if len(rows) > 10000:
+        return {"available": False, "truncated": True, "limit": 10000, "reason": "More than 10,000 matching rows; unique overlap is not established"}
+    if any(not row.get("dedup_key") for row in rows):
+        return {"available": False, "reason": "Some catalog rows have no provenance record key"}
+    sender = {row["dedup_key"] for row in rows if row["sender_match"]}
+    counterparty = {row["dedup_key"] for row in rows if row["counterparty_match"]}
+    return {"available": True, "truncated": False, "unique_records": len(sender | counterparty),
+            "overlap": len(sender & counterparty), "sender": len(sender), "counterparty": len(counterparty),
+            "basis": "Distinct existing dedup_key values; no text comparison or record merge"}

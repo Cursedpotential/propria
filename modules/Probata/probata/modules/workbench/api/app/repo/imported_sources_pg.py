@@ -119,6 +119,9 @@ def messages(
     return pg._query(
         f"""WITH {pg._SV}, sel AS (SELECT id FROM sv WHERE export_key = %(export)s AND conv = %(conv)s)
         SELECT n.id::text AS id, n.occurred_at, n.source_version_id::text AS source_version_id,
+               n.normalized_generation_id::text AS generation_id, n.record_ordinal,
+               (SELECT sn.preview_handle FROM context.proffer_preview_snapshot sn
+                WHERE sn.normalized_generation_id=n.normalized_generation_id ORDER BY sn.snapshot_seq DESC LIMIT 1) AS preview_handle,
                n.normalized_payload->'content'->>'body' AS body,
                n.normalized_payload->'participants' AS participants,
                n.normalized_payload->>'timestamp_certainty' AS certainty,
@@ -159,3 +162,21 @@ def versions_to_threads(matter: str, version_ids: list[str]) -> list[dict[str, A
         SELECT sv.id::text AS id, sv.export_key, sv.conv FROM sv WHERE sv.id = ANY(%(ids)s::uuid[])""",
         {"matter": matter, "ids": version_ids},
     )
+
+
+def attribution_impact(matter: str, identifier: str, kind: str) -> dict[str, Any]:
+    """Count Imported records whose participant display lookup uses an identifier.
+
+    Inputs: approved matter and current registry alias. Output: record/source/thread
+    counts. Effects: SELECT only; pick before global alias edits, never as a rewrite plan.
+    """
+    if kind != "phone":
+        return {"available": False, "reason": "Exact Imported impact is available for phone identifiers only"}
+    rows = pg._query(f"""WITH {pg._SV}
+        SELECT count(DISTINCT n.id) AS records, count(DISTINCT sv.id) AS source_versions,
+               count(DISTINCT (sv.export_key, sv.conv)) AS conversations
+        FROM context.normalized_record_identity n JOIN sv ON sv.id=n.source_version_id
+        CROSS JOIN LATERAL jsonb_array_elements(n.normalized_payload->'participants') p(value)
+        WHERE right(regexp_replace(p.value->>'identifier', '[^0-9]', '', 'g'),10)=%(identifier)s""",
+        {"matter": matter, "identifier": identifier[-10:]})
+    return {"available": True, **rows[0]}

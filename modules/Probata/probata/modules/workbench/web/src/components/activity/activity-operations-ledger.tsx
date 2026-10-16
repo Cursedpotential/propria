@@ -20,6 +20,7 @@ const OPERATION_STATUSES: readonly ProfferOperationLifecycle[] = [
   "awaiting_preview_decision",
   "completed",
   "failed",
+  "rerun_required",
   "cancelled",
   "unavailable",
 ];
@@ -33,6 +34,7 @@ function statusLabel(status: ProfferOperationLifecycle) {
   if (status === "awaiting_preview_decision") return "Needs review";
   if (status === "awaiting_repair_decision") return "Needs a repair decision";
   if (status === "failed") return "Stopped";
+  if (status === "rerun_required") return "New attempt required";
   if (status === "completed") return "Completed";
   if (status === "cancelled") return "Canceled";
   return "Status unavailable";
@@ -63,6 +65,16 @@ function dateLabel(value: string) {
 
 function actionText(operation: ProfferOperationSummary) {
   return nextOperationAction(operation.lifecycle);
+}
+
+/** Explain durable mode prerequisites before linking an operator into Review.
+ * Inputs: exact operation and selected display mode. Output: a gap or null for a readable operation.
+ * Effects: none; terminal operations remain readable when their durable mode is verified.
+ */
+function reviewEligibilityReason(operation: ProfferOperationSummary, mode: "DEV" | "LIVE") {
+  if (!operation.operating_mode) return "This legacy import has no verified operating-mode receipt. Use the audited admission repair before Review or extraction.";
+  if (operation.operating_mode !== mode) return `This import belongs to ${operation.operating_mode}. Select that mode to inspect it.`;
+  return null;
 }
 
 // Byline: Codex · GPT-6 · 2026-10-06
@@ -278,9 +290,9 @@ function ActivityOperationsLedgerForStatus({ statusFilter }: { statusFilter: Pro
                     <p className="mt-2 text-xs text-muted-foreground">Started {dateLabel(operation.created_at)}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                    <AppLink href={attemptReviewHref(operation.preview_handle, mode)} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-semibold text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                    {reviewEligibilityReason(operation, mode) ? <p className="max-w-sm text-xs text-muted-foreground" role="status">{reviewEligibilityReason(operation, mode)}</p> : <AppLink href={attemptReviewHref(operation.preview_handle, mode)} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-semibold text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                       {actionText(operation)} <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                    </AppLink>
+                    </AppLink>}
                     <Button type="button" size="sm" variant="outline" aria-expanded={selected} onClick={() => replaceSearch({ preview_handle: selected ? null : operation.preview_handle, operation: null })}>
                       {selected ? "Hide details" : "Details"}<ChevronDown className={`size-3.5 transition-transform ${selected ? "rotate-180" : ""}`} />
                     </Button>
@@ -353,10 +365,10 @@ function OperationDetailPanel({
             </details>
           </div>
           <aside className="space-y-3 border-t pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-            <AppLink href={attemptReviewHref(detail.preview_handle, mode)} className="inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            {reviewEligibilityReason(detail, mode) ? <p className="text-xs text-muted-foreground" role="status">{reviewEligibilityReason(detail, mode)}</p> : <AppLink href={attemptReviewHref(detail.preview_handle, mode)} className="inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
               {detail.lifecycle === "failed" ? "Open Review to start a new import" : "Open this import in Review"}<ArrowUpRight className="size-3.5" aria-hidden="true" />
-            </AppLink>
-            <OperationCancelControl previewHandle={detail.preview_handle} mode={mode} />
+            </AppLink>}
+            {!reviewEligibilityReason(detail, mode) && !detail.terminal && detail.mutation_eligible && <OperationCancelControl previewHandle={detail.preview_handle} mode={mode} />}
           </aside>
         </div>
       ) : null}

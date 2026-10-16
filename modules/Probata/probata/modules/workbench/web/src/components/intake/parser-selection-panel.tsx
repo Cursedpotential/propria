@@ -32,6 +32,7 @@ export function ParserSelectionPanel({
   onRecordDecision,
   rerun,
   compact = false,
+  decisionAllowed,
 }: {
   inspection: ProfferSourceInspection | null;
   preview: ProfferPreviewResponse | null;
@@ -42,6 +43,7 @@ export function ParserSelectionPanel({
   onRecordDecision: () => void;
   rerun?: ParserRerunControl;
   compact?: boolean;
+  decisionAllowed?: boolean;
 }) {
   const hasRecommendation = Boolean(
     preview?.handler_recommendation_ref &&
@@ -50,7 +52,8 @@ export function ParserSelectionPanel({
     preview.signature_ref &&
     preview.recommended_handler,
   ) && (preview?.alternative_handlers?.length ?? 0) <= 3;
-  const recommendationReady = preview?.phase === "awaiting_handler_selection" && hasRecommendation;
+  const liveHandlerGate = decisionAllowed !== false && preview?.phase === "awaiting_handler_selection" && !preview.terminal && !["completed", "failed", "cancelled", "rerun_required", "unavailable"].includes(preview.lifecycle ?? "");
+  const recommendationReady = liveHandlerGate && hasRecommendation;
   const candidates = hasRecommendation && preview?.recommended_handler
     ? [preview.recommended_handler, ...(preview.alternative_handlers ?? [])]
     : [];
@@ -64,7 +67,7 @@ export function ParserSelectionPanel({
         <span className="text-xs text-muted-foreground">Runtime content/signature route only</span>
       </div>}
 
-      {preview && preview.phase !== "awaiting_handler_selection" ? (
+      {preview && !liveHandlerGate ? (
         <>
           <DurableReadBack preview={preview} receipt={selectionReceipt} selected={selected} localDecisionRef={handlerDecisionRef} compact={compact} />
           {rerun && <RerunPicker preview={preview} selectedCandidateKey={selectedCandidateKey} onSelect={onSelect} rerun={rerun} />}

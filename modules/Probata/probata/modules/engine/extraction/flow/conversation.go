@@ -205,11 +205,14 @@ type RequestInput struct {
 	RequestID     string            `json:"request_id"`
 	MatterID      string            `json:"matter_id"`
 	Conversations []ConversationRef `json:"conversations,omitempty"`
-	Runs          []RunRef          `json:"runs,omitempty"`
-	Extractors    []string          `json:"extractors"`
-	Actor         entities.Actor    `json:"actor"`
-	Auto          bool              `json:"auto,omitempty"`
-	RequestedAt   time.Time         `json:"requested_at"`
+	// RequestedConversations retains selected display coordinates when Runs pins dispatch.
+	// It is history metadata only and is never re-resolved by the workflow.
+	RequestedConversations []ConversationRef `json:"requested_conversations,omitempty"`
+	Runs                   []RunRef          `json:"runs,omitempty"`
+	Extractors             []string          `json:"extractors"`
+	Actor                  entities.Actor    `json:"actor"`
+	Auto                   bool              `json:"auto,omitempty"`
+	RequestedAt            time.Time         `json:"requested_at"`
 }
 
 // Validate bounds a request.
@@ -222,6 +225,9 @@ func (r RequestInput) Validate() error {
 	}
 	if len(r.Conversations) > MaxConversationsPerRequest {
 		return fmt.Errorf("at most %d conversations per request", MaxConversationsPerRequest)
+	}
+	if len(r.RequestedConversations) > MaxConversationsPerRequest {
+		return fmt.Errorf("at most %d requested conversation references", MaxConversationsPerRequest)
 	}
 	for _, c := range r.Conversations {
 		if strings.TrimSpace(c.ExportKey) == "" || strings.TrimSpace(c.Conv) == "" {

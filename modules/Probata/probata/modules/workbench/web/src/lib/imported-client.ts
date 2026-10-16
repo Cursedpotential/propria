@@ -138,6 +138,13 @@ export interface ImportedMessage {
   body: string;
   sender: Participant;
   outgoing: boolean;
+  attribution?: {
+    raw_sender: string | null; raw_recipients: string[]; raw_participants: Record<string, unknown>[];
+    direction: "sent" | "received" | "unknown"; source_owner: string | null;
+    source_owner_basis: string; acquisition_basis: string; authorship_kind: string;
+    basis: string; status: string; scope: string; source_version_id: string | null;
+    generation_id: string | null; record_ordinal: number | null; preview_handle: string | null;
+  };
   party: "first_party" | "third_party" | null;
   attachments: number;
   certainty: string | null;
@@ -172,16 +179,28 @@ export interface CallsPage {
 }
 
 export interface SearchHit {
+  corpus?: string | null;
+  source_kind?: string | null;
+  source_format?: string | null;
+  record_kind?: string | null;
   id: string;
+  collection?: string;
+  object_id?: string | null;
   body: string;
   sender: string;
   at: string | null;
   score: number;
   thread_id: string | null;
+  /** Inputs: chunk citation coordinates. Output: native source-reader resolution; no message identity is inferred. */
+  origin_system?: string | null;
+  preview_handle?: string | null;
+  source_version_ref?: string | null;
+  source_version_id?: string | null;
+  source_version_ids?: string[];
   source: string | null;
   format: string | null;
   device: string | null;
-  /** A chunk of a conversation (opens its thread at the first message) or a call-log file (opens nothing). */
+  /** Inputs: indexed chunk kind. Output: legacy conversation/call presentation; native navigation uses source coordinates above. */
   kind?: "conversation" | "call_log";
   message_count?: number | null;
 }

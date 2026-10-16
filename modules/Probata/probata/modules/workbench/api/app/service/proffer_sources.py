@@ -14,7 +14,6 @@ from app.repo.object_store_client import (
     get_source_root,
     list_source_objects,
 )
-from app.service.matter_mode import MatterModeError, configured_matter_id
 from app.service.proffer_errors import ProfferError
 from app.types.matter_mode import MatterMode
 from app.types.proffer_sources import (
@@ -46,13 +45,6 @@ _AUDIO = {".aac", ".amr", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav"}
 _VIDEO = {".3gp", ".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".webm"}
 _CODE = {".c", ".cpp", ".cs", ".go", ".java", ".js", ".jsx", ".php", ".py", ".rb", ".rs", ".sql", ".ts", ".tsx"}
 _SEARCH_SCAN_LIMIT = 25_000
-
-
-def _require_mode_configuration(mode: MatterMode) -> None:
-    try:
-        configured_matter_id(mode)
-    except MatterModeError as error:
-        raise ProfferError(error.detail, error.status_code) from None
 
 
 def _extension(key: str) -> str:
@@ -153,7 +145,6 @@ def browse_sources(
     page_size: int = 100,
 ) -> ProfferSourceBrowserResponse:
     """Browse or search an allowlisted R2 root without accepting provider coordinates."""
-    _require_mode_configuration(mode)
     normalized_prefix = prefix.strip()
     if normalized_prefix.startswith("/") or "\\" in normalized_prefix or ".." in normalized_prefix.split("/"):
         raise ProfferError("source prefix is outside the selected source root", 422)

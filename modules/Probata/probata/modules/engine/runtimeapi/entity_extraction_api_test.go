@@ -24,9 +24,32 @@ import (
 const extractionHandle = "handle_abcdefghijklmnopqrstuvwxyz0123"
 
 type apiStore struct {
-	entities []entities.Proposal
-	events   []events.Proposal
-	message  entities.MessageView
+	workerPreviewUnavailable bool
+	entities                 []entities.Proposal
+	events                   []events.Proposal
+	message                  entities.MessageView
+}
+
+// StandaloneWorkerPreview exposes the fake worker prerequisite for standalone dispatch tests.
+// Inputs: ignored test run. Outputs: configured availability. Effects: none; choose for HTTP admission fixtures.
+func (s *apiStore) StandaloneWorkerPreview(context.Context, flow.RunRef) (bool, error) {
+	return !s.workerPreviewUnavailable, nil
+}
+
+// TestStandaloneExtractionRefusesUnpublishedSavedArtifactsBeforeDispatch preserves reads while refusing incompatible work.
+// Inputs: saved generation without worker preview. Outputs: 409 mutations and 200 reads. Effects: no workflow starts.
+func TestStandaloneExtractionRefusesUnpublishedSavedArtifactsBeforeDispatch(t *testing.T) {
+	handler, store, workflows := extractionTestHandler(t)
+	store.workerPreviewUnavailable = true
+	response := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/extract", map[string]any{"preview_handle": extractionHandle, "matter_mode": "LIVE"}, "bounded-fixture"))
+	require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), "Saved records remain readable")
+	require.Empty(t, workflows.extractions)
+	commit := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodPost, "/reference-import/entities/commit", map[string]any{"preview_handle": extractionHandle, "matter_mode": "LIVE", "digest": "unpublished"}, "bounded-commit-fixture"))
+	require.Equal(t, http.StatusConflict, commit.Code, commit.Body.String())
+	require.Empty(t, workflows.commits)
+	read := servePreviewRequest(handler.Routes(), extractionRequest(http.MethodGet, "/reference-import/entities/proposals?preview_handle="+extractionHandle+"&matter_mode=LIVE", nil, ""))
+	require.Equal(t, http.StatusOK, read.Code, read.Body.String())
 }
 
 func (s *apiStore) ResolveRun(_ context.Context, handle string) (flow.RunRef, error) {
@@ -286,4 +309,33 @@ func TestCorrectionsMarksRecordsAndRegistry(t *testing.T) {
 	require.Equal(t, http.StatusOK, proposals.Code)
 	require.Contains(t, proposals.Body.String(), `"resolved_entity_candidate_ids"`)
 	require.Contains(t, proposals.Body.String(), `"event_types"`)
+}
+
+// TestStandaloneExtractionStatusForwardsActualRunID preserves execution identity through the HTTP mapping.
+// Inputs: running, completed, failed or legacy progress returned by the existing workflow client.
+// Outputs: exact run ID and unchanged retry/failure details. Effects: HTTP fixture only; no Temporal or database writes.
+func TestStandaloneExtractionStatusForwardsActualRunID(t *testing.T) {
+	for _, outcome := range []string{flow.OutcomeRunning, flow.OutcomeCompleted, flow.OutcomeFailed} {
+		for _, runID := range []string{"01a13048-263e-7bb3-b271-104fd0d5bc9d", ""} {
+			t.Run(outcome+"/"+runID, func(t *testing.T) {
+				handler, _, workflows := extractionTestHandler(t)
+				workflowID := "entity-extraction:" + extractionHandle + ":status-run"
+				workflows.progress = &flow.Progress{WorkflowID: workflowID, RunID: runID, Outcome: outcome, Steps: []flow.StepResult{{Step: "rules", Status: "retrying", Attempt: 2, LastFailure: "actual upstream failure"}}}
+				response := servePreview(handler.Routes(), http.MethodGet, "/reference-import/entities/extractions/"+workflowID+"?preview_handle="+extractionHandle, nil)
+				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+				var payload struct {
+					WorkflowID string            `json:"workflow_id"`
+					RunID      *string           `json:"run_id"`
+					Outcome    string            `json:"outcome"`
+					Steps      []flow.StepResult `json:"steps"`
+				}
+				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+				require.NotNil(t, payload.RunID, "mapping must not drop the client run ID")
+				require.Equal(t, runID, *payload.RunID, "unknown IDs stay empty; never invent an execution")
+				require.Equal(t, workflowID, payload.WorkflowID)
+				require.Equal(t, outcome, payload.Outcome)
+				require.Equal(t, workflows.progress.Steps, payload.Steps)
+			})
+		}
+	}
 }

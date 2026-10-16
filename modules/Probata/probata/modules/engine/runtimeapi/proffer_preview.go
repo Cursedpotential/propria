@@ -28,17 +28,31 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
+	"github.com/Cursedpotential/probata/engine/contextsearch"
 	"github.com/Cursedpotential/probata/engine/proffer"
 	"github.com/Cursedpotential/probata/engine/runtimeapi/previewmodel"
 	"github.com/Cursedpotential/probata/engine/sourcecontext"
+	"github.com/Cursedpotential/probata/engine/sourceformat"
 )
+
+// operationScanBudget bounds how long one filtered operation listing scans.
+// A rare status (failed, awaiting_*) can require reading hundreds of Temporal
+// states; past this budget the handler returns the matches found so far with a
+// cursor at the last scanned binding, so the caller pages instead of timing out
+// (Workbench gives the starter 15s; owner UX test 2026-10-15 saw 502s). 6s leaves
+// room for the final page's reads plus Workbench and network overhead: a 10s
+// budget measured 11-16s end to end.
+var operationScanBudget = 6 * time.Second
 
 const (
 	maxPreviewRequestBytes int64 = 16 << 10
 	maxPreviewPage               = 250
 	maxOperationPage             = 100
 	maxOperationScan             = 1000
-	maxReasonBytes               = 4000
+	// operationReadConcurrency bounds parallel Temporal state queries while a
+	// page of operation bindings is resolved.
+	operationReadConcurrency = 32
+	maxReasonBytes           = 4000
 )
 
 var (
@@ -553,6 +567,8 @@ type PreviewHTTPHandler struct {
 // execution. Temporal workflow/run IDs stay behind the service boundary; the
 // opaque preview handle is the only external operation key.
 type OperationSummary struct {
+	MutationEligible    bool                       `json:"mutation_eligible"`
+	MutationReason      string                     `json:"mutation_reason,omitempty"`
 	OperatingMode       string                     `json:"operating_mode,omitempty"`
 	PreviewHandle       string                     `json:"preview_handle"`
 	RequestID           string                     `json:"request_id"`
@@ -604,6 +620,9 @@ func NewPreviewHTTPHandler(workflow PreviewWorkflow, store PreviewStore, repairs
 
 func (h *PreviewHTTPHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	// Explicit repair retains service authentication and validates new authority in its Temporal Activity.
+	mux.HandleFunc("POST /reference-import/previews/{preview_handle}/admission-repair", profferServiceAuth(h.serviceTokenPath, "proffer preview service authorization required", h.repairAdmission))
+	mux.HandleFunc("GET /reference-import/admission-repairs/{workflow_id}", h.auth(h.admissionRepairStatus))
 	mux.HandleFunc("POST /reference-import/start", h.auth(h.start))
 	mux.HandleFunc("POST /reference-import/start-batch", h.auth(h.startBatch))
 	mux.HandleFunc("GET /reference-import/batches/{batch_id}", h.auth(h.batchStatus))
@@ -628,6 +647,9 @@ func (h *PreviewHTTPHandler) Routes() http.Handler {
 	return mux
 }
 
+// auth verifies service identity, explicit mode, source route and lifecycle before operation mutations.
+// Inputs: protected route. Outputs: admitted handler or precise refusal. Effects: bounded reads only before next.
+// Choose for legacy operation routes; native AI processing has its existing context workflow.
 func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return profferServiceAuth(h.serviceTokenPath, "proffer preview service authorization required", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.PathValue("preview_handle") != "" {
@@ -638,6 +660,29 @@ func (h *PreviewHTTPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 			}
 			if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); err != nil {
 				previewError(w, http.StatusConflict, err)
+				return
+			}
+			if resolver, ok := h.store.(interface {
+				ResolveOperationResults(context.Context, string) (previewmodel.OperationResults, error)
+			}); ok && !strings.HasSuffix(r.URL.Path, "/cancel") {
+				result, err := resolver.ResolveOperationResults(r.Context(), binding.Handle)
+				if err != nil {
+					h.storeError(w, err)
+					return
+				}
+				if result.SourceKind == "ai_chat" {
+					previewError(w, http.StatusConflict, errors.New("AI chat processing uses the native Weaviate context workflow; no legacy parser, repair or approval decision was recorded"))
+					return
+				}
+			}
+			// Check lifecycle before a handler, repair, approval or cancellation can persist anything.
+			state, err := h.workflow.Operation(r.Context(), binding.WorkflowID)
+			if err != nil || !validOperationLifecycle(state.Lifecycle) || state.Lifecycle == proffer.OperationUnavailable {
+				previewError(w, http.StatusServiceUnavailable, errors.New("durable workflow state is unavailable; no decision was recorded"))
+				return
+			}
+			if operationTerminal(state.Lifecycle, state.Terminal) {
+				previewError(w, http.StatusConflict, fmt.Errorf("the run has already finished (%s); no decision was recorded", state.Lifecycle))
 				return
 			}
 		}
@@ -710,6 +755,17 @@ func (r *previewStartRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// nativeAIFormat recognizes existing AI format and provider declarations without inferring generic JSON.
+// Inputs: declared format. Outputs: whether the native context workflow owns it. Effects: none.
+// Choose before legacy workflow starts; exact byte detection remains a separate source inspection concern.
+func nativeAIFormat(format string) bool {
+	format = strings.ToLower(strings.TrimSpace(format))
+	return contextsearch.IsAIChatFormat(format) || format == "chatgpt" || format == "claude" || format == "gemini_markdown" || format == sourceformat.ChatGPTMarkdown || format == sourceformat.ClaudeMarkdown
+}
+
+// start validates a legacy source declaration before starting its workflow and saving the binding.
+// Inputs: admitted source/case/mode request. Outputs: handle or refusal. Effects: workflow start and binding on admission only.
+// Choose for non-AI legacy processing; recognized AI declarations must use the native context source route.
 func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	var req previewStartRequest
 	if err := decodePreviewJSON(w, r, &req); err != nil {
@@ -718,6 +774,10 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.RequestID) == "" || strings.TrimSpace(req.SourceRef) == "" || strings.TrimSpace(req.DeclaredFormat) == "" || strings.TrimSpace(req.ParserOptionsRef) == "" {
 		previewError(w, 400, errors.New("start request is incomplete"))
+		return
+	}
+	if nativeAIFormat(req.DeclaredFormat) {
+		previewError(w, http.StatusConflict, errors.New("AI chat processing uses the native context source route (/reference-import/context/sources); no legacy workflow or binding was created"))
 		return
 	}
 	mode, err := caseidentity.ParseMode(req.OperatingMode)
@@ -779,6 +839,9 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 	previewJSON(w, 201, map[string]string{"preview_handle": binding.Handle})
 }
 
+// snapshot serves source-type-correct artifact availability with authoritative terminal lifecycle.
+// Inputs: opaque handle. Outputs: saved result references, exact fingerprint and current control state.
+// Effects: read-only store/Temporal calls; choose for Review without equating downstream failure to empty content.
 func (h *PreviewHTTPHandler) snapshot(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("preview_handle")
 	binding, bindErr := h.store.Binding(r.Context(), handle)
@@ -787,34 +850,56 @@ func (h *PreviewHTTPHandler) snapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	operation := h.readOperation(r.Context(), binding)
+	var results *previewmodel.OperationResults
+	var fingerprint *previewmodel.SourceFingerprint
+	if store, ok := h.store.(interface {
+		ResolveOperationResults(context.Context, string) (previewmodel.OperationResults, error)
+		SourceFingerprint(context.Context, previewmodel.Binding) (previewmodel.SourceFingerprint, error)
+	}); ok {
+		resolved, resolveErr := store.ResolveOperationResults(r.Context(), handle)
+		if resolveErr != nil {
+			h.storeError(w, resolveErr)
+			return
+		}
+		results = &resolved
+		binding.SourceVersionID = resolved.SourceVersionID
+		value, fingerprintErr := store.SourceFingerprint(r.Context(), binding)
+		if fingerprintErr != nil {
+			h.storeError(w, fingerprintErr)
+			return
+		}
+		fingerprint = &value
+	}
 	snapshot, err := h.store.Snapshot(r.Context(), handle)
 	if err != nil {
 		if errors.Is(err, ErrPreviewNotReady) {
 			state, queryErr := h.workflow.Preview(r.Context(), binding.WorkflowID)
 			var assessment *proffer.RepairAssessmentView
 			phase := string(operation.Lifecycle)
-			if queryErr == nil {
+			if queryErr == nil && !operation.Terminal && operation.Lifecycle != proffer.OperationUnavailable {
 				assessment = state.RepairAssessment
 				phase = string(state.Phase)
 			}
 			previewJSON(w, http.StatusOK, struct {
-				PreviewHandle            string                        `json:"preview_handle"`
-				Phase                    string                        `json:"phase"`
-				RepairAssessment         *proffer.RepairAssessmentView `json:"repair_assessment,omitempty"`
-				Checkpoints              []proffer.PreviewCheckpoint   `json:"checkpoints,omitempty"`
-				HandlerRecommendationRef proffer.Ref                   `json:"handler_recommendation_ref,omitempty"`
-				DetectedFormat           string                        `json:"detected_format,omitempty"`
-				DetectedFormatRef        proffer.Ref                   `json:"detected_format_ref,omitempty"`
-				SignatureRef             proffer.Ref                   `json:"signature_ref,omitempty"`
-				RecommendedHandler       *proffer.HandlerCandidate     `json:"recommended_handler,omitempty"`
-				AlternativeHandlers      []proffer.HandlerCandidate    `json:"alternative_handlers,omitempty"`
-				Lifecycle                proffer.OperationLifecycle    `json:"lifecycle"`
-				CurrentStage             proffer.ActivityName          `json:"current_stage,omitempty"`
-				ActiveStages             []proffer.ActivityName        `json:"active_stages"`
-				Wait                     proffer.OperationWait         `json:"wait,omitempty"`
-				Terminal                 bool                          `json:"terminal"`
-				CompletedStages          int                           `json:"completed_stage_count"`
-			}{handle, phase, assessment, state.Checkpoints, state.HandlerRecommendationRef,
+				Results                  *previewmodel.OperationResults  `json:"results,omitempty"`
+				Fingerprint              *previewmodel.SourceFingerprint `json:"fingerprint,omitempty"`
+				PreviewHandle            string                          `json:"preview_handle"`
+				Phase                    string                          `json:"phase"`
+				RepairAssessment         *proffer.RepairAssessmentView   `json:"repair_assessment,omitempty"`
+				Checkpoints              []proffer.PreviewCheckpoint     `json:"checkpoints,omitempty"`
+				HandlerRecommendationRef proffer.Ref                     `json:"handler_recommendation_ref,omitempty"`
+				DetectedFormat           string                          `json:"detected_format,omitempty"`
+				DetectedFormatRef        proffer.Ref                     `json:"detected_format_ref,omitempty"`
+				SignatureRef             proffer.Ref                     `json:"signature_ref,omitempty"`
+				RecommendedHandler       *proffer.HandlerCandidate       `json:"recommended_handler,omitempty"`
+				AlternativeHandlers      []proffer.HandlerCandidate      `json:"alternative_handlers,omitempty"`
+				Lifecycle                proffer.OperationLifecycle      `json:"lifecycle"`
+				CurrentStage             proffer.ActivityName            `json:"current_stage,omitempty"`
+				ActiveStages             []proffer.ActivityName          `json:"active_stages"`
+				Wait                     proffer.OperationWait           `json:"wait,omitempty"`
+				Terminal                 bool                            `json:"terminal"`
+				CompletedStages          int                             `json:"completed_stage_count"`
+			}{results, fingerprint, handle, phase, assessment, state.Checkpoints, state.HandlerRecommendationRef,
 				state.DetectedFormat, state.DetectedFormatRef, state.SignatureRef, state.RecommendedHandler, state.AlternativeHandlers,
 				operation.Lifecycle,
 				operation.CurrentStage, operation.ActiveStages, operation.Wait,
@@ -824,6 +909,10 @@ func (h *PreviewHTTPHandler) snapshot(w http.ResponseWriter, r *http.Request) {
 		h.storeError(w, err)
 		return
 	}
+	if results != nil {
+		snapshot.Results = results
+	}
+	snapshot.Fingerprint = fingerprint
 	applyOperationToSnapshot(&snapshot, operation)
 	previewJSON(w, 200, snapshot)
 }
@@ -855,8 +944,13 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 	response := OperationListResponse{Items: []OperationSummary{}}
 	var lastScanned *previewmodel.BindingCursor
 	hasMore := false
+	started := time.Now()
 	for scanned := 0; len(response.Items) < limit && scanned < maxOperationScan; {
 		batchLimit := maxOperationPage
+		if status == "" && limit < batchLimit {
+			// Unfiltered pages never need more states than they return.
+			batchLimit = limit - len(response.Items)
+		}
 		page, err := h.store.ListBindings(r.Context(), cursor, batchLimit)
 		if err != nil {
 			previewError(w, http.StatusServiceUnavailable, err)
@@ -866,11 +960,12 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 			hasMore = false
 			break
 		}
+		operations := h.readOperations(r.Context(), page.Bindings)
 		for index, binding := range page.Bindings {
 			scanned++
 			coordinate := previewmodel.BindingCursor{CreatedAt: binding.CreatedAt, Handle: binding.Handle}
 			lastScanned = &coordinate
-			operation := h.readOperation(r.Context(), binding)
+			operation := operations[index]
 			if status == "" || operation.Lifecycle == status {
 				response.Items = append(response.Items, operation)
 			}
@@ -889,6 +984,10 @@ func (h *PreviewHTTPHandler) operations(w http.ResponseWriter, r *http.Request) 
 		last := page.Bindings[len(page.Bindings)-1]
 		cursor = &previewmodel.BindingCursor{CreatedAt: last.CreatedAt, Handle: last.Handle}
 		hasMore = true
+		if time.Since(started) >= operationScanBudget {
+			// Partial page: the cursor resumes after the last scanned binding.
+			break
+		}
 	}
 	if hasMore && lastScanned != nil {
 		encoded := h.encodeOperationCursor(*lastScanned)
@@ -914,11 +1013,33 @@ func (h *PreviewHTTPHandler) operation(w http.ResponseWriter, r *http.Request) {
 	previewJSON(w, http.StatusOK, OperationDetail{OperationSummary: summary, Stages: stages})
 }
 
+// readOperations resolves a page of bindings concurrently and returns the
+// summaries in binding order.
+func (h *PreviewHTTPHandler) readOperations(ctx context.Context, bindings []PreviewBinding) []OperationSummary {
+	out := make([]OperationSummary, len(bindings))
+	slots := make(chan struct{}, operationReadConcurrency)
+	var wg sync.WaitGroup
+	for index, binding := range bindings {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func(index int, binding PreviewBinding) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			out[index] = h.readOperation(ctx, binding)
+		}(index, binding)
+	}
+	wg.Wait()
+	return out
+}
+
 func (h *PreviewHTTPHandler) readOperation(ctx context.Context, binding PreviewBinding) OperationSummary {
 	summary, _ := h.readOperationState(ctx, binding)
 	return summary
 }
 
+// readOperationState projects durable lifecycle and explicit mutation eligibility for one binding.
+// Inputs: exact operation binding. Outputs: browser-safe identity/status and observed stage receipts.
+// Effects: Temporal read; choose for Activity and Review while unavailable state remains unknown.
 func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding PreviewBinding) (OperationSummary, []proffer.OperationStage) {
 	state, err := h.workflow.Operation(ctx, binding.WorkflowID)
 	if err != nil || !validOperationLifecycle(state.Lifecycle) {
@@ -935,7 +1056,17 @@ func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding Pre
 	if state.ActiveStages == nil {
 		state.ActiveStages = []proffer.ActivityName{}
 	}
+	state.Terminal = operationTerminal(state.Lifecycle, state.Terminal)
+	eligible, eligibilityReason := true, ""
+	if err := caseidentity.RequireCanonicalWrite(caseidentity.Mode(binding.OperatingMode)); err != nil {
+		eligible, eligibilityReason = false, err.Error()
+	} else if state.Terminal {
+		eligible, eligibilityReason = false, "This operation has finished; its saved artifacts remain inspectable."
+	} else if state.Lifecycle == proffer.OperationUnavailable {
+		eligible, eligibilityReason = false, "Durable workflow state is unavailable."
+	}
 	return OperationSummary{
+		MutationEligible: eligible, MutationReason: eligibilityReason,
 		PreviewHandle: binding.Handle, RequestID: binding.RequestID, SourceRef: binding.SourceRef,
 		Service: "proffer", CreatedAt: binding.CreatedAt, Lifecycle: state.Lifecycle,
 		CurrentStage: state.CurrentStage, ActiveStages: state.ActiveStages, Wait: state.Wait,
@@ -944,6 +1075,9 @@ func (h *PreviewHTTPHandler) readOperationState(ctx context.Context, binding Pre
 	}, state.Stages
 }
 
+// applyOperationToSnapshot overlays authoritative lifecycle without rewriting a stored preview.
+// Inputs: read snapshot and current operation. Outputs: terminal-safe presentation in snapshot.
+// Effects: in-memory projection only; choose before rendering stale human decision phases.
 func applyOperationToSnapshot(snapshot *PreviewSnapshot, operation OperationSummary) {
 	snapshot.Lifecycle = operation.Lifecycle
 	snapshot.CurrentStage = operation.CurrentStage
@@ -951,6 +1085,21 @@ func applyOperationToSnapshot(snapshot *PreviewSnapshot, operation OperationSumm
 	snapshot.Wait = operation.Wait
 	snapshot.Terminal = operation.Terminal
 	snapshot.CompletedStageCount = operation.CompletedStageCount
+	if operation.Terminal || operation.Lifecycle == proffer.OperationUnavailable {
+		snapshot.Phase = string(operation.Lifecycle)
+		snapshot.Wait = ""
+		snapshot.ActiveStages = []proffer.ActivityName{}
+		if operation.Reason != "" {
+			snapshot.Reason = operation.Reason
+		}
+	}
+}
+
+// operationTerminal treats terminal lifecycle as authoritative even when an old query flag is stale.
+// Inputs: lifecycle and durable terminal flag. Outputs: whether further mutations are forbidden.
+// Effects: none; use at read and write boundaries before considering a preview phase.
+func operationTerminal(lifecycle proffer.OperationLifecycle, terminal bool) bool {
+	return terminal || lifecycle == proffer.OperationCompleted || lifecycle == proffer.OperationFailed || lifecycle == proffer.OperationCancelled || lifecycle == proffer.OperationRerunRequired
 }
 
 func mergeOperationStages(durable []previewmodel.OperationStage, queried []proffer.OperationStage) []previewmodel.OperationStage {
@@ -974,11 +1123,13 @@ func mergeOperationStages(durable []previewmodel.OperationStage, queried []proff
 	return durable
 }
 
+// validOperationLifecycle recognizes existing engine lifecycle values without inventing progress.
+// Inputs: queried lifecycle. Outputs: recognition boolean. Effects: none; choose at HTTP boundaries.
 func validOperationLifecycle(value proffer.OperationLifecycle) bool {
 	switch value {
 	case proffer.OperationRunning, proffer.OperationAwaitingRepairDecision,
 		proffer.OperationAwaitingPreviewDecision, proffer.OperationCompleted,
-		proffer.OperationFailed, proffer.OperationCancelled, proffer.OperationUnavailable:
+		proffer.OperationFailed, proffer.OperationCancelled, proffer.OperationRerunRequired, proffer.OperationUnavailable:
 		return true
 	default:
 		return false
@@ -1196,6 +1347,9 @@ type previewDecisionRequest struct {
 	Reason   string `json:"reason"`
 }
 
+// decide records an authenticated decision only for a published, approvable preview at its live gate.
+// Inputs: exact handle, bounded decision and actor. Outputs: decision status or prerequisite refusal.
+// Effects: decision receipt and Temporal signal after auth/lifecycle checks; upstream artifacts alone never authorize it.
 func (h *PreviewHTTPHandler) decide(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("preview_handle")
 	var req previewDecisionRequest
@@ -1217,8 +1371,11 @@ func (h *PreviewHTTPHandler) decide(w http.ResponseWriter, r *http.Request) {
 		h.storeError(w, err)
 		return
 	}
-	if _, err := h.store.Snapshot(r.Context(), handle); err != nil {
+	if snapshot, err := h.store.Snapshot(r.Context(), handle); err != nil {
 		h.storeError(w, err)
+		return
+	} else if !previewmodel.ValidDigest(snapshot.PreviewDigest) {
+		previewError(w, http.StatusConflict, errors.New("persisted artifacts are readable but no approvable preview has been published"))
 		return
 	}
 	state, err := h.workflow.Preview(r.Context(), binding.WorkflowID)

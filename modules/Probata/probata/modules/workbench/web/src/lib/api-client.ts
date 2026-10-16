@@ -99,6 +99,7 @@ import type {
   ProfferUploadResponse,
   ProfferSourceBrowserResponse,
   ProfferSourceInspection,
+  ProfferSourcePreview,
   ProfferSourceObject,
   ProfferHumanSourceAssertions,
   ProfferObservedSource,
@@ -180,6 +181,67 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   return res.json();
+}
+
+/** Submit a human source through the context BFF with its existing owner/export attribution.
+ * Inputs: context-v1 source fields and stable retry key. Outputs: real Temporal execution IDs.
+ * Effects: one POST. Choose for SMS Process instead of the legacy handler/retention route.
+ */
+export function startHumanContextSource(body: import("@/lib/human-context").HumanContextSourceRequest, idempotencyKey: string) {
+  return apiFetch<import("@/lib/human-context").HumanContextProgress>("/api/context/sources", {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(body),
+  });
+}
+
+/** Poll human registration using the actor-bound context workflow relay.
+ * Inputs: real workflow ID and cancellation signal. Outputs: status and source-version reference.
+ * Effects: one GET. Choose for Process tracking before a native preview handle exists.
+ */
+export function getHumanContextSourceStatus(workflowID: string, signal?: AbortSignal) {
+  return apiFetch<import("@/lib/human-context").HumanContextProgress>(`/api/context/sources/workflows/${encodeURIComponent(workflowID)}`, { signal });
+}
+
+/** Read native source/stage metadata through the same-origin BFF relay.
+ * Inputs: actual human source handle and signal. Outputs: native snapshot.
+ * Effects: one GET. Choose instead of legacy preview/handler status for human bundles.
+ */
+export function getHumanContextPreview(handle: string, signal?: AbortSignal) {
+  return apiFetch<import("@/lib/human-context").HumanContextSnapshot>(`/api/context/previews/${encodeURIComponent(handle)}`, { signal });
+}
+
+/** Read one explicit page of native human records through the BFF relay.
+ * Inputs: actual human handle, offset, limit and signal. Outputs: exact native envelopes and continuation.
+ * Effects: one GET. Choose for the existing SBV browser; no source bytes or media are materialized locally.
+ */
+export function getHumanContextContent(handle: string, offset = 0, limit = 25, signal?: AbortSignal) {
+  const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  return apiFetch<import("@/lib/human-context").HumanContextPage>(`/api/context/previews/${encodeURIComponent(handle)}/content?${query}`, { signal });
+}
+
+/** Submit one complete, version-pinned AI-chat export to Go's context workflow.
+ * Inputs: original source/version refs, explicit provider and stable click key.
+ * Output: real Temporal IDs. Effect: Go start only, never browser-side extraction.
+ * Choose for supported AI exports, not generic JSON or SMS processing.
+ */
+export function startAIContextSource(body: {
+  source_ref: string;
+  provider_version_id: string;
+  package_ref?: string;
+  source_kind: "ai_chat";
+  declared_format: "chatgpt" | "claude" | "gemini_markdown";
+}, idempotencyKey: string): Promise<{ workflow_id: string; run_id: string }> {
+  return apiFetch("/api/context/sources", {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Read actor-owned Go context workflow status without requesting source bodies.
+ * Input: workflow ID from start. Output: bounded status with its original refs.
+ * Effect: read only; choose for the AI-context operation in Sources.
+ */
+export function getAIContextSourceStatus(workflowID: string): Promise<{ workflow_id: string; [key: string]: unknown }> {
+  return apiFetch(`/api/context/sources/workflows/${encodeURIComponent(workflowID)}`);
 }
 
 export async function getHealth() {
@@ -749,6 +811,48 @@ export function listProfferSources(params: {
   });
 }
 
+/** Describe one selected file without downloading or hashing its body.
+ * Inputs: listed source, root ID and mode label. Output: ETag-pinned reader URL.
+ * Effect: metadata GET; use for selection, leaving processing to its own action.
+ */
+export function previewProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal, expectedVersion?: string | null) {
+  const query = new URLSearchParams({
+    mode, root_id: rootId, key: source.key, source_ref: source.source_ref,
+    expected_byte_length: String(source.byte_length),
+  });
+  if (source.etag) query.set("expected_etag", source.etag);
+  if (expectedVersion) query.set("expected_provider_version_id", expectedVersion);
+  return apiFetch<ProfferSourcePreview>(`/api/proffer/source-inspection?${query.toString()}`, {
+    signal,
+  }).then((response) => {
+    if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active DEV/LIVE mode", 502);
+    if (response.active_root_id !== rootId || response.source_ref !== source.source_ref) throw new ApiError("The source inspection did not confirm the selected source location", 502);
+    return response;
+  });
+}
+
+/** Read at most 250 KB of a selected text source through its ETag-pinned reader.
+ * Inputs: same-origin preview descriptor and cancellation signal. Output: text
+ * and whether more bytes exist. Effect: one Range GET; no hashing or processing.
+ */
+export async function getProfferSourceText(inspection: ProfferSourcePreview, signal?: AbortSignal) {
+  const limit = 250_000;
+  if (!inspection.preview_url) throw new ApiError("This source has no reader URL", 502);
+  if (inspection.byte_length === 0) return { text: "", truncated: false };
+  const end = Math.min(inspection.byte_length, limit) - 1;
+  const response = await fetch(`${API_BASE}${inspection.preview_url}`, {
+    signal, headers: { Range: `bytes=0-${end}` },
+  });
+  if (response.status !== 206 || response.headers.get("ETag") !== inspection.etag
+      || (inspection.provider_version_id && response.headers.get("X-Source-Version-Id") !== inspection.provider_version_id)
+      || response.headers.get("Content-Range") !== `bytes 0-${end}/${inspection.byte_length}`
+      || response.headers.get("Content-Length") !== String(end + 1)) {
+    await response.body?.cancel();
+    throw new ApiError("The source reader did not confirm the selected byte range and ETag", response.status);
+  }
+  return { text: await response.text(), truncated: inspection.byte_length > limit };
+}
+
 export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMode, rootId: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ mode, root_id: rootId });
   return apiFetch<ProfferSourceInspection>(`/api/proffer/source-inspection?${query.toString()}`, {
@@ -765,6 +869,26 @@ export function inspectProfferSource(source: ProfferSourceObject, mode: MatterMo
   }).then((response) => {
     if (response.matter_mode !== mode) throw new ApiError("The source inspection did not confirm the active DEV/LIVE mode", 502);
     if (response.active_root_id !== rootId || response.source_ref !== source.source_ref) throw new ApiError("The source inspection did not confirm the selected R2 source location", 502);
+    return response;
+  });
+}
+
+/** Read an exact provider version for one selected remote object.
+ * Inputs: listed source and root ID. Output: source/version/size/ETag metadata.
+ * Effect: one B2 HEAD through the BFF, no body read; use before AI context start.
+ */
+export function getProfferSourceVersion(source: ProfferSourceObject, rootId: string, signal?: AbortSignal, expectedVersion?: string | null) {
+  return apiFetch<{ source_ref: string; provider_version_id: string; byte_length: number; etag: string }>("/api/proffer/source-version", {
+    method: "POST", signal, headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key: source.key, source_ref: source.source_ref, root_id: rootId,
+      expected_byte_length: source.byte_length, expected_etag: source.etag ?? null,
+      expected_provider_version_id: expectedVersion ?? null,
+    }),
+  }).then((response) => {
+    if (response.source_ref !== source.source_ref || response.byte_length !== source.byte_length || !response.provider_version_id || (expectedVersion && response.provider_version_id !== expectedVersion)) {
+      throw new ApiError("The source version did not confirm the selected B2 object", 502);
+    }
     return response;
   });
 }

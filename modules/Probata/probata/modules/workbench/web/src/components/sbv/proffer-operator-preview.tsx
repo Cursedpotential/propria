@@ -44,6 +44,7 @@ import type {
   ProfferPotentialPromotionScope,
 } from "@/lib/shared/types";
 import { cn } from "@/lib/utils";
+import { AppLink } from "@/lib/router-compat";
 
 type ReviewTab = "messages" | "calls" | "overview" | "records" | "chunks" | "entities" | "relationships" | "graph" | "files" | "lineage" | "warnings" | "attempts";
 
@@ -229,7 +230,7 @@ export function ProfferOperatorPreview({
   const callRows = useMemo(() => parseCallRecords(content?.records ?? []), [content]);
   const callsSource = callRows.length > 0;
   const [pickedTab, setTab] = useState<ReviewTab | null>(null);
-  const tab: ReviewTab = pickedTab ?? (messagingSource ? "messages" : callsSource ? "calls" : "overview");
+  const tab: ReviewTab = pickedTab ?? (messagingSource ? "messages" : callsSource ? "calls" : content?.records.length ? "records" : "overview");
   const visibleTabs = useMemo(
     () => TABS.filter((entry) => (entry.id !== "messages" || messagingSource) && (entry.id !== "calls" || callsSource)),
     [callsSource, messagingSource],
@@ -240,16 +241,16 @@ export function ProfferOperatorPreview({
   const warningCount = (snapshot.reason ? 1 : 0) + (contentError ? 1 : 0) + (messageError ? 1 : 0)
     + snapshot.stages.filter((stage) => stage.reason).length;
   const stats: Record<ReviewTab, TabStat> = {
-    messages: { count: deriveOnly ? null : messages.length, more: hasMore },
-    calls: { count: callRows.length },
+    messages: { count: deriveOnly || messagesLoading || messageError || preview.results?.preview_available === false ? null : preview.correlation ? messages.length : null, more: hasMore },
+    calls: { count: content ? callRows.length : null },
     overview: { count: null },
-    records: { count: content?.records.length ?? 0, more: Boolean(content?.next_record_cursor) },
-    chunks: { count: content?.chunk_generation?.chunk_count ?? content?.chunks.length ?? 0 },
-    entities: { count: 0 },
-    relationships: { count: 0 },
-    graph: { count: 0 },
-    files: { count: content?.attachments.length ?? 0 },
-    lineage: { count: content?.records.length ?? 0, more: Boolean(content?.next_record_cursor) },
+    records: { count: content && !contentError ? content.records.length : null, more: Boolean(content?.next_record_cursor) },
+    chunks: { count: content?.chunk_generation && !contentError ? content.chunk_generation.chunk_count ?? content.chunks.length : null },
+    entities: { count: null },
+    relationships: { count: null },
+    graph: { count: null },
+    files: { count: content && !contentError ? content.attachments.length : null },
+    lineage: { count: null },
     warnings: { count: warningCount, attention: true },
     attempts: { count: snapshot.stages.length },
   };
@@ -296,6 +297,33 @@ export function ProfferOperatorPreview({
         <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onRefresh} disabled={actionPending}><RefreshCw className="size-3.5" /> Refresh</Button>
       </header>
       <FileMetadataScreen open={metadataOpen} onOpenChange={setMetadataOpen} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} />
+      {preview.fingerprint && (
+        <details className="border bg-card px-3 py-2 text-xs" data-testid="source-fingerprint">
+          <summary className="cursor-pointer">Source fingerprint · {preview.fingerprint.status}</summary>
+          {preview.fingerprint.status === "available" ? (
+            <dl className="mt-2 space-y-1 break-all font-mono text-[11px]">
+              <div><dt className="inline">Source version </dt><dd className="inline">{preview.fingerprint.source_version_id}</dd></div>
+              <div><dt className="inline">{preview.fingerprint.algorithm} </dt><dd className="inline">{preview.fingerprint.digest}</dd></div>
+              <div><dt className="inline">Construction </dt><dd className="inline">{preview.fingerprint.construction}</dd></div>
+              <div><dt className="inline">Computed </dt><dd className="inline">{preview.fingerprint.computed_at} · {preview.fingerprint.computed_by}</dd></div>
+              <div><dt className="inline">Hash receipt </dt><dd className="inline">{preview.fingerprint.receipt_ref}</dd></div>
+              <div><dt className="inline">Activity receipt </dt><dd className="inline">{preview.fingerprint.activity_receipt_ref}</dd></div>
+            </dl>
+          ) : <p className="mt-2">{preview.fingerprint.reason}</p>}
+        </details>
+      )}
+      {preview.results && !preview.results.preview_available && <section className="border bg-card px-3 py-2 text-xs" aria-label="Saved result availability">
+        <p role="status">{preview.results.status === "available" ? "Saved upstream records are available. This run has no published approval preview." : preview.results.reason}</p>
+        <details className="mt-2"><summary className="cursor-pointer">Result references</summary><dl className="mt-2 space-y-1 break-all font-mono text-[11px]">
+          <div><dt className="inline">Source version </dt><dd className="inline">{preview.results.source_version_id}</dd></div>
+          {preview.results.source_kind !== "ai_chat" && <>
+          <div><dt className="inline">Raw generation </dt><dd className="inline">{preview.results.raw_generation_id ?? "unavailable"} · receipt {preview.results.raw_receipt_ref ?? "unavailable"}</dd></div>
+          <div><dt className="inline">Normalized generation </dt><dd className="inline">{preview.results.normalized_generation_id ?? "unavailable"} · receipt {preview.results.normalized_receipt_ref ?? "unavailable"}</dd></div>
+          </>}
+          {preview.results.source_ref && <div><dt className="inline">Original source </dt><dd className="inline">{preview.results.source_ref}</dd></div>}
+        </dl></details>
+        {preview.results.source_kind === "ai_chat" && <AppLink className="mt-2 inline-block underline" href={`/sources?mode=${snapshot.matter_mode}`}>Open Sources</AppLink>}
+      </section>}
 
       <div className="@container">
       <div className="grid gap-2 @4xl:grid-cols-[minmax(0,1fr)_21rem] @4xl:items-start">
@@ -360,7 +388,7 @@ export function ProfferOperatorPreview({
             <CallsTable rows={callRows} />
             {content?.next_record_cursor && (
               <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>
-                Load more records
+                Next records
               </Button>
             )}
           </div>
@@ -386,7 +414,7 @@ export function ProfferOperatorPreview({
             <Availability label="Metadata" value={snapshot.package.metadata} />
             <Availability label="Attachments" value={snapshot.package.attachments} />
             <Availability label="Parsed / extracted products" value={snapshot.package.parsed_or_extracted_products} />
-            <Availability label="Normalized products" value={snapshot.package.normalized_products} />
+            <Availability label={preview.results?.source_kind === "ai_chat" ? "Native AI content" : "Normalized products"} value={snapshot.package.normalized_products} />
           </div>
           {preview.correlation && <dl className="grid gap-px border bg-border text-xs md:grid-cols-2">
             <div className="bg-card p-3"><dt className="text-muted-foreground">Raw generation</dt><dd className="mt-1 break-all font-mono text-[10px]">{preview.correlation.raw_generation_id}</dd></div>
@@ -437,7 +465,7 @@ export function ProfferOperatorPreview({
           {flagError && <p className="border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive" role="alert">Later-review annotations unavailable: {flagError}</p>}
           <ol className="divide-y border">{content.records.map((record) => <li key={record.record_id} className="p-4"><div className="flex flex-wrap justify-between gap-2"><strong>#{record.ordinal} · {record.record_type}</strong><span className="text-xs text-muted-foreground">{record.occurred_at ?? "No occurrence time"}</span></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">{record.record_id} · {record.source_locator_ref}</p><details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">Raw JSON</summary><pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{JSON.stringify(record.payload, null, 2)}</pre></details><PotentialPromotionControl scope="record" targetId={record.record_id} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `record:${record.record_id}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
           {!content.records.length && <p className="border p-6 text-center text-sm text-muted-foreground">No normalized records are projected for this attempt.</p>}
-          {content.next_record_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>Load more records</Button>}
+          {content.next_record_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(content.next_record_cursor ?? undefined, undefined)}>Next records</Button>}
         </div> : messagesLoading || contentLoading || fallbackMessageRows.length > 0 ? <MessageThreadView key={snapshot.preview_handle} rows={fallbackMessageRows} participants={fallbackParticipantMap} loading={messagesLoading || contentLoading} error={contentError ?? messageError} previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} hasMore={hasMore} fetching={messagesLoading} onLoadMore={onLoadMore} /> : <UnavailablePanel title="Source records" availability={{ status: "unavailable", reason: contentError ?? "This run has no normalized records." }} />)}
 
         {tab === "chunks" && (content?.chunk_generation ? <div className="space-y-4">
@@ -445,9 +473,11 @@ export function ProfferOperatorPreview({
           {flagError && <p className="border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive" role="alert">Later-review annotations unavailable: {flagError}</p>}
           <dl className="grid gap-px border bg-border text-xs md:grid-cols-3"><div className="bg-card p-3"><dt>Generation / receipt</dt><dd className="mt-1 break-all font-mono text-[10px]">{content.chunk_generation.generation_ref}<br />{content.chunk_generation.receipt_ref}</dd></div><div className="bg-card p-3"><dt>Chunker / policy</dt><dd className="mt-1">{content.chunk_generation.chunker_id}@{content.chunk_generation.chunker_version}<br />{content.chunk_generation.policy_id}@{content.chunk_generation.policy_version}</dd></div><div className="bg-card p-3"><dt>Completeness</dt><dd className="mt-1">{content.chunk_generation.status} · {content.chunk_generation.reassembly_result ?? "not reported"}<br />{content.chunk_generation.chunk_count ?? content.chunks.length} chunks</dd></div></dl>
           <ol className="space-y-3">{content.chunks.map((piece) => <li key={piece.chunk_ref} className="border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Chunk {piece.index}</strong><Badge variant="outline">{piece.derivation_mode}</Badge></div><p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">Bytes [{piece.byte_start}, {piece.byte_end}) · {piece.locator_ref}<br />SHA-256 {piece.sha256}</p><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap border bg-muted/30 p-3 text-xs">{piece.content}</pre><PotentialPromotionControl scope="chunk" targetId={piece.chunk_ref} attemptId={attemptId} flags={potentialFlags} pending={flagPendingTarget === `chunk:${piece.chunk_ref}`} onFlag={onFlagPotentialPromotion} /></li>)}</ol>
-          {content.next_chunk_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(undefined, content.next_chunk_cursor ?? undefined)}>Load more chunks</Button>}
+          {content.next_chunk_cursor && <Button variant="outline" disabled={contentLoading} onClick={() => onLoadMoreContent(undefined, content.next_chunk_cursor ?? undefined)}>Next chunks</Button>}
         </div> : <UnavailablePanel title="Chunks and context" availability={contentError ? { ...snapshot.surfaces.chunks, reason: contentError } : snapshot.surfaces.chunks} />)}
-        {tab === "entities" && <EntitiesPanel previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} />}
+        {tab === "entities" && (preview.results?.source_kind === "ai_chat"
+          ? <p className="border bg-card p-4 text-sm">AI entity, event, timeline and artifact proposals use the native context candidate reader. This historical operation has no verified native workflow reference; human-message Extract is not applicable.</p>
+          : <EntitiesPanel previewHandle={snapshot.preview_handle} mode={snapshot.matter_mode} extractionUnavailableReason={preview.results?.preview_available === false ? "Saved records remain readable, but the current extraction worker requires a published preview for this exact source and generation. Extraction is unavailable for this attempt." : null} />)}
         {tab === "relationships" && <UnavailablePanel title="Proposed relationships" availability={graphViewerAvailability} action="Relationship rows will appear here when the backend returns source and target references for this attempt." />}
         {tab === "graph" && <div className="space-y-4"><UnavailablePanel title="Context graph" availability={graphViewerAvailability} action="Neo4j is the primary approved graph destination. This view needs a read API that returns attempt-bound nodes, relationships, and write receipts." /><div className="border-l-4 border-l-[#c69027] bg-[#fff4dd] p-4 text-xs leading-5 text-[#684b18] dark:bg-[#43351f] dark:text-[#ffe0a6]"><strong>SurrealDB projection is separate.</strong> It is a later, manual projection and is not run or implied by this Context review.</div></div>}
 

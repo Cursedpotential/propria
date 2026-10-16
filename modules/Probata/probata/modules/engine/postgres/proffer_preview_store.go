@@ -472,7 +472,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 		       COALESCE(decision.parser_options_ref, binding.parser_options_ref),
 		       COALESCE(snapshot.source_version_id, version.id), snapshot.raw_generation_id,
 		       snapshot.normalized_generation_id, binding.created_at, version.matter_id, version.court_case_id,
- COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND (event_id=0 OR (event_type='receipt_recorded' AND phase='operating_mode_repair')) ORDER BY event_id DESC LIMIT 1), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		LEFT JOIN LATERAL (
@@ -497,11 +497,11 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 	if err != nil {
 		return previewmodel.Binding{}, fmt.Errorf("read preview binding: %w", err)
 	}
-	binding.OperatingMode = recordedOperatingMode(modeDetail)
-	applyBindingAdmission(&binding, modeDetail)
 	if sourceVersion != nil {
 		binding.SourceVersionID = *sourceVersion
 	}
+	binding.OperatingMode = recordedOperatingMode(modeDetail)
+	applyBindingAdmission(&binding, modeDetail)
 	if rawGeneration != nil {
 		binding.RawGenerationID = *rawGeneration
 	}
@@ -511,7 +511,7 @@ func (s *ProfferPreviewStore) Binding(ctx context.Context, handle string) (previ
 	return binding, nil
 }
 
-// recordedOperatingMode reads only the explicit initial admission receipt.
+// recordedOperatingMode reads explicit initial admission or attributed repair receipt mode.
 // Inputs: initial event detail. Outputs: canonical mode or unknown.
 // Side effects: none. Never default old records or infer mode from identity.
 func recordedOperatingMode(detail string) string {
@@ -535,11 +535,17 @@ func applyBindingAdmission(binding *previewmodel.Binding, detail string) {
 	// Receipt policy replaces any caller-populated mode, never the reverse.
 	binding.OperatingMode = recordedOperatingMode(detail)
 	var receipt struct {
-		Mode   string `json:"operating_mode"`
-		Matter string `json:"matter_id"`
-		Court  string `json:"court_case_id"`
+		ReceiptType   string `json:"receipt_type"`
+		SourceVersion string `json:"source_version_ref"`
+		Mode          string `json:"operating_mode"`
+		Matter        string `json:"matter_id"`
+		Court         string `json:"court_case_id"`
 	}
 	if json.Unmarshal([]byte(detail), &receipt) != nil || !caseidentity.AdmittedIdentity(receipt.Matter, receipt.Court) {
+		binding.OperatingMode = ""
+		return
+	}
+	if receipt.ReceiptType == "operating_mode_repair" && (binding.SourceVersionID == uuid.Nil || binding.SourceVersionID.String() != receipt.SourceVersion) {
 		binding.OperatingMode = ""
 		return
 	}
@@ -624,7 +630,7 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 		SELECT binding.preview_handle, binding.request_id, binding.source_ref,
 		       binding.workflow_id, binding.run_id, binding.parser_options_ref,
 		       version.id, binding.created_at, version.matter_id, version.court_case_id,
- COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND event_id=0), '')
+ COALESCE((SELECT detail FROM context.proffer_preview_event WHERE preview_handle=binding.preview_handle AND (event_id=0 OR (event_type='receipt_recorded' AND phase='operating_mode_repair')) ORDER BY event_id DESC LIMIT 1), '')
 		FROM context.proffer_preview_binding binding
 		LEFT JOIN context.source_version version ON version.workflow_id = binding.workflow_id
 		WHERE NOT $1::boolean OR (binding.created_at, binding.preview_handle) < ($2::timestamptz, $3::text)
@@ -644,11 +650,11 @@ func (s *ProfferPreviewStore) ListBindings(ctx context.Context, cursor *previewm
 			&sourceVersion, &binding.CreatedAt, &binding.MatterID, &binding.CourtCaseID, &modeDetail); err != nil {
 			return previewmodel.BindingPage{}, fmt.Errorf("scan preview binding: %w", err)
 		}
-		binding.OperatingMode = recordedOperatingMode(modeDetail)
-		applyBindingAdmission(&binding, modeDetail)
 		if sourceVersion != nil {
 			binding.SourceVersionID = *sourceVersion
 		}
+		binding.OperatingMode = recordedOperatingMode(modeDetail)
+		applyBindingAdmission(&binding, modeDetail)
 		page.Bindings = append(page.Bindings, binding)
 	}
 	if err := rows.Err(); err != nil {
@@ -673,8 +679,8 @@ func (s *ProfferPreviewStore) OperationStages(ctx context.Context, handle string
 		                CASE WHEN receipt.status = 'failed' THEN 'activity failed' ELSE '' END),
 		       receipt.attempt, receipt.started_at, receipt.completed_at
 		FROM context.proffer_preview_binding binding
-		JOIN context.source_version version ON version.workflow_id = binding.workflow_id
-		JOIN context.activity_execution execution ON execution.source_version_id = version.id
+		JOIN context.source_version version ON version.workflow_id IN (binding.request_id, binding.workflow_id)
+		JOIN context.activity_execution execution ON execution.source_version_id = version.id AND execution.workflow_id IN (binding.request_id, binding.workflow_id)
 		JOIN LATERAL (
 			SELECT candidate.* FROM context.activity_receipt candidate
 			WHERE candidate.activity_execution_id = execution.id
@@ -706,6 +712,9 @@ func (s *ProfferPreviewStore) OperationStages(ctx context.Context, handle string
 	return stages, nil
 }
 
+// Snapshot reads a published preview or an exact, read-only upstream artifact correlation.
+// Inputs: opaque handle. Outputs: validated pins and existing receipts, without inventing approval evidence.
+// Effects: SELECT only; choose for inspection even if downstream AI preparation failed.
 func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (previewmodel.Snapshot, error) {
 	var snapshot previewmodel.Snapshot
 	var seq int64
@@ -726,10 +735,25 @@ func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (prev
 		&snapshot.Correlation.NormalizedGenerationID, &parserID, &parserVersion,
 		&parserDigest, &snapshot.PreviewDigest, &snapshot.Reason)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if _, bindingErr := s.Binding(ctx, handle); errors.Is(bindingErr, previewmodel.ErrNotFound) {
-			return previewmodel.Snapshot{}, bindingErr
+		results, resolveErr := s.ResolveOperationResults(ctx, handle)
+		if resolveErr != nil {
+			return previewmodel.Snapshot{}, resolveErr
 		}
-		return previewmodel.Snapshot{}, previewmodel.ErrNotReady
+		if results.Status != "available" {
+			return previewmodel.Snapshot{}, fmt.Errorf("%w: %s", previewmodel.ErrNotReady, results.Reason)
+		}
+		snapshot.PreviewHandle, snapshot.Phase = handle, "artifacts_available"
+		snapshot.Correlation.RequestID = ""
+		binding, bindErr := s.Binding(ctx, handle)
+		if bindErr != nil {
+			return previewmodel.Snapshot{}, bindErr
+		}
+		snapshot.Correlation.RequestID = binding.RequestID
+		snapshot.Correlation.SourceVersionID = results.SourceVersionID
+		snapshot.Correlation.RawGenerationID = results.RawGenerationID
+		snapshot.Correlation.NormalizedGenerationID = results.NormalizedGenerationID
+		snapshot.Results, snapshot.Receipts = &results, []previewmodel.Receipt{}
+		return snapshot, nil
 	}
 	if err != nil {
 		return previewmodel.Snapshot{}, fmt.Errorf("read preview snapshot: %w", err)
@@ -757,6 +781,15 @@ func (s *ProfferPreviewStore) Snapshot(ctx context.Context, handle string) (prev
 	if err := rows.Err(); err != nil {
 		return previewmodel.Snapshot{}, fmt.Errorf("iterate preview receipts: %w", err)
 	}
+	rows.Close()
+	results, resolveErr := s.ResolveOperationResults(ctx, handle)
+	if resolveErr != nil {
+		return previewmodel.Snapshot{}, resolveErr
+	}
+	if results.Status != "available" {
+		return previewmodel.Snapshot{}, fmt.Errorf("%w: %s", previewmodel.ErrNotReady, results.Reason)
+	}
+	snapshot.Results = &results
 	return snapshot, nil
 }
 

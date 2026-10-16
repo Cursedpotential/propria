@@ -1,6 +1,6 @@
 // Byline: Claude Code · Sonnet · 2026-10-02
 // One search box across the imported conversations (Weaviate ProfferChunks20261002 through /api/imported/search).
-// A hit is a run of messages, one line per message; it opens its thread at the first of them.
+// A hit is a chunk; native chunks open the registered source in SBV, legacy chunks retain thread navigation.
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
@@ -10,6 +10,10 @@ import { formatDateTime } from "@/components/mobile/mobile-format";
 import { Badge } from "@/components/ui/badge";
 import { importedApi } from "@/lib/imported-client";
 import { AppLink } from "@/lib/router-compat";
+import { nativeSearchTargets } from "@/lib/search-read-target";
+import { attemptReadHref } from "@/lib/workflow-links";
+
+const LIVE_MODE = "LIVE" as const;
 
 function Highlighted({ text, query }: { text: string; query: string }) {
   const raw = query.split(/\s+/).filter((word) => word.length > 1).map((word) => word.toLowerCase());
@@ -27,7 +31,14 @@ function Highlighted({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** Search imported chunks and open the reader matching their actual source coordinates.
+ * Inputs: query and display mode. Outputs: cited chunk cards and native source or legacy thread links.
+ * Effects: paged search GETs and navigation. Choose for mobile imported search without per-message index assumptions.
+ */
 export function SearchView() {
+  // The mobile shell is always the live case and has no FixedCaseProvider;
+  // reading the fixed-case context here crashed /m/search (owner UX test 2026-10-15).
+  const mode = LIVE_MODE;
   const [draft, setDraft] = useState("");
   const [submitted, setSubmitted] = useState("");
   const query = useInfiniteQuery({
@@ -64,12 +75,13 @@ export function SearchView() {
         </button>
       </form>
       {!submitted ? (
-        <Empty>Type a few words and search. Each result opens its conversation at that message.</Empty>
+        <Empty>Type a few words and search. Open a result’s source to read its messages.</Empty>
       ) : query.isPending ? <Loading /> : query.isError ? <ErrorBox error={query.error} onRetry={() => void query.refetch()} /> : (
         <>
           <p className="px-4 pb-2 text-xs text-muted-foreground">{query.data?.pages[0]?.note}</p>
           <ul className="space-y-3 px-4 pb-4">
             {hits.length === 0 ? <Empty>No imported conversation matches “{submitted}”.</Empty> : hits.map((hit) => {
+              const target = nativeSearchTargets(hit);
               const body = hit.body.length > 320 ? `${hit.body.slice(0, 320)}...` : hit.body;
               const card = (
                 <>
@@ -84,9 +96,12 @@ export function SearchView() {
                 </>
               );
               return (
-                <li key={`${hit.id}-${hit.thread_id}`}>
-                  {hit.thread_id ? (
-                    <AppLink href={`/m/thread/${hit.thread_id}?focus=${hit.id}`} className="block rounded-xl border border-border bg-card p-4 active:bg-muted">{card}</AppLink>
+                <li key={`${hit.collection ?? "imported"}:${hit.object_id ?? `${hit.id}-${hit.thread_id}`}`}>
+                  {target.native ? <div className="rounded-xl border border-border bg-card p-4">{card}
+                    <div className="mt-2 flex flex-wrap gap-3">{target.handles.map((handle) => <AppLink key={handle} href={attemptReadHref(handle, mode)} className="text-sm underline">Read source messages{target.handles.length > 1 ? ` · ${handle.slice(6)}` : ""}</AppLink>)}</div>
+                    {!target.handles.length && <p className="mt-2 text-xs text-muted-foreground">This indexed passage has no verified human-source reader reference. Its excerpt and source coordinates remain available.</p>}
+                  </div> : hit.thread_id ? (
+                    <AppLink href={`/m/thread/${encodeURIComponent(hit.thread_id)}?${new URLSearchParams({ focus: hit.id })}`} className="block rounded-xl border border-border bg-card p-4 active:bg-muted">{card}</AppLink>
                   ) : <div className="rounded-xl border border-border bg-card p-4">{card}</div>}
                 </li>
               );

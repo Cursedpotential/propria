@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 
 import { ProfferOperatorPreview } from "@/components/sbv/proffer-operator-preview";
+import { HumanContextPreview } from "@/components/sbv/human-context-preview";
+import { isHumanPreviewHandle } from "@/lib/human-context";
 import { ReviewResourceList } from "@/components/sbv/review-resource-list";
 import { ContextFlowRail } from "@/components/intake/context-flow-rail";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,8 @@ import type {
 // Shown as one small line inside the Decision block while Approve is locked.
 const APPROVAL_LOCK_REASON = "Approval remains locked until this exact attempt has normalized records, source locators, and every required completed receipt.";
 
+type ContentCoordinates = { record?: string; chunk?: string };
+
 function initialHandle(mode: "DEV" | "LIVE") {
   if (typeof window === "undefined") return "";
   const query = new URLSearchParams(window.location.search);
@@ -54,8 +58,15 @@ function initialHandle(mode: "DEV" | "LIVE") {
   return (query.get("resource") ?? query.get("preview_handle") ?? query.get("attempt"))?.trim() ?? "";
 }
 
+/** Select the existing preview controller using the URL's actual source handle.
+ * Inputs: route selection and display mode. Output: native human or legacy SBV controller.
+ * Effects: child read requests; choose at the shared reader entry so human bundles bypass legacy handler gates.
+ */
 export function ProfferPreviewClient() {
   const { mode } = useFixedCase();
+  const params = useBrowserSearchParams();
+  const handle = (params.get("resource") ?? params.get("preview_handle") ?? params.get("attempt"))?.trim() ?? "";
+  if (isHumanPreviewHandle(handle)) return <HumanContextPreview key={`${mode}:${handle}`} handle={handle} mode={mode} />;
   return <ModeScopedPreviewClient key={mode} mode={mode} />;
 }
 
@@ -80,6 +91,9 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
   const [flagError, setFlagError] = useState<string | null>(null);
   const [flagPendingTarget, setFlagPendingTarget] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [messagePages, setMessagePages] = useState<{ cursors: (string | undefined)[]; index: number; first: number }>({ cursors: [undefined], index: 0, first: 1 });
+  const [contentPages, setContentPages] = useState<{ cursors: ContentCoordinates[]; index: number; first: number }>({ cursors: [{}], index: 0, first: 1 });
+  const contentCoordinatesRef = useRef<ContentCoordinates>({});
   const [events, setEvents] = useState<ProfferPreviewEvent[]>([]);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [messageError, setMessageError] = useState<string | null>(null);
@@ -118,6 +132,9 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
     setFlagError(null);
     setFlagPendingTarget(null);
     setNextCursor(null);
+    setMessagePages({ cursors: [undefined], index: 0, first: 1 });
+    setContentPages({ cursors: [{}], index: 0, first: 1 });
+    contentCoordinatesRef.current = {};
     setEvents([]);
     setSnapshotError(null);
     setMessageError(null);
@@ -217,26 +234,19 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
     if (requestedCursorsRef.current.has(cursorKey)) return;
     requestedCursorsRef.current.add(cursorKey);
     const controller = new AbortController();
+    messageControllersRef.current.forEach((pending) => pending.abort());
     messageControllersRef.current.set(cursorKey, controller);
     setMessagesLoading(true);
     try {
       const page = await getProfferPreviewMessages(handle, mode, cursor, 100, controller.signal);
-      if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
+      if (controller.signal.aborted || generation !== generationRef.current || activeHandleRef.current !== handle) return;
       if (page.preview_handle !== handle) throw new Error("Preview message correlation failed");
-      setParticipants((current) => {
-        const merged = new Map((cursor ? current : []).map((item) => [item.participant_id, item]));
-        page.participants.forEach((item) => merged.set(item.participant_id, item));
-        return [...merged.values()];
-      });
-      setMessages((current) => {
-        const merged = new Map((cursor ? current : []).map((item) => [item.message_id, item]));
-        page.messages.forEach((item) => merged.set(item.message_id, item));
-        return [...merged.values()].sort((left, right) => left.ordinal - right.ordinal);
-      });
+      setParticipants(page.participants);
+      setMessages([...page.messages].sort((left, right) => left.ordinal - right.ordinal));
       setNextCursor(page.next_cursor ?? null);
       setMessageError(null);
     } catch (error) {
-      if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
+      if (controller.signal.aborted || generation !== generationRef.current || activeHandleRef.current !== handle) return;
       setMessageError(error instanceof Error ? error.message : "Preview messages are unavailable");
     } finally {
       if (messageControllersRef.current.get(cursorKey) === controller) {
@@ -259,28 +269,45 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
     setContentLoading(true);
     try {
       const page = await getProfferPreviewContent(handle, mode, recordCursor, chunkCursor, 100, controller.signal);
-      if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
-      setContent((current) => {
-        const append = Boolean(recordCursor || chunkCursor);
-        const records = new Map((append && current ? current.records : []).map((item) => [item.record_id, item]));
-        page.records.forEach((item) => records.set(item.record_id, item));
-        const chunks = new Map((append && current ? current.chunks : []).map((item) => [item.chunk_ref, item]));
-        page.chunks.forEach((item) => chunks.set(item.chunk_ref, item));
-        return {
-          ...page,
-          records: [...records.values()].sort((left, right) => left.ordinal - right.ordinal),
-          chunks: [...chunks.values()].sort((left, right) => left.index - right.index),
-        };
-      });
+      if (controller.signal.aborted || generation !== generationRef.current || activeHandleRef.current !== handle) return;
+      contentCoordinatesRef.current = { record: recordCursor, chunk: chunkCursor };
+      setContent(page);
       setContentError(null);
     } catch (error) {
-      if (generation !== generationRef.current || activeHandleRef.current !== handle) return;
+      if (controller.signal.aborted || generation !== generationRef.current || activeHandleRef.current !== handle) return;
       setContentError(error instanceof Error ? error.message : "Package, record, and chunk preview is unavailable");
     } finally {
-      if (contentControllerRef.current === controller) contentControllerRef.current = null;
-      if (generation === generationRef.current && activeHandleRef.current === handle) setContentLoading(false);
+      if (contentControllerRef.current === controller) {
+        contentControllerRef.current = null;
+        if (generation === generationRef.current && activeHandleRef.current === handle) setContentLoading(false);
+      }
     }
   }, [previewHandle, mode]);
+
+  /** Change fallback message pages without retaining message bodies from previous pages.
+   * Input: server-minted cursor. Output: current page and at most sixty-four cursors.
+   * Effects: one cancelled/replaced read request; no processing or corpus writes.
+   */
+  function advanceMessagePage() {
+    if (!nextCursor || messagesLoading) return;
+    const cursors = [...messagePages.cursors.slice(0, messagePages.index + 1), nextCursor];
+    const dropped = Math.max(0, cursors.length - 64);
+    setMessagePages({ cursors: cursors.slice(dropped), index: cursors.length - dropped - 1, first: messagePages.first + dropped });
+    void loadMessages(nextCursor);
+  }
+
+  /** Replace one record/chunk page while retaining the other current-page coordinates.
+   * Input: next record or chunk cursor. Output: one content page and bounded history.
+   * Effects: read only; choose for content navigation, never automatic full loading.
+   */
+  function advanceContentPage(record?: string, chunk?: string) {
+    if (contentLoading) return;
+    const coordinates = { record: record ?? contentCoordinatesRef.current.record, chunk: chunk ?? contentCoordinatesRef.current.chunk };
+    const cursors = [...contentPages.cursors.slice(0, contentPages.index + 1), coordinates];
+    const dropped = Math.max(0, cursors.length - 64);
+    setContentPages({ cursors: cursors.slice(dropped), index: cursors.length - dropped - 1, first: contentPages.first + dropped });
+    void loadContent(coordinates.record, coordinates.chunk);
+  }
 
   const loadPotentialFlags = useCallback(async () => {
     const handle = previewHandle;
@@ -360,16 +387,18 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
   }, [loadSnapshot, mode, previewHandle]);
 
   const contextFlowComplete = profferContextFlowComplete(preview?.receipts, preview?.checkpoints);
+  const artifactsAvailable = Boolean(preview?.correlation && (preview.results?.status === "available" || contextFlowComplete));
+  const messagesAvailable = artifactsAvailable && preview?.results?.preview_available !== false;
 
   useEffect(() => {
-    if (!previewHandle || !contextFlowComplete) return;
+    if (!previewHandle || !artifactsAvailable) return;
     const timer = window.setTimeout(() => {
-      void loadMessages();
+      if (messagesAvailable) void loadMessages();
       void loadContent();
       void loadPotentialFlags();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [contextFlowComplete, loadContent, loadMessages, loadPotentialFlags, previewHandle]);
+  }, [artifactsAvailable, messagesAvailable, loadContent, loadMessages, loadPotentialFlags, previewHandle]);
 
   async function flagPotentialPromotion(
     scope: ProfferPotentialPromotionScope,
@@ -469,7 +498,7 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
     }
   }
 
-  const awaitingDecision = preview?.phase === "awaiting_decision";
+  const awaitingDecision = preview?.phase === "awaiting_decision" && !preview.terminal && !operatorSnapshot?.terminal && preview.results?.preview_available !== false;
   const requiredReceiptTypes = useMemo(
     () => PROFFER_CONTEXT_CHECKPOINTS.map(({ type }) => type),
     [],
@@ -543,6 +572,8 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
       {previewHandle && <ContextFlowRail
         started
         phase={preview?.phase}
+        lifecycle={operatorSnapshot?.lifecycle ?? preview?.lifecycle}
+        terminal={Boolean(operatorSnapshot?.terminal ?? preview?.terminal)}
         receipts={preview?.receipts}
         checkpoints={preview?.checkpoints}
         events={events}
@@ -560,6 +591,24 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
       ) : (
         <>
           {eventError && <p className="truncate px-1 text-[11px] text-muted-foreground" role="status" title={eventError}>Live updates paused: {eventError}</p>}
+          {content && <nav className="flex flex-wrap items-center gap-2 border px-3 py-2" aria-label="Record and chunk pages">
+            <Button size="sm" variant="outline" disabled={contentPages.index === 0 || contentLoading} onClick={() => {
+              const index = contentPages.index - 1;
+              const previous = contentPages.cursors[index];
+              if (previous) { setContentPages({ ...contentPages, index }); void loadContent(previous.record, previous.chunk); }
+            }}>Previous content page</Button>
+            <span className="text-xs" role="status">Content page {contentPages.first + contentPages.index}</span>
+            <Button size="sm" variant="outline" disabled={!content.next_record_cursor || contentLoading} onClick={() => advanceContentPage(content.next_record_cursor ?? undefined)}>Next records</Button>
+            <Button size="sm" variant="outline" disabled={!content.next_chunk_cursor || contentLoading} onClick={() => advanceContentPage(undefined, content.next_chunk_cursor ?? undefined)}>Next chunks</Button>
+          </nav>}
+          {messages.length > 0 && <nav className="flex flex-wrap items-center gap-2 border px-3 py-2" aria-label="Fallback message pages">
+            <Button size="sm" variant="outline" disabled={messagePages.index === 0 || messagesLoading} onClick={() => {
+              const index = messagePages.index - 1;
+              setMessagePages({ ...messagePages, index }); void loadMessages(messagePages.cursors[index]);
+            }}>Previous message page</Button>
+            <span className="text-xs">Message page {messagePages.first + messagePages.index}</span>
+            <Button size="sm" variant="outline" disabled={!nextCursor || messagesLoading} onClick={advanceMessagePage}>Next message page</Button>
+          </nav>}
           <ProfferOperatorPreview
             key={`${mode}:${previewHandle}`}
             snapshot={operatorSnapshot}
@@ -575,9 +624,9 @@ function ModeScopedPreviewClient({ mode }: { mode: "DEV" | "LIVE" }) {
             flagPendingTarget={flagPendingTarget}
             messagesLoading={messagesLoading}
             messageError={messageError}
-            hasMore={Boolean(nextCursor)}
-            onLoadMore={() => void loadMessages(nextCursor ?? undefined)}
-            onLoadMoreContent={(recordCursor, chunkCursor) => void loadContent(recordCursor, chunkCursor)}
+            hasMore={false}
+            onLoadMore={advanceMessagePage}
+            onLoadMoreContent={advanceContentPage}
             onFlagPotentialPromotion={(scope, targetId, attemptId, reason) => void flagPotentialPromotion(scope, targetId, attemptId, reason)}
             onRefresh={() => void loadSnapshot()}
             onApprove={() => decisionEligible && void decide(true)}

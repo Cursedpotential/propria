@@ -55,6 +55,7 @@ ProfferOperationLifecycle = Literal[
     "awaiting_preview_decision",
     "completed",
     "failed",
+    "rerun_required",
     "cancelled",  # D05-C06, Claude Code · Opus 5.5 · 2026-09-28
     "unavailable",
 ]
@@ -223,10 +224,54 @@ class ProfferRepairAssessmentView(BaseModel):
     review_required: bool
 
 
+class ProfferOperationResults(BaseModel):
+    """Describe exact persisted artifacts independently of approval and downstream processing.
+
+    Inputs: operation-bound receipt references. Outputs: availability, pins and diagnostic reason.
+    Effects: none; choose for reading saved results, never mutation admission.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    status: Literal["available", "missing", "inconsistent", "not_queried"]
+    content_store: Literal["postgres", "weaviate"] = "postgres"
+    source_kind: Literal["unknown", "ai_chat"] = "unknown"
+    source_ref: NonBlank | None = None
+    reason: BoundedReason = ""
+    source_version_id: UUID | None = None
+    raw_generation_id: UUID | None = None
+    normalized_generation_id: UUID | None = None
+    raw_receipt_ref: NonBlank | None = None
+    normalized_receipt_ref: NonBlank | None = None
+    preview_available: bool
+
+
+class ProfferSourceFingerprint(BaseModel):
+    """Expose the source-byte fingerprint for one exact immutable source version.
+
+    Inputs: validated hash receipt. Outputs: algorithm, digest, source and receipt provenance.
+    Effects: none; choose instead of an ETag or a generation/package digest.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    status: Literal["available", "unavailable", "inconsistent"]
+    reason: BoundedReason = ""
+    source_version_id: UUID | None = None
+    hash_kind: NonBlank | None = None
+    algorithm: NonBlank | None = None
+    digest: Sha256Digest | None = None
+    construction: NonBlank | None = None
+    computed_at: datetime | None = None
+    computed_by: NonBlank | None = None
+    receipt_ref: NonBlank | None = None
+    activity_receipt_ref: NonBlank | None = None
+
+
 class ProfferPreviewResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     preview_handle: OpaquePreviewHandle
     phase: NonBlank
+    results: ProfferOperationResults | None = None
+    fingerprint: ProfferSourceFingerprint | None = None
     correlation: ProfferPreviewCorrelation | None = None
     parser: ProfferParserIdentity | None = None
     preview_digest: Sha256Digest | None = None
@@ -251,6 +296,24 @@ class ProfferPreviewResponse(BaseModel):
 
     @model_validator(mode="after")
     def validate_snapshot_shape(self) -> ProfferPreviewResponse:
+        if self.results and self.results.source_kind == "ai_chat":
+            if self.results.content_store != "weaviate" or self.correlation is not None or self.results.raw_generation_id is not None or self.results.normalized_generation_id is not None or self.results.preview_available:
+                raise ValueError("AI content uses native Weaviate references, never PostgreSQL chat generations")
+        if self.fingerprint and self.fingerprint.status == "available":
+            value = self.fingerprint
+            expected = self.correlation.source_version_id if self.correlation else self.results.source_version_id if self.results else None
+            if (
+                value.source_version_id is None or value.source_version_id != expected
+                or value.hash_kind != "context_source_fingerprint" or value.algorithm != "sha256"
+                or value.construction != "context-source-fingerprint-v1"
+                or any(part is None for part in (value.digest, value.computed_at, value.computed_by, value.receipt_ref, value.activity_receipt_ref))
+            ):
+                raise ValueError("source fingerprint must identify exact source bytes and validation evidence")
+        if self.results and self.results.status == "available":
+            if any(part is None for part in (self.results.source_version_id, self.results.raw_generation_id, self.results.normalized_generation_id)):
+                raise ValueError("available results require exact source and generation references")
+            if not self.results.preview_available and not (self.results.raw_receipt_ref and self.results.normalized_receipt_ref):
+                raise ValueError("upstream results require exact persistence receipts")
         if self.checkpoints is not None:
             names = [checkpoint.checkpoint for checkpoint in self.checkpoints]
             if len(names) != len(set(names)):
@@ -269,6 +332,17 @@ class ProfferPreviewResponse(BaseModel):
         if self.phase == "awaiting_repair_decision":
             if self.repair_assessment is None or not self.repair_assessment.review_required:
                 raise ValueError("an awaiting repair decision snapshot requires a review assessment")
+            return self
+        artifact_read = self.results is not None and self.results.status == "available" and not self.results.preview_available
+        if artifact_read:
+            if self.correlation is None or any((
+                self.correlation.source_version_id != self.results.source_version_id,
+                self.correlation.raw_generation_id != self.results.raw_generation_id,
+                self.correlation.normalized_generation_id != self.results.normalized_generation_id,
+            )):
+                raise ValueError("artifact references must match the exact operation correlation")
+            if self.phase == "awaiting_decision":
+                raise ValueError("upstream artifacts alone cannot authorize a preview decision")
             return self
         if (
             self.phase == "awaiting_decision"

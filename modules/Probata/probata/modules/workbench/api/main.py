@@ -23,12 +23,14 @@ from pathlib import Path
 
 from app.config import settings
 from app.runtime import (
+    analysis,
     case_identity,
     case_management,
     chat,
     classification,
     compare,
     conversation_actions,
+    context_sources,
     copilot,
     documents,
     entity_extraction,
@@ -144,6 +146,8 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=development_write_guard)
 app.add_middleware(BaseHTTPMiddleware, dispatch=authentication_middleware)
 
 app.include_router(health.router)
+app.include_router(analysis.router)
+app.include_router(context_sources.router)
 app.include_router(intake_discovery.router)
 app.include_router(retrieval.router)
 app.include_router(upload.router)

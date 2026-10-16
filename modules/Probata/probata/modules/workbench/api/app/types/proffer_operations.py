@@ -37,6 +37,8 @@ class ProfferOperationSummary(BaseModel):
     active_stages: Annotated[list[NonBlank], Field(max_length=64)] = Field(default_factory=list)
     wait: ProfferOperationWait | None = None
     terminal: bool
+    mutation_eligible: bool = False
+    mutation_reason: BoundedReason = "Operating-mode and lifecycle eligibility have not been verified."
     reason: BoundedReason = ""
     source_version_ref: NonBlank | None = None
     matter_id: UUID | None = None

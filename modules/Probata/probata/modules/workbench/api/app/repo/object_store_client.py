@@ -19,15 +19,19 @@ import io
 import logging
 import mimetypes
 import re
+from functools import lru_cache
 from typing import IO
 
 import boto3  # noqa: F401  (tests patch the SDK through this module; clients are built in object_store_factory)
 from botocore.exceptions import ClientError
-from functools import lru_cache
 
 from app.config import settings
 from app.repo import object_store_factory
-from app.types.source_roots import SourceRoot, configured_object_stores, configured_source_roots
+from app.types.source_roots import (
+    SourceRoot,
+    configured_object_stores,
+    configured_source_roots,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -148,11 +152,19 @@ def _relative_page(root: SourceRoot, page: dict) -> dict:
     return relative
 
 
-def head_source_object(root_id: str, key: str) -> dict:
+def head_source_object(root_id: str, key: str, *, version_id: str | None = None) -> dict:
+    """Read metadata for one allowlisted object, optionally at an exact provider version.
+
+    Inputs: root/key and version pin. Output: provider HEAD. Effects: read only;
+    choose a version pin when reopening an inspected source instead of latest.
+    """
     root = get_source_root(root_id)
     validated = validate_source_key(key)
+    request = {"Bucket": root.bucket, "Key": root.key_prefix + validated}
+    if version_id:
+        request["VersionId"] = version_id
     try:
-        return get_store_client(root.scheme).head_object(Bucket=root.bucket, Key=root.key_prefix + validated)
+        return get_store_client(root.scheme).head_object(**request)
     except ClientError as error:
         raise RuntimeError(f"{root.label} source inspection failed") from error
 
@@ -163,13 +175,21 @@ def open_source_object(
     *,
     if_match: str | None = None,
     byte_range: str | None = None,
+    version_id: str | None = None,
 ) -> dict:
+    """Open one conditional source stream at the requested provider version.
+
+    Inputs: allowlisted root/key, ETag, range and version. Output: provider GET.
+    Effects: read only; use for original previews rather than staging reads.
+    """
     root = get_source_root(root_id)
     request: dict[str, str] = {"Bucket": root.bucket, "Key": root.key_prefix + validate_source_key(key)}
     if if_match:
         request["IfMatch"] = if_match
     if byte_range:
         request["Range"] = byte_range
+    if version_id:
+        request["VersionId"] = version_id
     try:
         return get_store_client(root.scheme).get_object(**request)
     except ClientError as error:
@@ -222,17 +242,18 @@ def get_client():
 
 
 def check_connectivity() -> bool:
-    """Check read-only listing access to every configured active source prefix.
+    """Check read-only listing access to every explicitly configured B2 source root.
 
     Inputs: the source-root registry and explicit store credentials. Output: a
     fail-closed readiness boolean. Effects: at most one listed key per root,
-    never object bodies or writes. Use for health, not acquisition verification;
-    retired R2 and unscoped whole-bucket roots cannot establish readiness.
+    never object bodies or writes. Use for health, not acquisition verification.
+    An explicit whole-bucket browser root is valid; it does not admit processing
+    or imply that other buckets are accessible. Retired R2 is not readiness.
     """
     try:
         stores = configured_object_stores()
         if not SOURCE_ROOTS or any(
-            root.scheme == "r2" or root.scheme not in stores or not root.key_prefix for root in SOURCE_ROOTS.values()
+            root.scheme == "r2" or root.scheme not in stores for root in SOURCE_ROOTS.values()
         ):
             raise ValueError("active source-root configuration is unavailable")
         for root in SOURCE_ROOTS.values():

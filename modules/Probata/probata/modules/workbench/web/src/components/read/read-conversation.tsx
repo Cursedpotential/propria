@@ -7,6 +7,7 @@ import { toMessageRow } from "@/components/imported/record-rows";
 import { formatDate } from "@/components/mobile/mobile-format";
 import { Empty, ErrorBox, LoadMore, Loading } from "@/components/mobile/mobile-ui";
 import { ReadContext } from "@/components/read/read-context";
+import { ReadAttribution } from "@/components/read/read-attribution";
 import { readHref } from "@/components/read/read-location";
 import { MessageBubble } from "@/components/sbv/message-bubble";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,9 @@ export function ReadConversation({ threadId, around, params }: { threadId: strin
           {messages.map((message, index) => (
             <article key={message.id} id={`read-message-${message.id}`} aria-label={`Message from ${message.sender.label}`}>
               {index === 0 || formatDate(message.at) !== formatDate(messages[index - 1].at) ? <p className="py-2 text-center text-xs text-muted-foreground">{formatDate(message.at)}</p> : null}
-              <MessageBubble row={toMessageRow(message, index)} previewHandle="" mode="LIVE" showSenderLabel={!message.outgoing} highlighted={message.id === around} />
+              <p className="px-2 text-xs font-medium">Speaker: {message.sender.label} · {message.attribution?.direction ?? "direction unknown"} relative to source account/device</p>
+              <MessageBubble row={toMessageRow(message, index)} previewHandle="" mode="LIVE" showSenderLabel highlighted={message.id === around} />
+              <ReadAttribution message={message} />
               {!message.body.trim() && message.attachments === 0 ? <p className={`mt-1 px-2 text-xs text-muted-foreground ${message.outgoing ? "text-right" : ""}`}>No text in this record</p> : null}
               <details className="mt-1 px-2 text-xs text-muted-foreground">
                 <summary className="cursor-pointer">Citation and message details</summary>

@@ -14,7 +14,7 @@ test("the panel proposes on Extract and commits only a validated set through the
   assert.ok(panel.includes('data-testid="extract-entities-button"'));
   assert.ok(panel.includes("Extract entities"));
   assert.ok(panel.includes('data-testid="run-entity-workflow-button"'));
-  assert.match(panel, /disabled=\{!report\?\.ok \|\| writing \|\| committing\}/, "Run workflow needs a passing validation");
+  assert.match(panel, /disabled=\{Boolean\(extractionUnavailableReason\) \|\| !report\?\.ok \|\| writing \|\| committing\}/, "Run workflow needs supported admission and a passing validation");
   assert.match(panel, /commit\.mutateAsync\(\{ digest: report\.digest, key: newIdempotencyKey\("commit"\) \}\)/);
   assert.match(panel, /validation\.basis === data && !writing/, "a validation is hidden once the proposals change");
   assert.match(panel, /<EntityCard/);

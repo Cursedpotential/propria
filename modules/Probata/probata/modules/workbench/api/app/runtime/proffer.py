@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Header
 
 from app.repo.object_store_client import DEFAULT_SOURCE_ROOT_ID
 from app.runtime.operating_mode import OperatingMode
@@ -17,6 +17,7 @@ from app.runtime.proffer_events import router as _events_router
 from app.runtime.proffer_media import router as _media_router
 from app.runtime.proffer_search_params import MessageSearchFilter
 from app.runtime.proffer_upload import router as _upload_router
+from app.runtime.source_message_preview import router as _source_preview_router
 from app.service.proffer import (
     ProfferError,
     browse_sources,
@@ -32,6 +33,9 @@ from app.service.proffer import (
 from app.service.proffer_flags import create_potential_promotion_flag, list_potential_promotion_flags
 from app.service.proffer_operations import list_operations, operation
 from app.service.proffer_operator import operator_snapshot
+from app.types.matter_mode import MatterMode
+from app.types.proffer_admission_repair import AdmissionRepairRequest
+from app.service.proffer_admission_repair import start_repair, repair_status
 from app.types.proffer import (
     ProfferContentResponse,
     ProfferDecisionActor,
@@ -60,6 +64,7 @@ from app.types.proffer_operations import (
 from app.types.proffer_operator import ProfferOperatorSnapshot
 
 router = APIRouter(prefix="/api/proffer", tags=["proffer"])
+router.include_router(_source_preview_router)
 router.include_router(_media_router)  # GET .../media/{sha256}: see app/runtime/proffer_media.py
 router.include_router(_decoded_router)  # GET /decoded/*: SBV output before an ingest run exists
 router.include_router(_events_router)  # GET .../events: see app/runtime/proffer_events.py
@@ -84,7 +89,7 @@ def _decision_actor(request: Request) -> ProfferDecisionActor:
 
 @router.get("/sources", response_model=ProfferSourceBrowserResponse)
 def sources_endpoint(
-    mode: OperatingMode,
+    mode: Annotated[MatterMode, Query()] = "LIVE",
     root_id: Annotated[str, Query(min_length=1, max_length=64)] = DEFAULT_SOURCE_ROOT_ID,
     prefix: Annotated[str, Query(max_length=1024)] = "",
     continuation_token: Annotated[str | None, Query(max_length=4096)] = None,
@@ -93,6 +98,12 @@ def sources_endpoint(
     file_type: Annotated[list[str] | None, Query()] = None,
     page_size: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
+    """Browse one configured object-store root without admitting a case.
+
+    Inputs: root ID, relative prefix, optional filename filter and page cursor.
+    Output: bounded files/folders and available configured roots. Effects: one
+    provider listing; use for navigation, not processing authorization.
+    """
     try:
         return browse_sources(
             mode=mode,
@@ -277,5 +288,34 @@ async def create_potential_promotion_flag_endpoint(
         if body.scope not in ("record", "chunk"):
             raise HTTPException(status_code=422, detail="Preview content target is invalid or unsupported")
         return create_potential_promotion_flag(preview_handle, mode, body, actor)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.post("/previews/{preview_handle}/admission-repair", status_code=202)
+async def admission_repair_endpoint(preview_handle: str, body: AdmissionRepairRequest, request: Request,
+    key: Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=200)]):
+    """Start an independently tracked Temporal repair using the actual Workbench owner identity.
+
+    Inputs: explicit current LIVE request and existing source/case. Output: durable
+    workflow/run/status references. Effects: forwarding only; historical mode is never inferred.
+    """
+    actor = _decision_actor(request)
+    try:
+        return await start_repair(preview_handle, body, actor, key)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
+@router.get("/admission-repairs/{workflow_id}")
+async def admission_repair_status_endpoint(workflow_id: str, request: Request):
+    """Read actual Temporal repair failure or receipt through the existing owner status boundary.
+
+    Inputs: returned attempt ID and actual actor. Output: real business status/reason.
+    Effects: read only; use for existing in-app job notifications and recovery progress.
+    """
+    actor = _decision_actor(request)
+    try:
+        return await repair_status(workflow_id, actor)
     except ProfferError as error:
         raise _translate(error) from None

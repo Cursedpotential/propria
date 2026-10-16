@@ -45,6 +45,10 @@ func main() {
 	}
 }
 
+// run composes the existing authenticated starter with raw and native-human source viewing.
+// Inputs: service environment, mounted credentials and shared platform/Temporal connections.
+// Outputs: a running HTTP service or startup error. Effects: connections and listener only; requests own workflow starts.
+// Choose for the established starter process; parsing and indexing stay in separate registered Activities.
 func run() error {
 	cfg, err := platformtemporal.LoadConfig()
 	if err != nil {
@@ -123,6 +127,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	rawPreviewHandler, err := runtimeapi.NewSourceReadPreviewHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
+	rawPreviewMux := http.NewServeMux()
+	rawPreviewMux.Handle("POST /reference-import/source-preview", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("GET /reference-import/source-preview/", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("POST /reference-import/source-preview/", rawPreviewHandler.Routes())
+	rawPreviewMux.Handle("/", routes)
+	routes = rawPreviewMux
+	routes, err = nativeHumanContextRoutes(routes, pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
+	if err != nil {
+		return err
+	}
 	sourceContextStore, err := platformpostgres.NewSourceContextStore(pool)
 	if err != nil {
 		return err
@@ -182,7 +200,7 @@ func run() error {
 	}
 	// Conversation extraction and the Surreal send (Workbench: Extract and Send to Surreal).
 	// Byline: Claude Code · Sonnet 5.5 · 2026-10-02
-	conversationRoutes, err := conversationExtractionHandler(c, cfg.TemporalTaskQueue, serviceTokenFile)
+	conversationRoutes, err := conversationExtractionHandler(pool, c, cfg.TemporalTaskQueue, serviceTokenFile)
 	if err != nil {
 		return err
 	}

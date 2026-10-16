@@ -2,11 +2,23 @@
 export type RetrievalMode = "keyword" | "hybrid" | "vector";
 export type RetrievalLeg = "intake" | "proffer";
 export interface RetrievalHit {
+  corpus?: string | null;
+  source_kind?: string | null;
+  source_format?: string | null;
+  record_kind?: string | null;
+  origin_system?: string | null;
+  preview_handle?: string | null;
   text: string;
   score: number;
   legs: string[];
   citation: {
+    corpus?: string | null;
+    source_kind?: string | null;
+    source_format?: string | null;
+    record_kind?: string | null;
     collection: string;
+    origin_system?: string | null;
+    preview_handle?: string | null;
     object_id: string;
     source_id?: string | null;
     source_version_ids: string[];

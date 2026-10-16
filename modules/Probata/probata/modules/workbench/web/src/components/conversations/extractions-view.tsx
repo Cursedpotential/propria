@@ -93,16 +93,28 @@ export function ExtractionsView({ threadId, onExtract }: { threadId: string; onE
     );
   }
   const groups = query.data.extractors;
-  if (groups.length === 0) {
+  const history = query.data.history;
+  if (groups.length === 0 && !history?.attempts.length && history?.available && !history.truncated) {
     return (
       <div className="space-y-3 px-4 py-8 text-center">
-        <p className="text-sm text-muted-foreground">Nothing has been extracted from this conversation yet.</p>
+        <p className="text-sm text-muted-foreground">No extraction outputs or matching attempts were found in retained bounded history.</p>
+        <p className="text-xs text-muted-foreground">{history.coverage}</p>
         {onExtract ? <Button type="button" className="h-12" onClick={onExtract}>Extract</Button> : null}
       </div>
     );
   }
   return (
     <div className="space-y-3 px-4 pb-6" aria-label="Extractions by extractor">
+      {!groups.length ? <p className="text-sm">No extraction output rows are available for the current generations.</p> : null}
+      <section className="space-y-2 rounded border p-3 text-xs" aria-label="Durable extraction attempts">
+        <h3 className="font-semibold">Durable parent attempts</h3>
+        <p>{history?.coverage ?? "Attempt history was not supplied; earlier attempts are unknown."}{history?.truncated ? " History coverage is truncated." : ""}</p>
+        {history?.attempts.map((attempt) => <details key={`${attempt.workflow_id}:${attempt.run_id}`} open>
+          <summary className="break-all">{attempt.progress.outcome} · {attempt.extractors.join(", ") || "default extractor"}</summary>
+          <p className="break-all">Workflow {attempt.workflow_id} · run {attempt.run_id}</p>
+          <ul>{attempt.progress.steps?.map((step, index) => <li key={index}>{step.step}: {step.status}{step.detail ? ` · ${step.detail}` : ""}{step.last_failure ? ` · ${step.last_failure}` : ""}</li>)}</ul>
+        </details>)}
+      </section>
       {groups.map((group) => <Group key={group.id} group={group} />)}
       {query.data.truncated ? <p className="text-xs text-muted-foreground">Only the first 2,000 of each list are shown.</p> : null}
       {onExtract ? <Button type="button" variant="outline" className="h-12 w-full" onClick={onExtract}>Extract again</Button> : null}

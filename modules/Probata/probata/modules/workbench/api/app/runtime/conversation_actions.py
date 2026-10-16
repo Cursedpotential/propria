@@ -70,6 +70,19 @@ async def extract_endpoint(body: ExtractConversationsRequest, request: Request, 
         raise _translate(error) from None
 
 
+@router.post("/imported/threads/extraction-preflight")
+async def extraction_preflight_endpoint(body: ExtractConversationsRequest):
+    """Read target admission and full-text sizes before offering extraction.
+
+    Inputs: thread/extractor selection. Output: exact engine workload and blockers.
+    Effects: read-only service call; pick before the guarded extraction POST.
+    """
+    try:
+        return await service.extraction_preflight(body)
+    except ProfferError as error:
+        raise _translate(error) from None
+
+
 @router.post("/imported/threads/send-to-surreal", response_model=WorkflowStarted, status_code=202)
 async def send_endpoint(body: SendConversationsRequest, request: Request, key: RequiredKey):
     """Start sending whole conversations (and the extractions they have) to surreal-case."""

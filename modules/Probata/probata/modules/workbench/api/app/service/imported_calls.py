@@ -35,7 +35,7 @@ async def calls(*, cursor: str | None, limit: int) -> dict[str, Any]:
     ts, row_id = imported._cursor_decode(cursor)
     use_log = await asyncio.to_thread(imported.pg.call_log_has_rows)
     items: list[dict[str, Any]] = []
-    imported.summary = None
+    call_summary: dict[str, Any] | None = None
     if use_log:
         rows = await asyncio.to_thread(imported.pg.calls_from_log, ts=ts, row_id=row_id, limit=limit)
         for row in rows[:limit]:
@@ -63,6 +63,10 @@ async def calls(*, cursor: str | None, limit: int) -> dict[str, Any]:
     more = len(rows) > limit
     next_cursor = imported._cursor_encode(rows[limit - 1]["occurred_at"], rows[limit - 1]["id"]) if more else None
     if not cursor:
-        imported.summary = await asyncio.to_thread(imported.pg.calls_summary, matter)
-        imported.summary = {**imported.summary, "first_at": imported._iso(imported.summary["first_at"]), "last_at": imported._iso(imported.summary["last_at"])}
-    return {"items": items, "next_cursor": next_cursor, "summary": imported.summary, "read_from": source}
+        # A local, never `imported.summary`: assigning that module attribute
+        # replaced the facade's summary() function, so /api/imported/summary
+        # raised "'dict' object is not callable" after the first Calls read
+        # (owner UX test 2026-10-15).
+        call_summary = await asyncio.to_thread(imported.pg.calls_summary, matter)
+        call_summary = {**call_summary, "first_at": imported._iso(call_summary["first_at"]), "last_at": imported._iso(call_summary["last_at"])}
+    return {"items": items, "next_cursor": next_cursor, "summary": call_summary, "read_from": source}
