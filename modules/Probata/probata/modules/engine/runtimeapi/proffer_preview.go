@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"go.temporal.io/api/serviceerror"
 
 	"github.com/Cursedpotential/probata/engine/caseidentity"
 	"github.com/Cursedpotential/probata/engine/contextsearch"
@@ -823,6 +824,9 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if !h.guardDuplicateImport(w, r, uuid.MustParse(req.MatterID), req.SourceRef) {
+		return
+	}
 	in := proffer.WorkflowInput{OperatingMode: string(mode), RequestID: req.RequestID, MatterID: req.MatterID, CourtCaseID: req.CourtCaseID, SourceRef: proffer.Ref(req.SourceRef), DeclaredFormat: req.DeclaredFormat, ParserOptionsRef: proffer.Ref(req.ParserOptionsRef), SourceContextRef: proffer.Ref(req.SourceContextRef),
 		OwnerPersonID: strings.TrimSpace(req.OwnerPersonID), PerspectivePersonID: strings.TrimSpace(req.PerspectivePersonID)}
 	workflowID, runID, err := h.workflow.Start(r.Context(), in)
@@ -837,6 +841,56 @@ func (h *PreviewHTTPHandler) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	previewJSON(w, 201, map[string]string{"preview_handle": binding.Handle})
+}
+
+// guardDuplicateImport blocks a start when the same content is already imported
+// in this matter, or an import of it is still running (owner spec 2026-10-15:
+// "this has already been imported -- view it?"; no second processing run and no
+// second copy). Earlier imports whose runs all failed or were cancelled do not
+// block: a new attempt is a retry. A run Temporal no longer knows (history
+// purged) is over. Any other doubt fails closed. Reports true when the start may
+// proceed; otherwise the response has been written.
+func (h *PreviewHTTPHandler) guardDuplicateImport(w http.ResponseWriter, r *http.Request, matterID uuid.UUID, sourceRef string) bool {
+	finder, ok := h.store.(previewmodel.ImportedContentFinder)
+	if !ok {
+		return true
+	}
+	found, err := finder.FindImportedContent(r.Context(), matterID, sourceRef)
+	if err != nil {
+		previewError(w, http.StatusServiceUnavailable, fmt.Errorf("could not verify whether this content is already imported: %w", err))
+		return false
+	}
+	for _, earlier := range found {
+		status := "imported"
+		if !earlier.Committed {
+			state, err := h.workflow.Operation(r.Context(), earlier.WorkflowID)
+			var notFound *serviceerror.NotFound
+			switch {
+			case errors.As(err, &notFound):
+				continue
+			case err != nil:
+				previewError(w, http.StatusServiceUnavailable, errors.New("could not verify whether an earlier import of this content is still running"))
+				return false
+			case state.Terminal:
+				continue
+			}
+			status = "in_progress"
+		}
+		detail := "This content has already been imported."
+		if status == "in_progress" {
+			detail = "An import of this content is already in progress."
+		}
+		previewJSON(w, http.StatusConflict, map[string]any{
+			"detail": detail,
+			"already_imported": map[string]any{
+				"status":      status,
+				"source_key":  earlier.SourceKey,
+				"imported_at": earlier.ImportedAt,
+			},
+		})
+		return false
+	}
+	return true
 }
 
 // snapshot serves source-type-correct artifact availability with authoritative terminal lifecycle.

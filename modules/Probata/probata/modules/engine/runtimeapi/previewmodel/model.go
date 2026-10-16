@@ -472,3 +472,20 @@ func ValidDigest(value string) bool {
 	_, err := hex.DecodeString(value)
 	return err == nil && value == strings.ToLower(value)
 }
+
+// ImportedContent is one earlier import of the same content (same source key or
+// retained SHA-256) in a matter. Committed means it published or was approved;
+// an uncommitted entry blocks a new import only while its run is still going.
+// Byline: Claude Code · Opus 5.5 · 2026-10-16
+type ImportedContent struct {
+	WorkflowID string
+	SourceKey  string
+	ImportedAt time.Time
+	Committed  bool
+}
+
+// ImportedContentFinder is the optional store capability behind the
+// duplicate-import guard (owner spec 2026-10-15).
+type ImportedContentFinder interface {
+	FindImportedContent(ctx context.Context, matterID uuid.UUID, sourceRef string) ([]ImportedContent, error)
+}
