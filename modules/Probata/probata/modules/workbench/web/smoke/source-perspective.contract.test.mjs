@@ -83,7 +83,7 @@ function processHarness(overrides = {}) {
   const scope = sourcePerspectiveScope("LIVE", [[file.source_ref, file.etag, file.byte_length]]);
   const context = {
     matter: { id: "matter-registry" }, primaryCourtCase: { id: "court-registry" }, mode: "LIVE",
-    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, hasAIProcessTarget: false, aiProcessBlocked: false, addAIChatToContext: async () => { throw new Error("Unexpected AI start"); }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
+    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, hasAIProcessTarget: false, aiProcessBlocked: false, addAIChatToContext: async () => { throw new Error("Unexpected AI start"); }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {}, setAlreadyImported() {},
     registryPeople: people, perspectiveScope: scope, perspectiveChoice: { scope, personId: "registry-owner" },
     localSource: null, processFiles: [file], selectedFiles: [], selectedObject: file, selectedFolder: null,
     submissions: { current: new Map() }, handlerOverride: "", runsQuery: { refetch() {} },
@@ -100,6 +100,13 @@ function processHarness(overrides = {}) {
     Error,
     ...overrides,
   };
+  // Match the component's active explicit perspective after every owner/source change.
+  // This getter is recomputed when the harness mutates the selected identity.
+  Object.defineProperty(context, "effectivePerspective", {
+    get: () => context.perspectiveChoice?.scope === context.perspectiveScope
+      ? context.perspectiveChoice
+      : null,
+  });
   const js = ts.transpileModule([...callbacks.values()].join("\n") + "\nglobalThis.invokeProcess = process;", { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   runInNewContext(js, context);
   return { context, invoke: context.invokeProcess, requests, humanRequests, humanKeys, versions, workflows, errors, file, scope };
