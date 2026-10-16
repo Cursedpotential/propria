@@ -83,6 +83,8 @@ const desktopTree = desktopRoute.addChildren([
   // The Case page over registry, the one identity store (Claude Code · Opus 5.5 · 2026-10-01).
   applicationRoute("case", () => import("@/app/case/page")),
   applicationRoute("classification-test", () => import("@/app/classification-test/page")),
+  // Byline: Codex · GPT-6 · 2026-10-11. Optional discovery has its own history.
+  applicationRoute("discovery", () => import("@/app/discovery/page")),
   // Imported conversations: check whole conversations, Extract, Send to Surreal, read the Extractions
   // (Claude Code · Sonnet 5.5 · 2026-10-02).
   legacyRoute("conversations"),

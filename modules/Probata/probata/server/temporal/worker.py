@@ -2,6 +2,7 @@
 
 Byline: Claude Code · Fable 5 · 2026-08-24
 Byline: Codex · GPT-6 · 2026-10-07 (register real graph preparation Activity).
+Byline: Codex · GPT-6 · 2026-10-11 (independent optional CPU discovery).
 
 Runs as its OWN Coolify app (docker/temporal-worker/Dockerfile, CMD
 ``python -m server.temporal.worker``). Joins task queue ``evidence-pipeline``
@@ -53,6 +54,7 @@ from server.temporal.chunk_backfill_activities import (
     verify_chunk_coverage_activity,
 )
 from server.temporal.classification_workflow import ClassificationBatchPipeline
+from server.temporal.discovery_registration import optional_discovery_activities
 from server.temporal.entity_event_activities import (
     extract_entities_events_langextract_activity,
     extract_entities_events_semantica_activity,
@@ -93,6 +95,7 @@ async def main() -> None:
             # the first-party context is proposed and BEFORE the preview (Claude Code · Sonnet 5.5 · 2026-10-02).
             # list/estimate/verify/remove: the re-chunk and the per-message removal, as Activities of two Go workflows.
             activities=[
+                *optional_discovery_activities(),
                 # Six independent AI content operations, external retained payloads.
                 # Codex / GPT-6.1-Sol / 2026-10-06.
                 *AI_CONTENT_ACTIVITIES,

@@ -40839,6 +40839,104 @@ GRANT SELECT ON context.first_party_thread_message_relative_time_anchor, context
 GRANT message_dedupe_writer TO platform_runtime WITH INHERIT FALSE, SET TRUE;
 
 
+-- Optional adaptive discovery: canonical derived analysis; normalized inputs remain read-only.
+-- Byline: Codex · GPT-6.1-sol · 2026-10-11.
+-- Inputs are bounded immutable manifests. Feedback and score generations are append-only.
+CREATE TABLE analysis.discovery_run (
+ run_id uuid PRIMARY KEY,
+ matter_id uuid NOT NULL,
+ court_case_id uuid NOT NULL,
+ operating_mode text NOT NULL CHECK (operating_mode IN ('LIVE','DEV')),
+ dataset_id text NOT NULL CHECK (length(dataset_id) BETWEEN 1 AND 200),
+ actor_uid text NOT NULL CHECK (length(actor_uid) BETWEEN 1 AND 200),
+ revision bigint NOT NULL CHECK (revision > 0),
+ feedback_revision bigint NOT NULL CHECK (feedback_revision >= 0),
+ score_revision bigint NOT NULL CHECK (score_revision >= 0),
+ status text NOT NULL CHECK (status IN ('pending','scoring','ready','ready_partial','rescore_pending','failed')),
+ dispatch_pending boolean NOT NULL,
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=65536),
+ created_at timestamptz NOT NULL,
+ updated_at timestamptz NOT NULL
+);
+CREATE INDEX discovery_run_scope ON analysis.discovery_run(matter_id,court_case_id,operating_mode,dataset_id,created_at);
+CREATE INDEX discovery_run_pending ON analysis.discovery_run(updated_at,run_id) WHERE dispatch_pending;
+CREATE TABLE analysis.discovery_input (
+ run_id uuid NOT NULL REFERENCES analysis.discovery_run(run_id),
+ feedback_revision bigint NOT NULL CHECK (feedback_revision>=0),
+ manifest_ref jsonb NOT NULL CHECK (jsonb_typeof(manifest_ref)='object'),
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=12582912),
+ created_at timestamptz NOT NULL,
+ PRIMARY KEY(run_id,feedback_revision)
+);
+CREATE TABLE analysis.discovery_score (
+ run_id uuid NOT NULL REFERENCES analysis.discovery_run(run_id),
+ score_revision bigint NOT NULL CHECK (score_revision>0),
+ feedback_revision bigint NOT NULL CHECK (feedback_revision>=0),
+ model_version text NOT NULL CHECK (length(model_version) BETWEEN 1 AND 200),
+ result_ref jsonb NOT NULL CHECK (jsonb_typeof(result_ref)='object'),
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=12582912),
+ created_at timestamptz NOT NULL,
+ PRIMARY KEY(run_id,score_revision), UNIQUE(run_id,feedback_revision),
+ FOREIGN KEY(run_id,feedback_revision) REFERENCES analysis.discovery_input(run_id,feedback_revision)
+);
+CREATE TABLE analysis.discovery_candidate (
+ run_id uuid NOT NULL,
+ score_revision bigint NOT NULL,
+ candidate_id text NOT NULL CHECK (length(candidate_id) BETWEEN 1 AND 200),
+ episode_id text NOT NULL CHECK (length(episode_id) BETWEEN 1 AND 200),
+ score double precision NOT NULL CHECK (score BETWEEN 0 AND 1),
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=524288),
+ PRIMARY KEY(run_id,score_revision,candidate_id),
+ FOREIGN KEY(run_id,score_revision) REFERENCES analysis.discovery_score(run_id,score_revision)
+);
+CREATE INDEX discovery_candidate_queue ON analysis.discovery_candidate(run_id,score_revision,score DESC,candidate_id);
+CREATE TABLE analysis.discovery_citation (
+ run_id uuid NOT NULL,
+ score_revision bigint NOT NULL,
+ candidate_id text NOT NULL,
+ ordinal integer NOT NULL CHECK (ordinal>=0),
+ record_id uuid NOT NULL,
+ locator_id uuid NOT NULL,
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=65536),
+ PRIMARY KEY(run_id,score_revision,candidate_id,ordinal),
+ FOREIGN KEY(run_id,score_revision,candidate_id) REFERENCES analysis.discovery_candidate(run_id,score_revision,candidate_id)
+);
+CREATE INDEX discovery_citation_record ON analysis.discovery_citation(record_id,locator_id);
+CREATE TABLE analysis.discovery_feedback (
+ feedback_id uuid PRIMARY KEY,
+ run_id uuid NOT NULL REFERENCES analysis.discovery_run(run_id),
+ candidate_id text NOT NULL,
+ revision bigint NOT NULL CHECK (revision>0),
+ payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=131072),
+ created_at timestamptz NOT NULL,
+ UNIQUE(run_id,revision)
+);
+CREATE INDEX discovery_feedback_candidate ON analysis.discovery_feedback(run_id,candidate_id,revision DESC);
+CREATE TABLE analysis.discovery_dispatch (
+ run_id uuid NOT NULL REFERENCES analysis.discovery_run(run_id),
+ feedback_revision bigint NOT NULL CHECK (feedback_revision>=0),
+ workflow_id text NOT NULL CHECK (length(workflow_id) BETWEEN 1 AND 200),
+ temporal_run_id text NOT NULL CHECK (length(temporal_run_id) BETWEEN 1 AND 200),
+ created_at timestamptz NOT NULL,
+ PRIMARY KEY(run_id,feedback_revision)
+);
+CREATE FUNCTION analysis.discovery_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ RAISE EXCEPTION 'discovery analytical history is append-only';
+END
+$$;
+CREATE TRIGGER discovery_input_immutable BEFORE UPDATE OR DELETE ON analysis.discovery_input FOR EACH ROW EXECUTE FUNCTION analysis.discovery_immutable();
+CREATE TRIGGER discovery_score_immutable BEFORE UPDATE OR DELETE ON analysis.discovery_score FOR EACH ROW EXECUTE FUNCTION analysis.discovery_immutable();
+CREATE TRIGGER discovery_candidate_immutable BEFORE UPDATE OR DELETE ON analysis.discovery_candidate FOR EACH ROW EXECUTE FUNCTION analysis.discovery_immutable();
+CREATE TRIGGER discovery_citation_immutable BEFORE UPDATE OR DELETE ON analysis.discovery_citation FOR EACH ROW EXECUTE FUNCTION analysis.discovery_immutable();
+CREATE TRIGGER discovery_feedback_immutable BEFORE UPDATE OR DELETE ON analysis.discovery_feedback FOR EACH ROW EXECUTE FUNCTION analysis.discovery_immutable();
+GRANT SELECT,INSERT,UPDATE ON analysis.discovery_run,analysis.discovery_dispatch TO platform_runtime;
+GRANT SELECT,INSERT ON analysis.discovery_input,analysis.discovery_score,analysis.discovery_candidate,analysis.discovery_citation,analysis.discovery_feedback TO platform_runtime;
+COMMENT ON TABLE analysis.discovery_run IS 'Optional finite adaptive discovery over server-bound context selections; durable pending dispatch and feedback revisions, no evidence or custody effect.';
+COMMENT ON TABLE analysis.discovery_input IS 'Immutable finite source/version/locator manifest including episodes, cutoff-prefiltered records, compatible feedback and partial coverage.';
+COMMENT ON TABLE analysis.discovery_score IS 'Append-only cited candidate publication with encoder/policy provenance and exact external result reference.';
+COMMENT ON TABLE analysis.discovery_feedback IS 'Append-only owner labels, attribution/context/episode corrections and neutral skips; authenticated actor and CAS revision retained.';
+
 -- PostgreSQL database dump complete
 --
 

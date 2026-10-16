@@ -24,6 +24,15 @@ services:
     # direct-peer authorization check.
     network_mode: host
     environment:
+      # Byline: Codex · GPT-6 · 2026-10-11. Optional discovery; enable after live qualification.
+      ADAPTIVE_DISCOVERY_ENABLED: ${ADAPTIVE_DISCOVERY_ENABLED:-false}
+      ADAPTIVE_DISCOVERY_ROOT: /data/proffer/derive-scratch/ai-content/analysis/discovery
+      ADAPTIVE_DISCOVERY_DATASETS_JSON: ${ADAPTIVE_DISCOVERY_DATASETS_JSON:-}
+      ADAPTIVE_DISCOVERY_MODEL_CONFIG_JSON: ${ADAPTIVE_DISCOVERY_MODEL_CONFIG_JSON:-}
+      ADAPTIVE_DISCOVERY_SURREAL_URL: ${ADAPTIVE_DISCOVERY_SURREAL_URL:-}
+      ADAPTIVE_DISCOVERY_SURREAL_NAMESPACE: ${ADAPTIVE_DISCOVERY_SURREAL_NAMESPACE:-}
+      ADAPTIVE_DISCOVERY_SURREAL_DATABASE: ${ADAPTIVE_DISCOVERY_SURREAL_DATABASE:-}
+      ADAPTIVE_DISCOVERY_SURREAL_TOKEN_FILE: ${ADAPTIVE_DISCOVERY_SURREAL_TOKEN_FILE:-}
       # Storage providers are configuration, not code (owner 2026-09-20). Any S3-compatible
       # store: scheme -> credential file. Switching provider = a credential file + these two
       # values, identical in every Proffer/Workbench service. The first root is the default.

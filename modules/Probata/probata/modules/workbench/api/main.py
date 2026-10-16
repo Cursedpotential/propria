@@ -6,6 +6,7 @@
 # Byline: Claude Code · Opus 5.5 · 2026-10-01 (case identity routes, /api/case-identity/*)
 # Byline: Claude Code · Sonnet · 2026-10-02 (mobile Imported view routes, /api/imported/*)
 # Byline: Claude Code · Sonnet 5.5 · 2026-10-02 (conversation actions: Extract and Send to Surreal)
+# Byline: Codex · GPT-6 · 2026-10-11 (optional adaptive discovery routes)
 """Probata Workbench API entrypoint — the backend of Sources and Review.
 
 Sources (steps 1-4) browses the configured object stores, inspects and hashes
@@ -33,6 +34,7 @@ from app.runtime import (
     context_sources,
     copilot,
     documents,
+    discovery,
     entity_extraction,
     files,
     health,
@@ -168,6 +170,7 @@ app.include_router(inspect.router)
 app.include_router(knowledge.router)
 app.include_router(conversation_actions.router)  # /api/extractors, /api/imported/threads/{extract,send-to-surreal,.../extractions}, /api/imported/workflows/* (Claude Code · Sonnet 5.5 · 2026-10-02)
 app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
+app.include_router(discovery.router)
 app.include_router(case_management.router)
 app.include_router(case_identity.router)  # /api/case-identity/* — the Case page over registry (Claude Code · Opus 5.5 · 2026-10-01)
 app.include_router(chat.router)

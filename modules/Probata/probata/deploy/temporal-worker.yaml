@@ -62,6 +62,10 @@ services:
     networks:
       - probata
     environment:
+      # Byline: Codex · GPT-6 · 2026-10-11. Shares retained AI-content mount with Go discovery.
+      ADAPTIVE_DISCOVERY_ENABLED: ${ADAPTIVE_DISCOVERY_ENABLED:-false}
+      ADAPTIVE_DISCOVERY_ROOT: /data/proffer/derive-scratch/ai-content/analysis/discovery
+      ADAPTIVE_DISCOVERY_MODEL_CONFIG_JSON: ${ADAPTIVE_DISCOVERY_MODEL_CONFIG_JSON:-}
       TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal-server:7233}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       TEMPORAL_TASK_QUEUE: evidence-pipeline
