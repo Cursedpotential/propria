@@ -8,11 +8,29 @@ import ts from "typescript";
  * Input: module path. Output: real exports. Effects: bounded in-memory compilation only.
  * Pick for native and legacy Process contracts without starting live workflows.
  */
+
+/** The source helper now imports ApiError from the runtime client.
+ * Its operations remain real; only this unavailable browser import is substituted.
+ * No network actions or source mutations occur in these VM tests.
+ */
+function stubApiClient(id) {
+  if (id !== "@/lib/api-client") throw new Error(`Unexpected runtime dependency: ${id}`);
+  return {
+    ApiError: class ApiError extends Error {
+      constructor(message, status, body) {
+        super(message);
+        this.status = status;
+        this.body = body;
+      }
+    }
+  };
+}
+
 function loadHelpers(path) {
   const module = { exports: {} };
   runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module, exports: module.exports, Error, URL });
+  }).outputText, { module, exports: module.exports, Error, URL, require: stubApiClient });
   return module.exports;
 }
 const { confirmedCaseOwner, sourcePerspectiveScope, processingIdentity, requiresMessagePerspective } = loadHelpers("../src/components/sources/source-perspective.ts");
