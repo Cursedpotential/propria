@@ -71,3 +71,44 @@ def test_source_history_404s_and_bounded_pagination(history_client):
     assert history_client.get("/api/imported/sources/unavailable/history").status_code == 404
     assert history_client.get("/api/imported/sources/source-1/history?limit=1000").status_code == 422
     assert history_client.get("/api/imported/sources/source-1/history?offset=-1").status_code == 422
+
+
+
+def test_imported_facets_filter_all_recorded_sources_before_paginating(history_client, monkeypatch):
+    rows = [
+        {"id": "a", "file_name": "takeout-a.xml", "casevault_key": "A/takeout-a.xml",
+         "format": "SMS", "status": "failed", "owner": "Person A", "owner_name": "Person A",
+         "files": 1, "raw": 8, "normalized": 4, "committed": 0},
+        {"id": "b", "file_name": "takeout-b.xml", "casevault_key": "B/takeout-b.xml",
+         "format": "SMS", "status": "failed", "owner": "Person B", "owner_name": "Person B",
+         "files": 2, "raw": 5, "normalized": 3, "committed": 0},
+        {"id": "c", "file_name": "unrelated.xml", "casevault_key": "C/unrelated.xml",
+         "format": "SMS", "status": "committed", "owner": None, "owner_name": None,
+         "files": 1, "raw": 3, "normalized": 3, "committed": 3},
+        {"id": "d", "file_name": "takeout-social.json", "casevault_key": "D/takeout-social.json",
+         "format": "Facebook", "status": "failed", "owner": None, "owner_name": None,
+         "files": 1, "raw": 7, "normalized": 1, "committed": 0},
+    ]
+
+    async def fake_exports():
+        return rows, True
+
+    monkeypatch.setattr(imported, "_exports", fake_exports)
+    first = history_client.get(
+        "/api/imported/sources?format=SMS&status=failed&owner=recorded&q=takeout&limit=1"
+    )
+    assert first.status_code == 200
+    assert first.json()["total"] == 2
+    assert [x["id"] for x in first.json()["items"]] == ["a"]
+    assert first.json()["next_offset"] == 1
+    assert first.json()["totals"]["raw"] == 13
+    second = history_client.get(
+        "/api/imported/sources?format=SMS&status=failed&owner=recorded&q=takeout&limit=1&offset=1"
+    )
+    assert second.json()["items"][0]["id"] == "b"
+    assert second.json()["next_offset"] is None
+    unowned = history_client.get("/api/imported/sources?owner=unrecorded&limit=10")
+    assert [x["id"] for x in unowned.json()["items"]] == ["c", "d"]
+
+    for query in ("owner=other", "status=made_up", "q=" + "x" * 201):
+        assert history_client.get("/api/imported/sources?" + query).status_code == 422
