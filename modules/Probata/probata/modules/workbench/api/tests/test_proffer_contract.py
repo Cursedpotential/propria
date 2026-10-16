@@ -997,3 +997,47 @@ def test_repair_decision_route_preserves_upstream_error(monkeypatch) -> None:
         assert error.detail == "workflow is not awaiting repair"
     else:
         raise AssertionError("repair decision upstream errors must retain status and detail")
+
+
+def _start_request() -> ProfferStartRequest:
+    return ProfferStartRequest(
+        request_id="r-dup", matter_id=MATTER_ID, court_case_id=COURT_CASE_ID,
+        source_ref=f"upload://{'a' * 64}", declared_format="delimited_text",
+        parser_options_ref="pending-handler-selection/v1", matter_mode="LIVE",
+    )
+
+
+def test_start_passes_the_already_imported_refusal_through(monkeypatch) -> None:
+    """Owner spec 2026-10-15: the UI must be able to say "already imported -- view it?"."""
+
+    async def refuse(body, *, mode):
+        raise proffer.ProfferError("This content has already been imported.", 409, payload={
+            "detail": "This content has already been imported.",
+            "already_imported": {"status": "imported", "source_key": "b2://bucket/message_3.json",
+                                 "imported_at": "2026-10-03T02:32:00Z", "workflow_id": "never-forwarded"},
+        })
+
+    monkeypatch.setattr(runtime, "start", refuse)
+    response = asyncio.run(runtime.start_endpoint(_start_request(), "LIVE"))
+    assert response.status_code == 409
+    assert json.loads(response.body) == {
+        "detail": "This content has already been imported.",
+        "already_imported": {"status": "imported", "source_key": "b2://bucket/message_3.json",
+                             "imported_at": "2026-10-03T02:32:00Z"},
+    }
+
+
+def test_start_keeps_other_errors_as_plain_detail(monkeypatch) -> None:
+    for status, payload in [(409, {"detail": "other conflict"}), (503, {"already_imported": {"status": "imported", "source_key": "x"}}),
+                            (409, {"already_imported": {"status": "bogus", "source_key": "x"}})]:
+        async def refuse(body, *, mode, status=status, payload=payload):
+            raise proffer.ProfferError("refused", status, payload=payload)
+
+        monkeypatch.setattr(runtime, "start", refuse)
+        try:
+            asyncio.run(runtime.start_endpoint(_start_request(), "LIVE"))
+        except HTTPException as error:
+            assert error.status_code == status
+            assert error.detail == "refused"
+        else:
+            raise AssertionError(f"{status} {payload} should stay a plain error")

@@ -33,7 +33,7 @@ import { SourceTree } from "@/components/sources/source-tree";
 import { detectedFormat, runsBySource, sourceRunHistory, sourceState } from "@/components/sources/source-state";
 import { Button } from "@/components/ui/button";
 import { AppLink, useBrowserSearchParams } from "@/lib/router-compat";
-import { processSelection, type SourceSubmission } from "@/components/sources/process-selection";
+import { processSelection, readSourceHref, type AlreadyImported, type SourceSubmission } from "@/components/sources/process-selection";
 import { confirmedCaseOwner, processingIdentity, requiresMessagePerspective, sourcePerspectiveScope, type SourcePerspectiveChoice } from "@/components/sources/source-perspective";
 import { getCaseIdentity } from "@/lib/case-identity-client";
 import {
@@ -117,6 +117,7 @@ function SourcesScreenMode() {
   const [processing, setProcessing] = useState(false);
   const [processMessage, setProcessMessage] = useState<string | null>(null);
   const [processError, setProcessError] = useState<string | null>(null);
+  const [alreadyImported, setAlreadyImported] = useState<AlreadyImported[]>([]);
   // Keep transport retries bound to the same requests, including partial selections.
   const submissions = useRef(new Map<string, SourceSubmission>());
   const humanSubmissions = useRef(new Map<string, { key: string; response?: HumanContextProgress }>());
@@ -431,6 +432,7 @@ function SourcesScreenMode() {
     setProcessing(true);
     setProcessError(null);
     setProcessMessage(null);
+    setAlreadyImported([]);
     try {
       const humanCase = {
         ...(matter?.id ? { matter_id: matter.id } : {}),
@@ -469,7 +471,12 @@ function SourcesScreenMode() {
         }
         const result = await processSelection([entry], startProffer, (accepted) => {
           setActivityHref(`/activity?${new URLSearchParams({ preview_handle: accepted.response!.preview_handle, mode })}`);
-        });
+        }, localSource.file.name);
+        if (result.alreadyImported) {
+          setAlreadyImported([result.alreadyImported]);
+          setProcessMessage(null);
+          return;
+        }
         setProcessMessage(result.accepted ? `${localSource.file.name} submitted.` : "File received; processing has not started.");
         setProcessError(result.error);
         return;
@@ -479,6 +486,7 @@ function SourcesScreenMode() {
         let accepted = 0;
         const submissionErrors: string[] = [];
         const outcomes: string[] = [];
+        const duplicates: AlreadyImported[] = [];
         for (const object of files) {
           const format = handlerOverride || detectedFormat(object.name);
           try {
@@ -520,13 +528,15 @@ function SourcesScreenMode() {
             }
             const result = await processSelection([entry], startProffer, (completed) => {
               setActivityHref(`/activity?${new URLSearchParams({ preview_handle: completed.response!.preview_handle, mode })}`);
-            });
+            }, object.name);
             accepted += result.accepted;
-            if (result.error) submissionErrors.push(`${object.name}: ${result.error}`);
+            if (result.alreadyImported) duplicates.push(result.alreadyImported);
+            else if (result.error) submissionErrors.push(`${object.name}: ${result.error}`);
             else outcomes.push(`${object.name}: submitted`);
           } catch (error) { submissionErrors.push(`${object.name}: ${errorText(error)}`); }
         }
-        setProcessMessage(`${accepted} of ${files.length} files submitted. ${outcomes.join(" · ")}`);
+        setAlreadyImported(duplicates);
+        setProcessMessage(`${accepted} of ${files.length} files submitted.${duplicates.length ? ` ${duplicates.length} already imported.` : ""} ${outcomes.join(" · ")}`);
         if (submissionErrors.length) setProcessError(`${submissionErrors.join(" · ")} Retry keeps the accepted files and resends only the unfinished requests.`);
         void runsQuery.refetch();
       } else if (selectedFolder && listing) {
@@ -668,6 +678,14 @@ function SourcesScreenMode() {
         {processMessage && <span className="text-[11px] text-[#17794b] dark:text-[#72d9a1]">{processMessage}</span>}
         {humanWorkflows.map((workflow) => <HumanProcessStatus key={workflow.workflowID} workflowID={workflow.workflowID} name={workflow.name} mode={mode} />)}
         {activityHref && <Button asChild variant="outline" size="sm"><AppLink href={activityHref}>View activity</AppLink></Button>}
+        {alreadyImported.map((earlier) => (
+          <div key={`${earlier.name}:${earlier.sourceKey}`} role="status" className="text-[11px]">
+            <span className="font-medium">{earlier.name ? `${earlier.name}: ` : ""}{earlier.status === "in_progress" ? "An import of this content is already in progress." : "This has already been imported."}</span>
+            {earlier.importedAt ? <span className="text-muted-foreground"> Imported {new Date(earlier.importedAt).toLocaleString()}.</span> : null}
+            {" "}<AppLink className="underline underline-offset-4" href={readSourceHref(earlier.sourceKey)}>View it</AppLink>
+            <span className="block break-all text-muted-foreground">{earlier.sourceKey}</span>
+          </div>
+        ))}
         {processError && (
           <div className="text-[11px] text-[#8f302a] dark:text-[#ffb5ae]" role="alert">
             <p><AlertTriangle className="inline h-3 w-3" /> Processing request failed. Review the selected source and prerequisite details before submitting again.</p>

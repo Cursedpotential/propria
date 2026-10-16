@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Header
+from fastapi.responses import JSONResponse
 
 from app.repo.object_store_client import DEFAULT_SOURCE_ROOT_ID
 from app.runtime.operating_mode import OperatingMode
@@ -124,7 +125,32 @@ async def start_endpoint(body: ProfferStartRequest, mode: OperatingMode):
     try:
         return await start(body, mode=mode)
     except ProfferError as error:
+        already = _already_imported(error)
+        if already is not None:
+            return JSONResponse(status_code=409, content={"detail": error.detail, "already_imported": already})
         raise _translate(error) from None
+
+
+def _already_imported(error: ProfferError) -> dict | None:
+    """The starter's duplicate-import refusal, narrowed to the fields the UI shows.
+
+    Owner spec 2026-10-15: "this has already been imported -- view it?". Only a 409
+    whose payload names an earlier import passes; every other error keeps the plain
+    detail. Byline: Claude Code · Opus 5.5 · 2026-10-16
+    """
+    if error.status_code != 409 or not isinstance(error.payload, dict):
+        return None
+    earlier = error.payload.get("already_imported")
+    if not isinstance(earlier, dict) or earlier.get("status") not in ("imported", "in_progress"):
+        return None
+    if not isinstance(earlier.get("source_key"), str):
+        return None
+    imported_at = earlier.get("imported_at")
+    return {
+        "status": earlier["status"],
+        "source_key": earlier["source_key"],
+        "imported_at": imported_at if isinstance(imported_at, str) else None,
+    }
 
 
 PreviewHandle = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{32,128}$")]
