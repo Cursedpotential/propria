@@ -21,8 +21,7 @@ def search(payload: SearchRequest) -> dict:
     Input is SearchRequest; output is the full cited retrieval response including
     partial failures. Sends one read-only POST; creates no run or evidence item.
     """
-    source_scope = {key: value for key in ("source_id", "path_prefix")
-                    if (value := getattr(payload, key)) is not None}
+    source_scope = payload.model_dump(include={"source_id", "path_prefix"}, exclude_none=True)
     result = spine_json("POST", "/v1/context/retrieve", json={
         **payload.model_dump(mode="json", exclude={"source_id", "path_prefix"}),
         "scope": source_scope,
