@@ -136,7 +136,7 @@ async def _exports() -> tuple[list[dict[str, Any]], bool]:
     return exports, lifecycles is not None
 
 
-async def sources(*, limit: int, offset: int, fmt: str | None) -> dict[str, Any]:
+async def sources(*, limit: int, offset: int, fmt: str | None, status: str | None = None, owner: str | None = None, q: str | None = None) -> dict[str, Any]:
     """Project version outcomes into source files, export pages and summary totals.
     Inputs: the read scope and pagination arguments in this signature.
     Output: the unchanged Imported projection; effects: read-only upstream calls.
@@ -145,6 +145,18 @@ async def sources(*, limit: int, offset: int, fmt: str | None) -> dict[str, Any]
     exports, lifecycle_ok = await imported._exports()
     if fmt:
         exports = [item for item in exports if item["format"].lower() == fmt.lower()]
+    if status:
+        exports = [item for item in exports if item["status"] == status]
+    if owner:
+        exports = [item for item in exports if bool(item.get("owner") or item.get("owner_name")) == (owner == "recorded")]
+    if q:
+        needle = q.casefold().strip()
+        if needle:
+            exports = [item for item in exports if any(
+                needle in str(item.get(field) or "").casefold()
+                for field in ("file_name", "casevault_key", "export_key", "device",
+                              "owner", "owner_name", "format")
+            )]
     page = exports[offset: offset + limit]
     totals = {"files": sum(i["files"] for i in exports), "raw": sum(i["raw"] for i in exports),
               "normalized": sum(i["normalized"] for i in exports), "committed": sum(i["committed"] for i in exports)}
