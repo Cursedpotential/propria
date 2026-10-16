@@ -48,9 +48,18 @@ async def sources_endpoint(
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
     offset: Annotated[int, Query(ge=0, le=100000)] = 0,
     format: Annotated[Literal["SMS", "Calls", "Facebook", "Other"] | None, Query()] = None,
+    status: Annotated[Literal["committed", "awaiting_review", "running", "failed", "parked", "not_finished", "skipped"] | None, Query()] = None,
+    owner: Annotated[Literal["recorded", "unrecorded"] | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
 ):
+    """Filter the complete recorded import list before applying result pagination.
+    Inputs: optional format, status, ownership and bounded filename/path query.
+    Outputs: exact recorded import summaries with honest filtered totals.
+    Effects: read-only; this route never invents source categories or lineage.
+    """
     try:
-        return await service.sources(limit=limit, offset=offset, fmt=format)
+        extras = {name: value for name, value in (("status", status), ("owner", owner), ("q", q)) if value}
+        return await service.sources(limit=limit, offset=offset, fmt=format, **extras)
     except service.ImportedError as error:
         raise _translate(error) from None
 
