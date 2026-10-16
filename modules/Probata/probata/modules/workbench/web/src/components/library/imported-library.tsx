@@ -52,6 +52,7 @@ export function ImportedLibrary({ params, selectedSourceId }: {
     const value = params.get("lib_status");
     return STATUSES.find((item) => item.id === value)?.id ?? "all";
   });
+  const [showHistory, setShowHistory] = useState(false);
   const [ownerFilter, setOwnerFilter] = useState<LibraryOwnerFilter>(() => {
     const value = params.get("lib_owner");
     return value === "recorded" || value === "unrecorded" ? value : "all";
@@ -63,6 +64,14 @@ export function ImportedLibrary({ params, selectedSourceId }: {
     initialPageParam: 0,
     getNextPageParam: (last) => last.next_offset ?? undefined,
   });
+  const history = useInfiniteQuery({
+    queryKey: ["m-source-history", selectedSourceId],
+    queryFn: ({ pageParam, signal }) => importedApi.sourceHistory(selectedSourceId!, pageParam, signal),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_offset ?? undefined,
+    enabled: Boolean(selectedSourceId) && showHistory,
+  });
+  const historyRows = history.data?.pages.flatMap((page) => page.items) ?? [];
   const rows = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   const shown = useMemo(
     () => filterImportedLibrary(rows, { text: search, status, owner: ownerFilter }),
@@ -232,6 +241,48 @@ export function ImportedLibrary({ params, selectedSourceId }: {
               {" " + formatCount(selected.split.in_progress)} in progress of {formatCount(selected.split.total)}
             </p>
           ) : null}
+          <div className="space-y-2 rounded-md border bg-card p-2">
+            <button type="button" className="flex w-full items-center justify-between text-left text-xs font-semibold text-foreground"
+              aria-expanded={showHistory} onClick={() => setShowHistory((open) => !open)}>
+              <span>View recorded source versions</span>
+              <span className="text-muted-foreground">{showHistory ? "Hide" : "Open"}</span>
+            </button>
+            {showHistory ? <>
+              <p className="text-[11px] text-muted-foreground">
+                Exact export-key association, not proof that two files or generated versions are duplicates.
+              </p>
+              {history.isPending ? <Loading /> : null}
+              {history.isError ? <ErrorBox error={history.error} onRetry={() => void history.refetch()} /> : null}
+              {history.data ? <>
+                <p className="text-[11px] text-muted-foreground">
+                  {formatCount(historyRows.length)} of {formatCount(history.data.pages[0].total)} recorded versions
+                </p>
+                <ul className="max-h-72 divide-y overflow-y-auto" aria-label="Recorded source versions">
+                  {historyRows.map((entry) => (
+                    <li key={entry.source_version_id} className="space-y-1 py-2 text-xs">
+                      <p className="break-all font-medium text-foreground">{entry.source_key}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {entry.relation === "export_root" ? "Export root" : "Member of recorded export"}
+                        {" · version " + entry.version_ordinal}
+                        {" · " + (entry.published ? "published" : entry.approved ? "approved" : entry.rejected ? "rejected" : "not yet approved")}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatCount(entry.raw)} raw · {formatCount(entry.normalized)} extracted
+                        {" · " + (entry.acquired_at || "acquisition time unknown")}
+                      </p>
+                      <p className="break-all font-mono text-[10px] text-muted-foreground">Source version: {entry.source_version_id}</p>
+                    </li>
+                  ))}
+                </ul>
+                {history.hasNextPage ? (
+                  <Button type="button" size="sm" variant="outline" className="w-full"
+                    disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>
+                    {history.isFetchingNextPage ? "Loading…" : "Load more versions"}
+                  </Button>
+                ) : null}
+              </> : null}
+            </> : null}
+          </div>
           {candidateNames.length ? (
             <details className="text-xs">
               <summary className="cursor-pointer font-medium">Same-name imports in loaded results ({candidateNames.length})</summary>
