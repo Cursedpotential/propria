@@ -136,7 +136,7 @@ async def _exports() -> tuple[list[dict[str, Any]], bool]:
     return exports, lifecycles is not None
 
 
-async def sources(*, limit: int, offset: int, fmt: str | None) -> dict[str, Any]:
+async def sources(*, limit: int, offset: int, fmt: str | None, status: str | None = None, owner: str | None = None, q: str | None = None) -> dict[str, Any]:
     """Project version outcomes into source files, export pages and summary totals.
     Inputs: the read scope and pagination arguments in this signature.
     Output: the unchanged Imported projection; effects: read-only upstream calls.
@@ -145,6 +145,18 @@ async def sources(*, limit: int, offset: int, fmt: str | None) -> dict[str, Any]
     exports, lifecycle_ok = await imported._exports()
     if fmt:
         exports = [item for item in exports if item["format"].lower() == fmt.lower()]
+    if status:
+        exports = [item for item in exports if item["status"] == status]
+    if owner:
+        exports = [item for item in exports if bool(item.get("owner") or item.get("owner_name")) == (owner == "recorded")]
+    if q:
+        needle = q.casefold().strip()
+        if needle:
+            exports = [item for item in exports if any(
+                needle in str(item.get(field) or "").casefold()
+                for field in ("file_name", "casevault_key", "export_key", "device",
+                              "owner", "owner_name", "format")
+            )]
     page = exports[offset: offset + limit]
     totals = {"files": sum(i["files"] for i in exports), "raw": sum(i["raw"] for i in exports),
               "normalized": sum(i["normalized"] for i in exports), "committed": sum(i["committed"] for i in exports)}
@@ -163,6 +175,48 @@ async def _export_for(source_id: str) -> dict[str, Any]:
         if item["export_key"] == export_key:
             return item
     raise imported.ImportedError("Unknown source", 404)
+
+
+async def source_history(source_id: str, *, limit: int, offset: int) -> dict[str, Any]:
+    """Read exact retained source versions grouped by one imported export key.
+    Inputs: authenticated existing Imported source ID and bounded page.
+    Outputs: recorded source-version coordinates and attempt state, never inferred equality.
+    Side effects: PostgreSQL/catalog reads only. Use for history/lineage triage before
+    proposing any derivation, duplicate or cleanup relationship.
+    """
+    selected = await imported._export_for(source_id)
+    export_key = selected["export_key"]
+    matter = imported.live_matter()
+    rows = await asyncio.to_thread(
+        lambda: imported._cached(f"sv:{matter}", 15, lambda: imported.pg.source_versions(matter))
+    )
+    related = [row for row in rows if row["export_key"] == export_key]
+    related.sort(
+        key=lambda row: (row["acquired_at"] or datetime.min.replace(tzinfo=UTC),
+                         row["version_ordinal"], row["id"]), reverse=True
+    )
+    page = related[offset:offset + limit]
+    items = [{
+        "source_version_id": row["id"],
+        "source_key": row["source_key"],
+        "export_key": row["export_key"],
+        "relation": "export_root" if row["source_key"] == export_key else "same_recorded_export",
+        "version_ordinal": row["version_ordinal"],
+        "acquired_at": imported._iso(row["acquired_at"]),
+        "published": bool(row["published"]),
+        "approved": bool(row["approved"]),
+        "rejected": bool(row["rejected"]),
+        "raw": row["raw_n"],
+        "normalized": row["norm_n"],
+        "messages": row["msgs"],
+        "calls": row["calls"],
+    } for row in page]
+    return {
+        "source_id": source_id, "export_key": export_key, "items": items,
+        "total": len(related),
+        "next_offset": offset + limit if offset + limit < len(related) else None,
+        "relation_basis": "exact_recorded_export_key",
+    }
 
 
 async def summary() -> dict[str, Any]:

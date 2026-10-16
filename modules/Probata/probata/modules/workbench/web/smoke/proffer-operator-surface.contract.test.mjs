@@ -25,8 +25,8 @@ const desk = readFileSync(new URL("../src/surfaces/primary/evidence-operations-d
 const tools = readFileSync(new URL("../src/components/tools/atomic-tools.tsx", import.meta.url), "utf8");
 const client = readFileSync(new URL("../src/lib/api-client.ts", import.meta.url), "utf8");
 
-test("the primary surface names the full Sources Activity Read workflow", () => {
-  for (const title of ["Sources", "Activity", "Read"]) assert.ok(navigation.includes(`title: "${title}"`));
+test("the primary surface retains Sources, Activity and the Library & Review reader", () => {
+  for (const title of ["Sources", "Activity", "Library & Review"]) assert.ok(navigation.includes(`title: "${title}"`));
   assert.match(sidebar, /Sources/);
   assert.match(sidebar, /Activity/);
   assert.match(sidebar, /Read/);

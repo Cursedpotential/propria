@@ -5,11 +5,29 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 
+
+/** The source helper now imports ApiError from the runtime client.
+ * Its operations remain real; only this unavailable browser import is substituted.
+ * No network actions or source mutations occur in these VM tests.
+ */
+function stubApiClient(id) {
+  if (id !== "@/lib/api-client") throw new Error(`Unexpected runtime dependency: ${id}`);
+  return {
+    ApiError: class ApiError extends Error {
+      constructor(message, status, body) {
+        super(message);
+        this.status = status;
+        this.body = body;
+      }
+    }
+  };
+}
+
 function load(path) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const module = { exports: {} };
   runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-    { module, exports: module.exports, URLSearchParams, Error });
+    { module, exports: module.exports, URLSearchParams, Error, require: stubApiClient });
   return module.exports;
 }
 const { canonicalWorkflowHref, attemptReadHref, previewSelectionHref } = load("../src/lib/workflow-links.ts");

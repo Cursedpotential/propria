@@ -51,6 +51,7 @@ from app.service.imported_sources import (
     file_rows as file_rows,
     _exports as _exports,
     sources as sources,
+    source_history as source_history,
     _export_for as _export_for,
     summary as summary,
 )

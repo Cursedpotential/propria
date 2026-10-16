@@ -8,11 +8,29 @@ import ts from "typescript";
  * Input: module path. Output: real exports. Effects: bounded in-memory compilation only.
  * Pick for native and legacy Process contracts without starting live workflows.
  */
+
+/** The source helper now imports ApiError from the runtime client.
+ * Its operations remain real; only this unavailable browser import is substituted.
+ * No network actions or source mutations occur in these VM tests.
+ */
+function stubApiClient(id) {
+  if (id !== "@/lib/api-client") throw new Error(`Unexpected runtime dependency: ${id}`);
+  return {
+    ApiError: class ApiError extends Error {
+      constructor(message, status, body) {
+        super(message);
+        this.status = status;
+        this.body = body;
+      }
+    }
+  };
+}
+
 function loadHelpers(path) {
   const module = { exports: {} };
   runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module, exports: module.exports, Error, URL });
+  }).outputText, { module, exports: module.exports, Error, URL, require: stubApiClient });
   return module.exports;
 }
 const { confirmedCaseOwner, sourcePerspectiveScope, processingIdentity, requiresMessagePerspective } = loadHelpers("../src/components/sources/source-perspective.ts");
@@ -65,7 +83,7 @@ function processHarness(overrides = {}) {
   const scope = sourcePerspectiveScope("LIVE", [[file.source_ref, file.etag, file.byte_length]]);
   const context = {
     matter: { id: "matter-registry" }, primaryCourtCase: { id: "court-registry" }, mode: "LIVE",
-    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, hasAIProcessTarget: false, aiProcessBlocked: false, addAIChatToContext: async () => { throw new Error("Unexpected AI start"); }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {},
+    processBusy: { current: false }, showContentSearch: false, processTarget: "selected", unsupportedMedia: false, hasAIProcessTarget: false, aiProcessBlocked: false, addAIChatToContext: async () => { throw new Error("Unexpected AI start"); }, setProcessing() {}, setProcessError: (error) => errors.push(error), setProcessMessage() {}, setUploadProgress() {}, setActivityHref() {}, setAlreadyImported() {},
     registryPeople: people, perspectiveScope: scope, perspectiveChoice: { scope, personId: "registry-owner" },
     localSource: null, processFiles: [file], selectedFiles: [], selectedObject: file, selectedFolder: null,
     submissions: { current: new Map() }, handlerOverride: "", runsQuery: { refetch() {} },
@@ -82,6 +100,13 @@ function processHarness(overrides = {}) {
     Error,
     ...overrides,
   };
+  // Match the component's active explicit perspective after every owner/source change.
+  // This getter is recomputed when the harness mutates the selected identity.
+  Object.defineProperty(context, "effectivePerspective", {
+    get: () => context.perspectiveChoice?.scope === context.perspectiveScope
+      ? context.perspectiveChoice
+      : null,
+  });
   const js = ts.transpileModule([...callbacks.values()].join("\n") + "\nglobalThis.invokeProcess = process;", { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   runInNewContext(js, context);
   return { context, invoke: context.invokeProcess, requests, humanRequests, humanKeys, versions, workflows, errors, file, scope };
@@ -215,7 +240,8 @@ test("explicit selection applies perspective only to the selected files, not ano
 
 test("non-message sources keep normal Process without a perspective requirement", () => {
   assert.equal(requiresMessagePerspective("report.xml", "xml"), false);
-  assert.equal(requiresMessagePerspective("chatgpt.json", "message_export_json"), false);
+  assert.equal(requiresMessagePerspective("chatgpt.json", "chatgpt_official_json"), false);
+  assert.equal(requiresMessagePerspective("facebook-messages.json", "message_export_json"), true);
   assert.equal(requiresMessagePerspective("sms-20251102230302.xml", "xml"), true);
   assert.deepEqual(JSON.parse(JSON.stringify(processingIdentity([], "selection", null, false))), {});
 });

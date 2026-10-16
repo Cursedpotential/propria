@@ -23,8 +23,8 @@ export const primaryNavigationItems = [
     surface: "primary",
   },
   {
-    title: "Read",
-    pageTitle: "Read",
+    title: "Library & Review",
+    pageTitle: "Library & Review",
     href: "/read",
     icon: BookOpen,
     surface: "primary",
