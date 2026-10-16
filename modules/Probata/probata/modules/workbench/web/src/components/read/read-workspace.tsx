@@ -1,7 +1,6 @@
 // Byline: Codex · GPT-6 · 2026-10-06
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { SelectableConversations, type SelectableItem } from "@/components/conversations/selectable-conversations";
 import { ImportedLibrary } from "@/components/library/imported-library";
