@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ErrorBox, Loading } from "@/components/mobile/mobile-ui";
 import { formatCount, statusLabel } from "@/components/mobile/mobile-format";
 import { readHref } from "@/components/read/read-location";
-import { importedApi, type ImportedSource, type SourceStatus } from "@/lib/imported-client";
+import { importedApi, type SourceStatus } from "@/lib/imported-client";
 import {
   filterImportedLibrary, libraryFormat, possibleSameNameImports,
   type LibraryFormat, type LibraryOwnerFilter,
