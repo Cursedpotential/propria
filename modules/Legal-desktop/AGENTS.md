@@ -27,29 +27,31 @@ These owner decisions supersede the read-only toolkit/library and stack statemen
 below for this convergence lane. Root `AGENTS.md` governs the current monorepo
 boundary and `modules/Legal-desktop/` routing.
 
-<!-- Owner routing decision: 2026-09-13. Supersedes historical paths below. -->
-**Canonical application:** `E:/AI_Workspace/Projects/Propria/Legal-desktop`.
-This directory is the independent Advocatio Git repository. The former
-`Probata/probata/modules/advocatio-legal_workbench` location is retired.
-The original Legal-desktop build guide, handoffs, archives and donors are preserved
-under `resources/build-kit/` as reference material. Do not execute donor instructions
-as application guidance. The application build guide remains under `docs/`.
+<!-- Routing reconciled 2026-10-17 against the completed 2026-09-26 root import. -->
+**Canonical module:** `E:/AI_Workspace/Projects/Propria/modules/Legal-desktop`.
+Advocatio belongs to the single `Cursedpotential/propria` repository. Its commit
+boundary is the Propria root; applicable product instructions remain in this module.
+The [root contract](../../AGENTS.md) and
+[import decision](../../docs/decisions/2026-09-26-monorepo-import.md) govern current routing.
+Original build guides, handoffs, archives and donors under `resources/build-kit/`
+remain reference material. The application build guide stays under `docs/`.
 Evidence-platform routing is `../Probata/probata/AGENTS.md`.
-The owner-selected canonical path overrides earlier placement and proposed import paths.
-See `docs/RECONCILIATION-2026-09-13.md` for preservation and comparison evidence.
+
+_Routing reconciliation: ChatGPT · GPT-6 Astra · 2026-10-17; existing owner decisions._
 
 # Advocatio — the legal workdesk (legal workbench) — Agent Orientation
 
 <!-- Title corrected by Claude Code · Fable 5.1 · 2026-09-14 09:03 EDT (owner: "router is missing legal workbench work desk"). Was "Legal-Workspace — Agent Orientation". -->
 
-> _Naming (D-138, 2026-09-05; applied 2026-09-06): this product is **advocatio** (formerly Legal-Workspace / Legal Workspace); the evidence platform it consumes is **Indicia Probata** / `probata` (formerly Agno-MCP-Platform). ~~Directory: `probata/modules/advocatio/` (old name kept as a junction).~~ **Corrected 2026-09-14 (Claude Code · Fable 5.1): the directory is this repository, `E:\AI_Workspace\Projects\Propria\Legal-desktop`, per the owner routing decision of 2026-09-13 at the top of this file; the `probata/modules/advocatio-legal_workbench` location is retired.** GitHub repo name unchanged pending its own decision. Canon: `probata/docs/NAMING.md`. Historical text below is left verbatim; both names remain valid in recall stores (D-142)._
-
+> _Naming: D-138, 2026-09-05. This product is Advocatio; the evidence-record
+> product is Indicia Probata. Current naming authority:
+> `../Probata/probata/docs/NAMING.md`. Historical aliases remain searchable (D-142)._
 
 > _Byline: Grok · grok-4.6 · 2026-08-18_
 
-**This is the legal-practice sibling of `Agno-MCP-Platform/`.**
-Agno remains the evidence truth system. This repository begins after evidence
-has been reviewed and accepted.
+**Advocatio is the legal-work module alongside Indicia Probata.**
+Indicia Probata owns the evidence record. This module consumes reviewed and accepted
+evidence through the governed integration contract.
 
 ## Read first
 
@@ -109,7 +111,7 @@ has been reviewed and accepted.
   `LegalSourcePackage` items only. Annotations persist. No evidence
   bytes. No seeded Bates numbers.
 - **Redaction (`POST /v1/redactions`)** edits an owner-produced PDF
-  content stream with pikepdf. Not Agno evidence. Not court-safe.
+  content stream with pikepdf. This does not modify Probata evidence. Not court-safe.
 - **Confidential Mode** persists on `state.confidential_mode` via
   `GET/PUT /v1/confidential`. Chrome cache is localStorage only.
 - **Privilege first-pass (`PRIV`)** is keyword-only hypothesized
@@ -130,7 +132,7 @@ has been reviewed and accepted.
   no PACER, no n8n outbound (HOLD), no tab-timer automations.
   `court_safe=false`. Mutations go to `data/workspace` JSONL.
 
-## Stack (locked)
+## Implementation and current convergence contract
 
 - Web: **Next.js 16 App Router + React 19** — best Vercel AI SDK fit
   (RSC for Matter/FILE/RELS, client for CHAT/command line).
@@ -143,8 +145,10 @@ has been reviewed and accepted.
   `/data/workspace/legal.sqlite`) through `WorkspaceStore`
   (`api/legal_workspace/services/workspace.py`, `db/engine.py`). Postgres is not wired:
   `DATABASE_URL` is unset in `compose.yaml`, whose DATABASE note explains why.
-  Family Law Toolkit records stay in the toolkit's store and are read through
-  `/v1/toolkit` (`services/family_court_toolkit.py`), never copied.
+  This SQLite ownership applies to workdesk state. The October 4 convergence
+  decision above places the shared Family Court library in `surreal-case`
+  (`fct/case`); the existing read-only `/v1/toolkit` bridge is an implementation
+  step, not the final library boundary.
 - Object bytes: R2/S3-compatible (`legal/` prefix)
 - Models: existing Portkey gateway (`model-gateway`)
 - Agents: Agno adapter behind neutral interfaces
@@ -154,7 +158,7 @@ has been reviewed and accepted.
 ```
 api/legal_workspace/   Python package (contracts → config → repos → services → api)
 web/                   Next.js Matter command center
-sql/                   numbered raw SQL, same convention as Agno
+sql/                   workdesk SQL sources; inspect the current local database contract
 tests/                 pytest against shipped functions
 docs/                  canon, deployment, research reports
 deploy/                one Coolify compose file per service
@@ -169,10 +173,11 @@ factor → one evidence-linked draft section → citation gate → owner review
 
 Do not start with a generic chat screen.
 
-## Service names (never tailnet IPs)
+## Service discovery
 
-`legal-workspace` `legal-web` `legal-api` `legal-agents` `legal-renderer`
-`legal-postgres` `evidence-platform` `model-gateway`
+Use the current deployment configuration and service inventory for endpoints.
+The August deployment plan and its proposed service names are dated history;
+they do not establish which services are currently deployed.
 
 ## This case
 
@@ -182,9 +187,9 @@ are not present in the live workspace as of 2026-08-29. Do not infer, recreate, 
 those source packets. Use the reviewed material already retained under `docs/planning/` and record a
 blocker if an absent donor is specifically required.
 
-Sister repo `../Agno-MCP-Platform/` is CocoIndex-indexed. Search it with
-`ccc search` **from that directory** — do not `ccc init` here and do
-not re-crawl. Notes: `docs/planning/AGNO-INDEX-NOTES.md`.
+For Probata source, follow `../Probata/probata/AGENTS.md` and the current root
+indexing routes. `docs/planning/AGNO-INDEX-NOTES.md` records the historical
+Agno-MCP-Platform path; it is not a current repository or index location.
 
 ---
 

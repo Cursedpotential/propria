@@ -16,4 +16,4 @@ CCC is CocoIndex Code for individual codebases. Intake is the multifaceted CocoI
 
 Preserve existing Docstore App/environment/tracking ownership unless a separately verified migration changes it. Never use ccc commands or codebase tracking state to run this documentation pipeline. Memory/evidence stores remain separate destinations.
 
-See [shared boundaries](../../../../SYSTEM-BOUNDARIES.md). This records intended scope, not implementation readiness.
+See [shared boundaries](../../SYSTEM-BOUNDARIES.md). This records intended scope, not implementation readiness.

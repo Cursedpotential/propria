@@ -10,6 +10,16 @@ tags: [purpose, canon, owner-decision, review, sources, intake]
 
 > _Byline: Claude Code · Fable 5.1 · 2026-09-22 19:54 EDT. Recorded after the owner asked "what is this screen supposed to do?" and the answer had to be reconstructed from four months of logs. The six steps are the owner's intent, worded cleanly. The record section quotes him with dates._
 
+> **Current processing amendment — 2026-10-17 reconciliation of the October 8 owner decision:**
+> the six-step statement below is preserved as the September 22 record. Its
+> hash/custody wording is not a prerequisite for current ingestion. Every source
+> enters context without hashing, custody or pre-storage/search approval gates;
+> AI conversations remain context and their bodies stay outside PostgreSQL.
+> Hash inspection and eventual evidence admission retain their separate scope.
+> See [the current canon](PROJECT_CANON.md#3-the-knowledge-engine--context-first-source-preserving)
+> and [the exact governing records](../../../../docs/ARCHITECTURE-REFERENCE-RECONCILIATION-2026-10-17.md).
+> _ChatGPT · GPT-6 Astra · 2026-10-17; scope correction, not a rewrite of the owner history._
+
 ## The goal — owner, 2026-09-22 19:54
 
 The owner stated the goal as six steps. This is the cleaned statement; the intent is his, the wording is tidied, and it is the standard every surface is measured against:

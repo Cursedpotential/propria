@@ -1,11 +1,27 @@
 ---
 title: Propria monorepo import — nine modules fold in with full history
 date: 2026-09-26
-status: imported-pending-cutover
+status: imported
 tags: [monorepo, repository-topology, git, propria, probata, consignatio, legal-desktop, vestigia, pii]
 ---
 
 # Propria monorepo import (2026-09-26)
+
+## Current routing
+
+The import and repository cutover are complete. All imported products and
+application forks commit at the Propria root; the child `.git` directories were
+retired to `.review_hold/2026-09-26-retired-child-git/`. The old product remotes
+are archives. Use the root `AGENTS.md` current routing table and
+`docs/monorepo-migration-manifest.json` for active paths.
+
+This status follows the existing root contract dated 2026-09-26 and the
+independent confirmation in `modules/vestigia-geodata_processor/AGENTS.md`
+dated 2026-10-02. It supersedes the pre-cutover checklist retained below. It
+does not re-verify live service health or the historical credential observations.
+
+_Routing amendment: ChatGPT · GPT-6 Astra · 2026-10-17; source read at
+`68f369e`. Original decision and receipt: Claude Code · Opus 5 · 2026-09-26._
 
 ## Decision
 
@@ -13,7 +29,7 @@ The product repositories and the forks the application uses are imported into th
 Propria repository with `git subtree`, preserving every commit. Owner decision
 2026-09-26, after five days of asking for the conversion to be completed.
 
-**Imported** at their existing paths:
+**Imported histories**, with current module paths:
 
 | Module | Prefix | Source |
 |---|---|---|
@@ -21,25 +37,32 @@ Propria repository with `git subtree`, preserving every commit. Owner decision
 | Consignatio / Intake | `modules/Consignatio` | `main` ∪ `origin/main` (had diverged 39/8) |
 | Advocatio legal workdesk | `modules/Legal-desktop` | `master` |
 | Vestigia | `modules/vestigia-geodata_processor` | `main` |
-| TraceIQ Rebuild | `…/traceiq-rebuild` | `master` |
+| Vestigia app (formerly TraceIQ Rebuild) | `modules/vestigia-geodata_processor/vestigia` | `master`; imported as `traceiq-rebuild`, renamed 2026-10-02 |
 | SBV forensic fork | `modules/Probata/probata/modules/forks/sbv` | `platform-sync` (gitlink replaced with real content) |
-| Timesketch fork | `…/modules/forks/timesketch` | `master` (no remote — single copy) |
-| Probata custom | `…/modules/custom` | `master` (no remote — single copy) |
-| Xplorer copilot fork | `…/xplorer-copilot-buildkit/xplorer-copilot` | `feat/hosted-intake-engine` |
+| Timesketch fork | `modules/Probata/probata/modules/forks/timesketch` | `master` (no remote at import) |
+| Probata custom | `modules/Probata/probata/modules/custom` | `master` (no remote at import) |
+| Xplorer copilot fork | `modules/Consignatio/Intake/xplorer-copilot-buildkit/xplorer-copilot` | `feat/hosted-intake-engine` |
 | probata_build_crew | `modules/Probata/probata_build_crew` | no commits — source added as new files |
 
-**Deliberately excluded**, by owner rulings the same day: `memsearch` and
-`claude-context` are development tooling rather than application forks, and move
-to `E:/AI_Workspace/plugins/forks/` (the plugin marketplace, moved out of `~/.claude` on 2026-09-28).
+**Deliberately external development tooling:** the import excluded `memsearch`
+and `claude-context`. The current root contract also lists `cocoindex-code`;
+all three live under `E:/AI_Workspace/plugins/forks/` (the plugin marketplace,
+moved out of `~/.claude` on 2026-09-28).
 
-## Why subtree rather than a flat import
+## Historical import receipt — 2026-09-26
+
+The counts, working-tree observations and credential findings in this section
+are the dated import receipt. They are not current desktop, runtime, publication
+or credential-status verification.
+
+### Why subtree rather than a flat import
 
 `git subtree add` replays every source commit under the module prefix, so `git log`
 and `git blame` keep working across the move. A flat one-commit-per-module import
 would have kept Propria's history small but dead-ended blame at the import date.
 The owner chose full history.
 
-## Content excluded from the monorepo
+### Content excluded from the monorepo
 
 A first attempt at this import committed evidence corpus and personal data,
 because "merge it all" was read as "every branch and every untracked file"
@@ -67,15 +90,16 @@ parent commit would still place their objects in this repository and push them:
 - `codex/casekit-ab` — the "stays local" Case Bible corpus, 1,118 files.
 - `local-archive/pre-private-publication-20260911` — a pre-sanitisation snapshot.
 
-Neither is lost. Both remain in Consignatio's own `.git` and in the verified
-bundles under `.reconciliation/2026-09-26-pre-cutover-bundles/`.
+Both were preserved in Consignatio's `.git` and in the verified bundles under
+`.reconciliation/2026-09-26-pre-cutover-bundles/`. The root's completed-cutover
+contract now locates that `.git` in the retired child-Git holding directory.
 
 Six files from a protected holding directory remain, carried in Probata's own
 committed history rather than added here: a stale `index.lock`, a temp block file,
 naming-sweep output and one retired code chunk. They contain no personal data or
 credentials, and removing them would require rewriting Probata's history.
 
-## Secrets
+### Secrets — observations recorded at import
 
 A full-history sweep found live credentials at HEAD in Probata, Consignatio,
 Vestigia and TraceIQ. Current trees are being redacted separately; history is not
@@ -89,7 +113,7 @@ The owner was shown this and chose full history regardless, accepting that
 publishing Propria publishes those keys. Rotation remains open and is the owner's
 call.
 
-## Verification
+### Verification recorded at import
 
 Every local-only branch across all nine repositories is either reachable from the
 import branch or on the excluded list above. Working trees, indexes and HEADs of
@@ -98,22 +122,25 @@ temporary index, and conflicts were resolved in throwaway worktrees.
 
 Result: **3,097 commits, 15,745 files, clean tree, zero tracked `.env` files.**
 
-## Not yet done: the cutover
+## Historical pre-cutover checklist — 2026-09-26, superseded
 
-The import lives on `integration/monorepo-import-20260926` and is unpushed. The
-nine child `.git` directories remain in place and authoritative.
+At the time of this receipt, the import was on
+`integration/monorepo-import-20260926`, unpushed, and the nine child `.git`
+directories were still in place. The completed-cutover authority at the top of
+this document replaces that state and its child-repository commit instructions.
 
-Remaining work, in order:
+The checklist recorded then was:
 
-1. Resync — Consignatio and Probata have moved since the fold.
-2. Wait for the in-flight secret-redaction commits to land.
-3. Drain or retire the child worktrees; Probata alone has 27.
-4. Re-point Coolify: 32 of 35 apps build from `Cursedpotential/probata`, and six
-   have no watch paths, so every root commit would redeploy them. Plan and
-   per-app diff are in `docs/MONOREPO-COOLIFY-CUTOVER-PLAN-2026-09-26.md`.
-5. Move each child `.git` into quarantine; keep the old remotes as archives.
-6. Switch the main checkout over and verify file counts per module.
+1. Resync Consignatio and Probata changes made since the fold.
+2. Wait for the in-flight secret-redaction commits.
+3. Drain or retire child worktrees; Probata's recorded count was 27.
+4. Re-point Coolify; the recorded inventory had 32 of 35 apps building from
+   `Cursedpotential/probata`, with six missing watch paths. The dated plan and
+   per-app diff remain in `docs/MONOREPO-COOLIFY-CUTOVER-PLAN-2026-09-26.md`.
+5. Retire each child `.git` and keep the old remotes as archives.
+6. Switch the main checkout and verify file counts per module.
 
-Until step 6, product changes still commit in the child repositories.
+These are historical migration steps, not an instruction to repeat the cutover
+or to commit in a retired child repository.
 
 _Byline: Claude Code · Opus 5 · 2026-09-26_

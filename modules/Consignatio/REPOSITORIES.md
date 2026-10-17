@@ -1,7 +1,18 @@
-# Consignatio — private repository map
+# Consignatio — current source and historical repository checkpoints
 
-Owner-authorized source backup, 2026-09-11. This is a Git checkpoint, not a claim
-that the application MVP or live combined-index proof is complete.
+## Current source
+
+Consignatio, Intake and both imported Xplorer source folders are part of
+[`Cursedpotential/propria`](https://github.com/Cursedpotential/propria), under
+`modules/Consignatio/`. Use the existing Propria checkout and commit at its root.
+The [root contract](../../AGENTS.md) and completed
+[September 26 import](../../docs/decisions/2026-09-26-monorepo-import.md)
+supersede the separate-clone and per-product push instructions formerly here.
+
+## Historical source backup — 2026-09-11
+
+The following repository names, branches and checkpoints describe the September 11
+backup. They are provenance for the import, not current checkout or deployment targets.
 
 | Source | Private repository | Branch / checkpoint |
 |---|---|---|
@@ -9,22 +20,6 @@ that the application MVP or live combined-index proof is complete.
 | Native Intake desktop (Xplorer fork) | https://github.com/Cursedpotential/Intake-desktop | `feat/acp-copilot`, `6990b7ed` |
 | Existing Xplorer build kit | https://github.com/Cursedpotential/xplorer-copilot-buildkit | `main`, `d0954e37` |
 | Repair toolkit source | https://github.com/Cursedpotential/Consignatio | `main`, under `repair-tool-kit/`; source-only integration from local `cfe951a` and its preserved working changes |
-
-## Recreate the application checkout
-
-Use an empty destination on E:. These child repositories are intentionally
-independent and ignored by the parent; cloning the parent alone does not obtain
-the native desktop. Do not run these commands over existing working directories.
-
-```powershell
-cd "E:\AI_Workspace\Projects\Propria" && gh repo clone Cursedpotential/Consignatio Consignatio
-cd "E:\AI_Workspace\Projects\Propria\Consignatio" && gh repo clone Cursedpotential/Intake-desktop Intake/xplorer-copilot-buildkit/xplorer-copilot -- --branch feat/acp-copilot
-cd "E:\AI_Workspace\Projects\Propria\Consignatio" && gh repo clone Cursedpotential/xplorer-copilot-buildkit Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit
-```
-
-Existing desktop checkout uses remote `private` for pushes and branch tracking.
-Its public `origin` and upstream remain available for fetching only. A fresh clone
-from Intake-desktop naturally uses the private repository as `origin` instead.
 
 ## Local history is preserved, not published
 
@@ -68,5 +63,7 @@ Private source backup is not a backup of the owner's evidence corpus or credenti
 - No application build, service restart, corpus scan or model workload was started
   as part of Git publication. Prior scoped test results remain in the Intake handoff.
 
-Continue application work from
-`Intake/docs/HANDOFF-2026-09-11-INTAKE-NATIVE-AND-INDEX.md`.
+The September 11 handoff is historical. Current application routing starts at
+`AGENTS.md` and `AGENT_MEMORY.md`, then the selected Intake lane.
+
+_Routing reconciliation: ChatGPT · GPT-6 Astra · 2026-10-17._

@@ -1,26 +1,21 @@
 # =============================================================================
-# DATA TIER — POSTGRES SUBSET, split out of compose.data.yaml.
-# Reason: 2026-06-25 incident + owner mandate 2026-07-05 — every DB must be its
-# own Coolify app so any one crashing / being updated never takes down the
-# others. Mirrors the Milvus split (commit 18c42d2 / compose.data-vector.yaml).
+# POSTGRESQL SERVICE — source in the Propria monorepo.
+# Coolify source routing: Cursedpotential/propria, base directory
+# /modules/Probata/probata, compose path /deploy/data-pg.yaml. The root AGENTS.md
+# records current host routing; the selected Coolify app supplies BIND_IP and
+# DB_USER / DB_PASS / DB_DATABASE. This file is configuration, not a health check.
 #
-# DEPLOY AS ITS OWN Coolify "Docker Compose" app `data-pg` on OVH-3
-# (server jt1tv1j5samqn5rglmtky0qc), repo Cursedpotential/probata (formerly mcp-platform-agno-mvp)
-# @ main, compose file /compose.data-pg.yaml.
-# Env (copy from existing data-tier app):
-#   BIND_IP=100.119.96.29      (OVH-3 tailnet — ports bind here, never 0.0.0.0)
-#   DB_USER / DB_PASS / DB_DATABASE   (must match existing — data on disk)
+# Historical split, 2026-07-05: PostgreSQL became its own Coolify application so
+# a change to one database would not restart the other data services. The old
+# repository/host routes and the completed split checklist remain in Git history.
 #
-# Same absolute bind mounts as the original (already staged on host) — NO data
-# migration: agentos-db reattaches /data/probata/volumes/pgdata. Init SQL mounts
-# only fire on an EMPTY data dir; existing datadir is populated → skipped.
+# Persistent data uses the absolute pgdata bind below. Initialization SQL runs
+# only for an empty data directory. The root's 2026-10-05 single-case contract
+# governs current data operations; the historical cutover is not a reset recipe.
 #
-# CUTOVER (one pass, after this lands on main + new app created + healthy):
-#   1. Edit compose.data.yaml on main: DELETE the `agentos-db:` service block.
-#   2. Redeploy the existing `data-tier` app (uuid ipy7vrw…) → shrinks by one.
-#   3. This app `data-pg` already serving 5432 on tailnet → exec-tier sees no
-#      interruption (agentos-api reaches PG at ${OVH3_HOST}:5432, unchanged).
-# Reversible: revert compose.data.yaml edit + stop/delete data-pg; datadir intact.
+# Routing-comment amendment: ChatGPT · GPT-6 Astra · 2026-10-17; root import
+# contract (2026-09-26) and operating-mode contract (2026-10-05), read at 68f369e.
+# No service configuration or executable instructions changed.
 # =============================================================================
 
 services:
@@ -32,7 +27,7 @@ services:
     container_name: probata-db
     restart: unless-stopped
     ports:
-      # raw TCP, tailnet-only (reached by agentos-api on OVH-1); never proxied
+      # raw TCP at the selected service's bind address; tailnet routing is in the root contract
       - "${BIND_IP:-127.0.0.1}:5432:5432"
     volumes:
       - /data/probata/volumes/pgdata:/var/lib/postgresql
@@ -64,12 +59,12 @@ services:
       retries: 10
     networks:
       - pg
-      - probata                # shared external net — reachable as `probata-db` by other ovh-files apps (renamed from agentos-db 2026-09-07, plan §4.6)
+      - probata                # shared external network; the service name is `probata-db`
 
 networks:
   pg:
   probata:
-    external: true          # pre-created on OVH-3 (`docker network create probata`)
+    external: true          # provisioned outside this compose definition on the selected host
 
 # No named volumes — absolute host binds (declared inline above).
 # Byline: Claude Code · Fable 5 · 2026-07-05

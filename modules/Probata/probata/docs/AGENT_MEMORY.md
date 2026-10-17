@@ -7,19 +7,20 @@ authority:
   - docs/INDEX.md
   - docs/PROJECT_CANON.md
   - docs/DECISION_LOG.md
-  - docs/HANDOFFS.md
+  - docs/handoffs/
   - docs/MEMORY_ARCHITECTURE.md
 watches:
   - docs/INDEX.md
   - docs/PROJECT_CANON.md
   - docs/DECISION_LOG.md
-  - docs/HANDOFFS.md
+  - docs/handoffs/
 contains_secrets: false
 ---
 
 # Documentation Memory
 
 > _Byline: Codex · GPT-5 · 2026-08-27._
+> _Routing repair: ChatGPT · GPT-6 Astra · 2026-10-17 — use the existing handoffs directory; preserve the October 17 owner-approved use-case reference._
 
 ## Owner-approved use-case references
 
@@ -53,5 +54,5 @@ watches:
   - docs/INDEX.md
   - docs/PROJECT_CANON.md
   - docs/DECISION_LOG.md
-  - docs/HANDOFFS.md
+  - docs/handoffs/
 -->

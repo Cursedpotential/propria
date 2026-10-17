@@ -3,8 +3,9 @@
 Byline: Claude Code - Opus 5 - 2026-09-10
 
 Owner order 2026-09-10: "/memory" pulls it up, results compact, no noise. Backs the docstore plugin
-/memory command. memsearch is the live agent-memory backend (Zilliz); its raw chunks carry session
-comment tags and tool-call dumps, which are stripped here before anything is printed.
+/memory command. memsearch recalls the shared agent-session journals indexed in Milvus; its raw
+chunks carry session comment tags and tool-call dumps, which are stripped here before anything
+is printed. Infrastructure wording reconciled 2026-10-17 (ChatGPT / GPT-6 Astra).
 
 Usage:
   python scripts/docstore/memory.py "why did the docstore move to the cloud"

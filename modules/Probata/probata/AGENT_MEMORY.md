@@ -1,9 +1,11 @@
 ---
 scope: .
 status: current
-verified_at: 2026-08-29
+verified_at: 2026-10-17
+verification_scope: Repository routing and cited owner decisions at 68f369e; no live service verification
 superseded_by: null
 authority:
+  - ../../../AGENTS.md
   - AGENTS.md
   - docs/INDEX.md
   - docs/PROJECT_CANON.md
@@ -30,6 +32,9 @@ contains_secrets: false
 
 > _Byline: Codex · GPT-5 · 2026-08-27; navigation verification refreshed 2026-08-29._
 > _Byline: Claude Code · Fable 5.1 · 2026-09-05 — naming canon sweep D-137..D-141; no UIW/proffer rows existed in this router. See `docs/NAMING.md`._
+> _Routing amendment: ChatGPT · GPT-6 Astra · 2026-10-17; root import contract
+> (2026-09-26), root operating-mode contract (2026-10-05), D-107/D-143/D-144/D-151
+> and source tree read at `68f369e`._
 
 This file is a router, not an encyclopedia. Read only the branches relevant to the current task.
 
@@ -49,25 +54,32 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 
 - SurrealDB remains the governed temporal-graph, walk, and analysis target. Only the retired legacy
   operational adapter/instance is parked. See `AGENTS.md` and ADR-0056.
-- LanceDB is not part of the current platform stack. **Milvus = memsearch only; Weaviate =
-  project vector store projection** (owner ruling 2026-09-03): the Milvus service
-  (`100.91.190.107:19530`) is UP and is memsearch's live backend — never say "Milvus is
-  down." See `AGENTS.md`.
+- LanceDB is not part of the current platform stack. **Milvus = memsearch only;
+  Weaviate = project vector store projection** (owner ruling 2026-09-03). This
+  role distinction is not a current health result. Follow the root's memsearch
+  routing and check current status when using it.
 - PostgreSQL remains canonical. Timesketch, search, graph, RAG, and operator surfaces are governed
   views or projections, not replacement authority.
+- D-107 retires AgentOS; Agno remains only a disabled, bounded adapter. Temporal,
+  n8n, ContextForge, Portkey and plain FastAPI have the roles recorded there.
+  LlamaIndex/LangGraph are selected under D-143/D-144; their role is not a new
+  canonical writer. See `docs/DECISION_LOG.md`.
+- Current Dev/Live behavior follows the Propria root's 2026-10-05 single-case
+  contract. Historical wipe/re-ingest notes do not authorize resetting shared
+  Live data or erasing concurrent work.
 
 ## Repository boundary router
 
-- ~~Canonical repository checkout: `E:/AI_Workspace/Projects/Propria/Probata/probata`.~~
-  **Corrected 2026-09-26 (Claude Code · Opus 5.5):** `E:/AI_Workspace/Projects/Propria/modules/Probata/probata`
-  since 2026-09-20, a module of the Propria monorepo. The "Current checkout routing" table in the
-  Propria root `AGENTS.md` is the one place current paths are kept.
-- Repository status: separate child Git repository pending controlled Propria monorepo import.
+- Module path: `modules/Probata/probata/` from the Propria root. Current paths
+  are recorded in the root `AGENTS.md` routing table.
+- Repository status: imported on 2026-09-26. Probata, SBV, Timesketch and custom
+  modules share the `E:/AI_Workspace/Projects/Propria` Git root. Old child Git
+  directories and remotes are historical copies.
 - Canonical linked-worktree root: `E:/AI_Workspace/Projects/Propria/_worktrees/`.
 - Codex-managed exception: `C:/Users/matts/.codex/worktrees/`.
-- Consignatio authority: ~~`E:/AI_Workspace/Projects/Propria/Consignatio`~~
-  `E:/AI_Workspace/Projects/Propria/modules/Consignatio` (moved 2026-09-20); read its own routers
-  before Consignatio work and do not treat this Probata repository as its authority.
+- Consignatio is the sibling module at `modules/Consignatio/` from the monorepo
+  root. Read its own routers before Consignatio work; Probata's module contract
+  does not replace its local authority.
 
 ## Path router
 
@@ -75,32 +87,24 @@ This file is a router, not an encyclopedia. Read only the branches relevant to t
 |---|---|
 | `docs/**` | `docs/AGENT_MEMORY.md` |
 | `server/**` | `server/AGENT_MEMORY.md` plus the closest nested memory |
-| `modules/engine/**` (was root `engine/`, moved 2026-09-01) | `modules/engine/AGENT_MEMORY.md` |
-| `server/contracts/**` | `server/contracts/AGENTS.md` (root `contracts/` removed 2026-09-01) |
+| `modules/engine/**` | `modules/engine/AGENT_MEMORY.md` |
+| `server/contracts/**` | `server/contracts/AGENTS.md` |
 | `sql/**` | `sql/AGENT_MEMORY.md` |
 | `deploy/**` | `deploy/AGENT_MEMORY.md` |
-| `deploy/docker/**` (was root `docker/`, moved 2026-09-01) | `deploy/docker/AGENT_MEMORY.md`; for n8n also `deploy/docker/n8n/AGENT_MEMORY.md` |
-| ~~`modules/advocatio-legal_workbench/**` (advocatio) and `modules/vestigia-geodata_processor/**` (vestigia)~~ moved out 2026-09-20 to `Propria/modules/Legal-desktop/` and `Propria/modules/vestigia-geodata_processor/`; reach them through the Propria root router | each nested repo's own `AGENTS.md` / `AGENT_MEMORY.md` |
-| `modules/workbench/**` (was root `workbench/`, moved 2026-09-01) | `modules/workbench/AGENT_MEMORY.md` plus the closest nested memory |
+| `deploy/docker/**` | `deploy/docker/AGENT_MEMORY.md`; for n8n also `deploy/docker/n8n/AGENT_MEMORY.md` |
+| Monorepo root: `modules/Legal-desktop/**` and `modules/vestigia-geodata_processor/**` | each sibling module's `AGENTS.md` / `AGENT_MEMORY.md` |
+| `modules/workbench/**` | `modules/workbench/AGENT_MEMORY.md` plus the closest nested memory |
 | `tests/**` | `tests/AGENT_MEMORY.md` |
 | `knowledge/**` | `knowledge/AGENT_MEMORY.md` |
-| `server/vendored/**` | `server/vendored/` project READMEs (modules/vendored dissolved 2026-09-01; sbv now `modules/forks/sbv`, own repo, its memory file at `modules/forks/AGENT_MEMORY.md`) |
+| `server/vendored/**` | `server/vendored/` project READMEs |
+| `modules/forks/**` | `modules/forks/AGENT_MEMORY.md`, then the selected SBV or Timesketch source instructions |
+| `modules/custom/**` | the selected module's local instructions (`llm_probe`, `llm_probe_ui`, `pilot`, `tool-skills`) |
 
-Removed from the tree 2026-09-01 (owner restructure; rows retired): root
-`timesketch-fork/` (now a workspace sibling), `llm_probe/`, `llm_probe_ui/`.
+Pre-restructure paths and the retired independent-repository routing remain in
+Git history. The current SBV/Timesketch sources are under `modules/forks/`, and
+the probe modules are under `modules/custom/`; all commit at the Propria root.
 
 Format and precedence: `docs/agent-memory/README.md`.
-
-<!-- freshness
-watches_hash: 692a4b7
-last_verified: 2026-08-29
-watches:
-  - AGENTS.md
-  - docs/INDEX.md
-  - docs/PROJECT_CANON.md
-  - docs/DECISION_LOG.md
-  - docs/MEMORY_ARCHITECTURE.md
--->
 
 ## Geo lane is PARKED (D-121, 2026-08-31) — note for every future session
 The location/GPS lane (stay_point, gps_track, geocode_*, home_base,

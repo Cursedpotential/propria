@@ -1,7 +1,8 @@
 ---
 scope: E:/AI_Workspace/Projects/Propria
 status: current
-verified_at: 2026-09-20
+verified_at: 2026-10-17
+verification_scope: Repository routing at 68f369e; no desktop or runtime health check
 superseded_by: null
 authority:
   - Projects/Propria/AGENTS.md
@@ -16,19 +17,22 @@ contains_secrets: false
 
 # Propria Memory Router
 
-## Current checkout routing — verified 2026-09-20
+## Current checkout routing — single repository since 2026-09-26
 
-This dated routing supersedes historical placement text below. Propria owns the
-root governance, `modules/FL-MCP/`, and the preserved shared `scripts/` and
-`plugins/` source. The other product repositories retain independent histories:
+Propria is one Git repository. The product and application-fork histories were
+imported with `git subtree` on 2026-09-26; their retired child Git directories
+are historical preservation copies. Every route below commits at
+`E:/AI_Workspace/Projects/Propria`. Read the root `AGENTS.md` current routing
+table for the complete list, including SBV, Timesketch, custom modules, Xplorer
+and the source-only build crew.
 
 | Product | Current path | Commit boundary |
 |---|---|---|
-| Indicia Probata | `modules/Probata/probata/` | Independent repository |
-| Consignatio / Intake | `modules/Consignatio/` | Independent repository |
-| Advocatio legal workdesk | `modules/Legal-desktop/` | Independent repository; `master` |
-| Vestigia | `modules/vestigia-geodata_processor/` | Independent outer repository |
-| Vestigia app (formerly TraceIQ Rebuild) | `modules/vestigia-geodata_processor/vestigia/` | Monorepo folder since the 2026-09-26 import; renamed 2026-10-02 |
+| Indicia Probata | `modules/Probata/probata/` | Propria root repository |
+| Consignatio / Intake | `modules/Consignatio/` | Propria root repository |
+| Advocatio legal workdesk | `modules/Legal-desktop/` | Propria root repository |
+| Vestigia | `modules/vestigia-geodata_processor/` | Propria root repository |
+| Vestigia app (formerly TraceIQ Rebuild) | `modules/vestigia-geodata_processor/vestigia/` | Propria root repository |
 | Family Court Workbench | `modules/FL-MCP/` | Propria root repository |
 
 Read the selected module's local instructions and verify its Git root before
@@ -36,26 +40,15 @@ staging. The existing `docs/` junctions and source registry remain the Docstore
 routing surface. `docs/.docstore/` contains private credentials and database
 state, never publishable source.
 
-Root `scripts/` and `plugins/` preserve moved source, including edits. This is a
-source preservation cutover only: Probata's deployment-owned copies remain in
-its repository, and may contain newer integrated work. Do not overwrite either
-copy or repoint deployment/installed plugins until their differences and build
-contexts are reconciled. See `docs/ROOT-SOURCE-RECONCILIATION-2026-09-20.md`.
+Shared development tools `memsearch`, `claude-context` and `cocoindex-code`
+remain outside this monorepo under `E:/AI_Workspace/plugins/forks/`. The root
+`AGENTS.md` records deployment source routing and its explicit exceptions.
 
+_Routing amendment: ChatGPT · GPT-6 Astra · 2026-10-17. Authority: root
+`AGENTS.md` (2026-09-26 import contract) and
+`modules/vestigia-geodata_processor/AGENTS.md` (2026-10-02), read at `68f369e`._
 
-<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 2 | Platform: Codex / win32 | Changes: record monorepo-root transition | Context: explicit owner correction -->
-
-## Historical repository topology decision — 2026-09-12
-
-Propria is now the intended monorepo root. The target top-level source layout is
-`projects/` plus `resources/`; runtime/data material stays outside versioned source.
-~~Consignatio remains the canonical independent Git repository at `Consignatio/`;
-the tracked `projects/consignatio/` tree is a duplicate imported overlay awaiting
-reconciliation. Probata and other nested Git roots retain their current boundaries
-until an independently verified import is recorded in the migration manifest.~~ **Corrected 2026-09-18 (Claude Code · Opus 5; owner: Propria is the project, no separate `projects/` home):** the 09-12 `projects/consignatio` overlay is quarantined in `Consignatio/to_be_deleted/2026-09-17-projects-consignatio-overlay-from-2026-09-12/`; Consignatio stays at `Propria/Consignatio/` (a same-day move into `projects/` was reversed).
-
-This decision supersedes the prior statement that Propria is only a router. It
-does not erase the old repository histories or authorize a dirty in-place move.
+## System boundaries
 
 <!-- Updated by: Codex | Date: 2026-09-12 | Rev: 1 | Platform: Codex / win32 | Changes: record three-system boundary | Context: explicit owner clarification -->
 
@@ -63,25 +56,15 @@ does not erase the old repository histories or authorize a dirty in-place move.
 
 See [CCC / Intake / Docstore boundaries](SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
 
-## Historical transitional routing — verified 2026-09-13
+## Historical routing — 2026-09-12 through 2026-09-23
 
-This section supersedes historical paths and representation claims below.
-
-- Vault and Intake: `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md`.
-  This independent Git repository is canonical. ~~`projects/consignatio/` is a
-  duplicate overlay pending reconciliation and must not be treated as authority.~~ **Corrected 2026-09-18 (Claude Code · Opus 5; owner: Propria is the project, no separate `projects/` home):** the 09-12 `projects/consignatio` overlay is quarantined in `Consignatio/to_be_deleted/2026-09-17-projects-consignatio-overlay-from-2026-09-12/`; Consignatio stays at `Propria/Consignatio/` (a same-day move into `projects/` was reversed).
-- Probata: `Probata/probata/AGENTS.md`, `Probata/probata/AGENT_MEMORY.md`.
-- Advocatio legal workdesk: Legal-desktop/AGENTS.md and Legal-desktop/AGENT_MEMORY.md.
-  Owner-designated independent canonical repository; original material is resources/build-kit/.
-- Other Probata modules: descend through Probata's own current router.
-- Root governance and migration changes belong to the Propria root repository.
-- Follow each lane's exact manifest state. Imported lanes commit from this root;
-  source lanes remain in their child repository; a pending cutover keeps its
-  protected source available for reconciliation.
-
-Do not start all products or load their memories together. Do not infer current
-Git representation from the target layout; check the migration manifest and
-`git rev-parse --show-toplevel` before staging.
+The proposed `projects/` / `resources/` layout, duplicate Consignatio overlay,
+independent child-repository commit instructions and source-copy-only status
+were superseded by the completed 2026-09-26 import. Their original wording and
+bylines remain in Git history; dated receipts remain in
+`docs/ROOT-SOURCE-RECONCILIATION-2026-09-20.md` and the migration manifest's
+`historical_snapshots`. These receipts do not define current checkout or
+deployment state. The former `the-platform-workspace` tree is also historical.
 
 > _Byline: Codex · GPT-5 · 2026-08-27; repository reconciliation refreshed 2026-08-29._
 
@@ -92,27 +75,24 @@ Git representation from the target layout; check the migration manifest and
 3. Descend through that project's `AGENTS.md` and `AGENT_MEMORY.md` hierarchy.
 4. Load exact-file `.agent-memory/<filename>.md` only for files actually in scope.
 
-This load order describes the configured live workspace. If a child file is absent after cloning the
-parent, consult `../REPOSITORY_BOUNDARIES.md`; do not manufacture a replacement or treat an empty
-gitlink directory as the product source.
+Do not start all products or load their memories together. If a module file is
+absent from a checkout, verify that checkout against the current repository
+tree rather than reconstructing it from pre-import boundary maps.
 
 ## Project router
 
 | Work | Descend into | Commit from |
 |---|---|---|
-| Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/` |
-| Strategy, legal research, drafting, review, release preparation — **advocatio** | `Legal-desktop/` | independent Git root at Legal-desktop/ |
-| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | independent canonical Git root at `Consignatio/` (~~duplicate overlay at `projects/consignatio/`~~ quarantined 2026-09-18) |
+| Evidence, custody, ingestion, parsing, analysis, platform operations — **Indicia Probata** | `modules/Probata/probata/` | Propria root |
+| Strategy, legal research, drafting, review, release preparation — **advocatio** | `modules/Legal-desktop/` | Propria root |
+| Vault, corpus preparation, search and Intake desktop | `modules/Consignatio/` | Propria root |
 | Root governance and migration records | this directory | this Propria Git root with an explicit path allowlist |
 
 Never let an opened chat directory decide the commit root. Before staging, run
-`git rev-parse --show-toplevel`, compare it with the target project's declared boundary above, and
-stage only explicit paths owned by that project. A parent gitlink changing because a child is dirty
-is not authorization to stage or commit the gitlink.
+`git rev-parse --show-toplevel`, verify the Propria root, and stage only explicit
+paths in scope. Other sessions' changes in the shared index remain theirs.
 
-The current transitional representation is recorded in
-`docs/monorepo-migration-manifest.json`. Do not use the retired
-`the-platform-workspace` tree to resolve current paths.
+Current import state is recorded in `docs/monorepo-migration-manifest.json`.
 
 The Evidence Platform is canonical for evidence. Legal Workspace consumes accepted
 `LegalSourcePackage` data and never becomes a second writable evidence store.

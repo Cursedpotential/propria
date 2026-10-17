@@ -1,33 +1,13 @@
 # AGENTS.md — Universal Entry Point
 
-> _Byline: Claude Code · Sonnet 5 · 2026-08-09 (docs/registers true-up: custody.go path, disclosure_tier
-> type correction, docker/ subdir paths, `_stale/`/Makefile path precision;
-> drift-fix 2026-08-12 Claude Code · Kimi K3: stack line agno 2.8.0 → 2.8.7 per requirements.txt:3;
-> drift-fix 2026-08-12 Claude Code · Kimi K3: "cutover pending" dropped — cutover verified D-042,
-> Milvus DOWN deliberately since 2026-08-10;
-> drift-fix 2026-08-14 Claude Code · glm-5.2:cloud: agent topology adds `transcript_miner`
-> (mounted under Platform Ops since 2026-08-04, was in code but omitted from docs);
-> §1 ADR-0045 "drafted/pending signature" → signed D-042 + §B derived-materialization
-> sanction + FORBIDS parallel authored stores (doc-drift rule);
-> 2026-08-18 Codex · GPT-5: ADR-0059 source clocks, third-party projections, and
-> resumable-vs-terminal walk lifecycle;
-> drift-fix 2026-08-27 Codex · GPT-5: corrected the stale whole-product
-> "SurrealDB RETIRED" statement against D-073/D-080. Only the legacy Agno
-> operational adapter/instance is retired and parked; SurrealDB is the governed
-> final temporal-graph, walk, and analysis engine;
-> drift-fix 2026-09-03 Claude Code · glm-5.3:cloud: stack line rewritten per owner ruling —
-> **Milvus = memsearch only (service UP at `100.91.190.107:19530`, memsearch's backend);
-> Weaviate = project vector store projection**; "Milvus down" meant only the platform's
-> own data-vector role and that phrasing is retired — never conflate service with role;
-> drift-fix 2026-09-05 Claude Code · Fable 5.1: naming canon sweep D-137..D-141 — this
-> repository is **Indicia Probata** / `probata`; the import lane (formerly UIW / Universal Import /
-> `uiw`) is renamed **proffer**; see `docs/NAMING.md`;
-> drift-fix 2026-09-25 Claude Code · Opus 5.5: Stack line + Model Provider Chain — glm-5.1
-> removed everywhere (owner blanket ban), NVIDIA NIM `moonshotai/kimi-k3` is the primary default,
-> Ollama Cloud is a non-default option after its pricing change.)_
+> _Original byline: Claude Code · Sonnet 5 · 2026-08-09, with dated corrections
+> through 2026-09-30 by Claude Code and Codex; full amendment history is in Git.
+> Routing amendment: ChatGPT · GPT-6 Astra · 2026-10-17. Sources: Propria root
+> `AGENTS.md` (2026-09-26 import and 2026-10-05 operating-mode contract),
+> Vestigia's 2026-10-02 router, and the source tree at `68f369e`._
 
-> **This is the first file any agent (Claude Code, Codex, Gemini CLI, opencode) reads.**
-> Keep it short: universal context + navigation index. **Closest file wins** — nested
+> **Read the Propria root `AGENTS.md` before this module entry point.**
+> This file provides Probata context and navigation. **Closest file wins** — nested
 > `AGENTS.md` files below override this one for their subtree; read the nested map
 > before editing inside that directory.
 
@@ -54,35 +34,52 @@ Sources owns steps 1–4. Review is steps 5–6 plus the accept/reject decision 
 full screen, nothing else. Run status, receipts, stores, lineage, attempts and tool catalogs are
 never primary content on an operator surface; they are a drawer, or their own screen.
 
+**Context-processing amendment (owner, 2026-10-08):** the goals above do not
+make custody, hashing or approval a prerequisite for current context ingestion,
+for any source type. Evidence admission is a separate later phase; AI
+conversations remain context. Read the dated amendment in `docs/PURPOSE.md`
+and the current scope in `docs/PROJECT_CANON.md`.
+
 ## Project
 
-**Indicia Probata** (`probata`) — the evidence-record product under the **propria**
-umbrella (D-137, D-138) — ~~pro se family-law evidence + analysis + legal-strategy
-platform on Agno AgentOS~~ **(renamed D-138, 2026-09-05)**. Naming canon:
-`docs/NAMING.md`. Evidence custody → parse → normalize → store → export.
-Analysis over a bitemporal graph (splitting off as **Indagatio Veri** / `indagatio`,
-D-139). AI Legal Team (to build; product name **advocatio**, D-138).
+**Indicia Probata** (`probata`) is the source-processing and eventual
+evidence-record product under **propria** (D-137/D-138; naming:
+`docs/NAMING.md`). Current work opens, extracts, normalizes where appropriate,
+searches and reviews context from all supported sources, including messaging,
+documents, media, location records and complete export packages. The owner's
+2026-10-08 amendment removes custody, hashing and approval prerequisites from
+context ingestion. Evidence admission and court-ready export are separate later
+work; AI conversations remain context.
+
+Analysis over a bitemporal graph belongs to **Indagatio Veri** / `indagatio`
+(D-139). The eventual AI Legal Team is **advocatio** (D-138). See
+`docs/PURPOSE.md` and `docs/PROJECT_CANON.md` for current scope.
 
 ## Repository and worktree boundary
 
-~~This repository's canonical checkout is `E:/AI_Workspace/Projects/Propria/Probata/probata`.~~
-**Corrected 2026-09-26 (Claude Code · Opus 5.5):** since 2026-09-20 the checkout is
-`E:/AI_Workspace/Projects/Propria/modules/Probata/probata`, one module of the Propria monorepo that
-every product is moving into. Current paths are kept in one place, the "Current checkout routing"
-table of the Propria root `AGENTS.md`, with `docs/monorepo-migration-manifest.json` there (Probata:
-`independent_repository_relocated`); read them there instead of copying a path from here.
-It remains a separate child Git repository pending its controlled import into the Propria
-monorepo; a checkout beneath Propria does not by itself change repository ownership. Normal
-linked worktrees belong under `E:/AI_Workspace/Projects/Propria/_worktrees/`. Codex-managed
-worktrees may instead live under `C:/Users/matts/.codex/worktrees/`; that tool-managed
-exception also does not create a new repository or ownership boundary.
-On 2026-09-26 the canonical checkout's local `main` was 54 commits behind `origin/main`, because
-merges are pushed from worktrees, and a worktree branched from it lacked the browser-free smoke
-fix. Run `git fetch` and branch new worktrees from `origin/main`.
+Probata lives at `modules/Probata/probata/` in the Propria monorepo. Its history
+was imported on 2026-09-26, together with SBV, Timesketch and the custom modules.
+The commit boundary is `E:/AI_Workspace/Projects/Propria`; verify it with
+`git rev-parse --show-toplevel` and stage only explicit paths in scope. Current
+paths and import state are in the root `AGENTS.md` and
+`docs/monorepo-migration-manifest.json` at that root. The old child Git
+directories and remotes are historical copies, not commit destinations.
 
-Consignatio is outside this repository's authority. Route Consignatio work to
-~~`E:/AI_Workspace/Projects/Propria/Consignatio`~~ `E:/AI_Workspace/Projects/Propria/modules/Consignatio`
-(moved 2026-09-20; corrected 2026-09-26) and follow that repository's own routers.
+Normal linked worktrees belong under
+`E:/AI_Workspace/Projects/Propria/_worktrees/`. Codex-managed worktrees may
+instead live under `C:/Users/matts/.codex/worktrees/`; this tool-managed
+exception does not create a new repository boundary. Fetch and branch new
+worktrees from the monorepo's `origin/main`, as the root contract requires.
+
+Consignatio is a sibling module at `modules/Consignatio/` from the monorepo
+root. Read its own routers for that work; Probata's module contract does not
+replace Consignatio's local authority.
+
+The root's 2026-10-05 single-case operating-mode contract also applies here.
+Historical reset and re-ingest notes do not authorize restoring a snapshot over
+shared Live data or erasing concurrent changes. Read
+`../../../docs/decisions/2026-10-05-single-case-operating-flags.md` for that
+owner decision.
 
 ## Standing Subagent Authorization
 
@@ -182,25 +179,31 @@ finished.
 
 ## Stack
 
-Agno 2.8.7 (adapter under replacement) · PostgreSQL 18 (pg_duckdb + pgvector +
-PostGIS) as canonical source/control plane and Agno operational store · Weaviate
-search projection · Neo4j Semantica-originated semantic graph · **SurrealDB as
-the governed final reconciled temporal-graph, walk, and analysis engine**
-(D-073/D-080) · Temporal durable spine + n8n visual business/agent flow ·
-Portkey gateway (~~Ollama Cloud primary~~ **NVIDIA NIM `moonshotai/kimi-k3` primary since
-2026-09-25** — owner: glm-5.1 banned, Ollama Cloud no longer primary after its pricing change;
-LiteLLM retired, ADR-0042). Graphiti is
-retired for now (D-070). The **legacy Agno operational Surreal adapter and old
-`data-surreal` instance only** remain retired/zero-caller and parked read-only;
-they are not the current Surreal analytical role or target. Its export remains
-at `../_stale/surreal-export-20260804` — relative to this repository root; the `_stale/`
-archive is a sibling of this repo and only the owner deletes. Weaviate cutover
-was verified 2026-08-09 (D-042). **Milvus = memsearch only; Weaviate = project vector
-store projection** (owner ruling 2026-09-03): the Milvus service at
-`100.91.190.107:19530` is UP and is memsearch's live backend (`agent_session_memory_nemotron3`)
-— never say "Milvus is down"; only the platform's own use of Milvus as its vector
-store is unwired (ADR-0040, Weaviate locked). A memsearch failure is an incident, not
-an expected state.
+PostgreSQL is the canonical source/control plane; Weaviate is the project search
+projection. Neo4j carries the Semantica-originated semantic graph; SurrealDB is
+the governed reconciled temporal-graph, walk and analysis target (D-073/D-080).
+Temporal owns durability and n8n the visual business/agent flow. ContextForge is
+the MCP gateway; Portkey is the sole model, embedding and reranking gateway;
+plain FastAPI is the platform HTTP host (D-107). AgentOS is retired. Agno may
+remain only as the disabled, bounded atomic-agent adapter described in D-107.
+LlamaIndex and LangGraph are selected for the roles in D-143/D-144; they do not
+replace Temporal/n8n orchestration or become writers of canonical truth.
+These are the owner-ruled boundaries, not a claim that every implementation is
+complete. Dependency versions come from `requirements.txt` and `pyproject.toml`.
+
+The PostgreSQL image is configured for PG18 with `pg_duckdb`, PostGIS and
+pgvector, plus the `pg_stat_statements` preload. Sources: accepted ADR-0013,
+`deploy/docker/postgres/Dockerfile` and `deploy/data-pg.yaml`, read at `68f369e`.
+This is source configuration; the installed extensions and working DuckDB/PG
+integration require verification on the target database.
+
+The 2026-09-03 role ruling is **Milvus for shared memsearch only; Weaviate for
+the project vector projection**. It is not a perpetual service-health result.
+Use the root's memsearch routing and a current status check when that service is
+needed. The old Agno operational Surreal adapter/instance and Graphiti are
+retired (D-095/D-107/D-151); those retirements do not retire SurrealDB's
+analytical role. Historical exports remain governed by the preservation rules,
+with their original locations recorded in the dated handoffs and Git history.
 
 ## Repository Layout
 
@@ -221,14 +224,13 @@ an expected state.
 | `server/case_management/`, `server/observability/`, `server/temporal/` | Case views/workflows, audit/telemetry, and Temporal integration | see `server/AGENTS.md` |
 | `server/vendored/` | Third-party Python projects (chatminer, semantica) — not ours to lint | — |
 | `modules/engine/` | The Go engine (own `go.mod`; ~~UIW~~ **proffer** (D-140) custody writer, parsers, chunkers, stagegraph) — **moved from root `engine/` in the 2026-09-01 owner restructure** | — |
-| `modules/vendored/` | **DISSOLVED 2026-09-01** — emptied when `sbv` moved to `modules/forks/sbv`. Third-party Python remains at `server/vendored/`. | — |
 | `modules/workbench/` | Operator Workbench — `api` (FastAPI) + `web`. Moved from root `workbench/` 2026-09-01. | — |
-| `modules/forks/` | **Nested independent repos, gitignored** — our forks of upstream projects, one repo each. Currently: `timesketch` (fork of google/timesketch) and `sbv` (**DONOR, not a fork** - D-131; MIT, Copyright (c) 2025 **lowcarbdev** - an earlier revision of this line credited "danzek", which was wrong. Being absorbed as a subtree into `modules/engine/decode/`; canonical remote `Cursedpotential/sbv-forensic`, whose CI builds the image the tool-runtime Dockerfile consumes **by digest** — the platform build does NOT need this checkout). Add an `upstream` remote per fork for rebasing. Owner ruling 2026-09-01. | each fork's own README |
-| `modules/custom/` | **One nested independent repo, gitignored** — owner-authored standalone modules versioned together (`llm_probe`, `llm_probe_ui`, `tool-skills`). | — |
-| ~~`modules/advocatio-legal_workbench/`~~ (**advocatio**, D-138) — moved out 2026-09-20: the legal workdesk is `Propria/modules/Legal-desktop/` (corrected 2026-09-26) | **Nested independent product repo, gitignored** — placed beside the Workbench per owner ruling 2026-09-01 ("legal workbench should live next to workbench"). Still consumes `LegalSourcePackage` read-only; never a second writable evidence store. A full merge into the Workbench repo is an OPEN decision, not done. | its own `AGENTS.md` |
-| ~~`modules/vestigia-geodata_processor/`~~ (**vestigia**, D-140) — moved out 2026-09-20 to `Propria/modules/vestigia-geodata_processor/` (corrected 2026-09-26) | Monorepo folder since the 2026-09-26 import; the application is its `vestigia/` folder (renamed from `traceiq-rebuild` 2026-10-02). | its own `AGENTS.md` |
+| `modules/forks/` | Imported application source: `timesketch` and `sbv`, both tracked in the Propria root since 2026-09-26. SBV's donor provenance remains D-131 (MIT, Copyright (c) 2025 lowcarbdev); the import does not change that provenance. | each project's README; SBV `UPSTREAM.md` |
+| `modules/custom/` | Imported owner-authored modules: `llm_probe`, `llm_probe_ui`, `pilot`, `tool-skills`; tracked in the Propria root. | each module's local instructions |
+| Monorepo root: `modules/Legal-desktop/` (**advocatio**, D-138) | Sibling product, sharing the Propria Git boundary. Consumes accepted `LegalSourcePackage` read-only; never a second writable evidence store. | its own `AGENTS.md` / `AGENT_MEMORY.md` |
+| Monorepo root: `modules/vestigia-geodata_processor/` (**vestigia**, D-140) | Sibling product; the application is its `vestigia/` folder (renamed 2026-10-02). | its own `AGENTS.md` |
 | `modules/apps/` | Owner's transient staging area during reorganizations — gitignored, contents move on; never reference it in code or docs | — |
-| `sql/` | **`bootstrap/schema_snapshot_<date>.sql` IS the database** (D-142 §3, D-152, D-153). No migrations: a schema change = edit the snapshot in its final form + `scripts/rebuild_platform_from_snapshot.sh`; the keep set (reference/state) survives every rebuild. Numbered migrations retired to `sql/_stale/` 2026-09-07, never replayed. | `sql/bootstrap/README.md` |
+| `sql/` | Schema source is `bootstrap/schema_snapshot_<date>.sql` (D-142 §3, D-152, D-153). Numbered migrations were retired to `sql/_stale/` on 2026-09-07. Historical rebuild instructions are subject to the root's 2026-10-05 single-case contract; they do not authorize resetting shared Live data. | `sql/bootstrap/README.md` and the root operating-mode decision |
 | `deploy/docker/` | One folder per service image (`tools/`, `gateway/`, `postgres/`, ...) — moved from root `docker/` 2026-09-01; compose files in `deploy/` now resolve their `./docker/...` build contexts correctly per the compose spec | — |
 | `docs/` | Canon, ADRs, decision log, plans, wiki | `docs/PROJECT_CANON.md` |
 | `tests/` | The pytest suite | — |
@@ -256,11 +258,11 @@ Coolify deployment and live VPS proof.
 | Test (one file) | `uv run pytest -q tests/test_<name>.py` |
 | Integration tests (live services) — **REQUIRED before any "done"** | `uv run pytest -m integration` |
 | Go build/test (engine) | from `modules/engine/`: `go build ./...` / `go vet ./...` / `go test ./...` |
-| Go build/test (`modules/forks/sbv`) | from that dir: `go build -tags fts5 ./...` / `go test -tags fts5 ./...` (own repo; its GitHub CI is authoritative) |
+| Go build/test (`modules/forks/sbv`) | from that dir: `go build -tags fts5 ./...` / `go test -tags fts5 ./...` (own `go.mod`, shared Propria Git root) |
 
-⚠ The `fts5` build tag is **mandatory** for `vendored/sbv`. A plain `go test ./...`
+The `fts5` build tag is **mandatory** for `modules/forks/sbv`. A plain `go test ./...`
 fails every DB-backed test with `no such module: fts5` — that is a missing build
-tag, not a code defect. Use the `vendored/sbv/Makefile` targets, which set it for you.
+tag, not a code defect. Use the `modules/forks/sbv/Makefile` targets, which set it for you.
 
 ~~Integration tests are opt-in.~~ **Corrected 2026-08-20 (owner directive):** live
 integration tests are **mandatory**, not opt-in. `pytest -q` alone never establishes that
@@ -294,31 +296,25 @@ artifacts. Configured in `server/observability/pytest_reporter.py`; recorded in
 
 ## Agent Topology
 
-```
-Root Router (mode=route)
-+-- Platform Ops (mode=coordinate)
-|   +-- ingestion_orchestrator
-|   +-- analysis_orchestrator
-|   +-- review_gatekeeper
-|   +-- transcript_miner
-+-- Builder (mode=coordinate)
-|   +-- dev_copilot
-|   +-- project_pal
-|   +-- forensic_data_agent
-+-- document_digest (conditional, GOOGLE_API_KEY)
-```
+D-107 retired AgentOS and the Agno-native platform topology. Retained Agno
+definitions are disabled adapters, not the durable workflow or control plane.
+D-107 requires an explicit Temporal task ID, reference-only input/output
+contract, scope, tool allowlist and tested approval path before one is callable.
+Read `server/agents/AGENTS.md` and `server/agents/factory.py` for the retained
+source roster; apply D-107 and the Activity boundary above when working on it.
+The former Router / Platform Ops / Builder diagram remains in Git history.
 
-See `server/agents/AGENTS.md` for the roster and build conventions.
+## Model gateway and legacy provider settings
 
-## Model Provider Chain
+Portkey owns model routing under D-107. Inspect the active caller and gateway
+configuration for current selection. The fallback settings in
+`server/core/settings.py` describe the retained Agno adapter; they do not define
+the platform's orchestration or authorize reactivating that adapter.
 
-~~Ollama (glm-5.1) → NVIDIA → Kimi → OpenRouter → Anthropic → OpenAI → Google → Groq.~~
-**Corrected 2026-09-25 (Claude Code · Opus 5.5; owner: "Stop using GLM 5.1 in general", and Ollama
-Cloud is no longer primary after its pricing change):** NVIDIA (`moonshotai/kimi-k3`) → Ollama (no
-default model; used only when `OLLAMA_MODEL_ID` names one) → Kimi (`moonshotai/kimi-k3`) →
-OpenRouter → Anthropic → OpenAI → Google → Groq.
-First provider with valid credentials wins. Override via `DEFAULT_MODEL_PROVIDER`
-or `<PROVIDER>_MODEL_ID`. See `server/core/settings.py` for resolution rules.
+The dated 2026-09-25 correction (Claude Code · Opus 5.5) selected NVIDIA NIM
+`moonshotai/kimi-k3` and made Ollama Cloud non-default. The owner's blanket ban
+on `glm-5.1` remains. A dated model preference does not establish current
+provider availability.
 
 ## Querying SurrealDB stores (every agent)
 
@@ -358,30 +354,34 @@ Tool-specific setup (hooks, slash-commands) lives in that tool's own config, nev
 
 AI commits carry: `Co-Authored-By: <agent name and model> <noreply@anthropic.com>`
 
-## Claude-Reflect Learnings
+## Deployment and custody learnings
 
-<!-- Auto-generated by claude-reflect. Do not edit this section manually. -->
+_Derived from the dated claude-reflect notes; original export and bylines remain
+in Git history. Retired AgentOS operation instructions were removed under D-107._
 
 ### Environment Setup
-- Tailnet PG from the desktop needs `DB_HOST=100.91.190.107` (~~`100.119.96.29`~~ — PG moved to ovh-files 2026-08-02, wave 1 of the ovh-data retirement; app `data-pg-files`). The default host `agentos-db` still only resolves inside the compose network.
-- VPS services bind `${BIND_IP}` (the box's tailnet IP), NOT loopback — on-box probes and SSH tunnels must target `100.72.169.40:<port>`, never `localhost:<port>` (a tunnel to VPS-localhost gets connection-refused).
-
-### API Auth
-- agentos-api: `authorization=False` in main.py only disables JWT — the `OS_SECURITY_KEY` bearer still gates every route (incl. `/knowledge/*`). Internal callers send `Authorization: Bearer $OS_SECURITY_KEY` (value in `~/.secrets/infra-access.md`).
+- Current host and database routing is in the Propria root `AGENTS.md` under
+  Paths. Historical host moves do not establish the current address of a service.
+- Tailnet services bind their configured `${BIND_IP}`. On-box probes and SSH
+  tunnels must use the intended service's bind address; a loopback target does
+  not reach a service bound only to its tailnet address.
 
 ### Deploy & Data-Tier Gotchas
 - Coolify apps WITHOUT watch_paths redeploy on EVERY push to their branch — the whole data tier (pg/neo4j/graphiti/surreal/vector) bounced on every main merge until watch paths were scoped per-app (2026-07-21/22). New app = set watch_paths at creation, always.
 - Milvus standalone boot "etcdserver: leader changed" panic loop (exit 134). ~~Cause: embedded etcd defaults + slow VPS disk; fixed via heartbeat 1000 / election 10000~~ ~~ungraceful stop mid-flush~~ **Corrected 2026-09-17 (log-proven):** with EMBEDDED etcd, Milvus's first metadata read goes out ~20 ms after etcd starts, before etcd has elected itself leader, and fails "leader changed" once it does — a startup race on every restart of a store with data (the "7 corruptions"). Fix in place: etcd runs as its own `memsearch-etcd` service and Milvus starts only when it is healthy. Never go back to `ETCD_USE_EMBED=true`.
 - memsearch-milvus on the 3.0 nightly with `storageType: local`: JSON shredding stats load via a remote-style `files/` path -> "invalid local path" (segcore 2011) and the collection sticks at Loading. Keep `common.enabledJSONShredding: false` until on a release that fixes it.
 - **memsearch-milvus is deployed by Coolify FROM GIT** (app renamed from `data-vector` 2026-09-17, compose `deploy/memsearch-milvus.yaml`). Never edit the rendered compose under `/data/coolify/applications/<uuid>/` on the host: a 2026-09-10 host-only edit was silently reverted by the next Coolify deploy, which mounted a dead volume (2026-09-17 outage). Commit + push, then deploy.
-- After dropping a Milvus collection externally, RESTART agentos-api — agno's client caches the numeric collection ID and 500s with code=100 collection-not-found on the next insert.
-- agno `Step.on_error` REALLY defaults to skip (docstring claims fail) — always set on_error="fail" explicitly or failed stages report run-completed.
-- H3 custody chain: TWO constructions coexist and are BOTH correct (owner-verified 2026-08-01; the 2026-07-22 "correction" declaring the first WRONG was itself wrong). (a) **SBV Go chain** (vendored/sbv/CUSTODY.md + `vendored/sbv/internal/custody.go`, test-proven): chain_0 = "" and chain_i = sha256(chain_{i-1} + "<LF>" + H2_i) — H1 never enters the fold. (b) **Case Bible chain** (live-verified, 1,918 links): genesis = H1, chain_i = sha256(prev_hex + h2_hex). Both currently share tag `h3-chain-v1`, which does NOT disambiguate — give them distinct tags before further chain writes.
-
-### Control Surfaces
-- os.agno.com free tier accepts the remote instance via localhost trickery: the browser does the connecting, so `ssh -i ~/.ssh/ovh -N -L 7777:100.72.169.40:8000 root@100.72.169.40` makes the platform "http://localhost:7777" — CORS already allows the os.agno.com origin. One-click launcher: `C:\Users\matts\bin\agentos-control.cmd` (Desktop shortcut "AgentOS Control Plane").
-
-<!-- End claude-reflect section -->
+- Historical Agno workflow gotcha: `Step.on_error` defaulted to skip. This is
+  relevant only when inspecting retained adapter code; D-107 retired Agno as
+  platform orchestration.
+- H3 construction history (owner-verified 2026-08-01): the SBV Go chain starts
+  with an empty value and folds `sha256(previous + "<LF>" + H2)`; the Case Bible
+  chain used genesis H1 and `sha256(previous_hex + h2_hex)`. Neither construction
+  is invalid merely because it differs from the other. The 2026-08-02 decision
+  resolved the ambiguous tag: new H3 rows carry `h3-chain-sbv-genesisempty-v1`;
+  legacy `h3-chain-v1` rows are read-only and disambiguated by writer. See
+  `modules/forks/sbv/CUSTODY.md`, `modules/forks/sbv/internal/custody.go`, and
+  `docs/DECISION_LOG.md` (2026-08-02).
 
 ## Documentation lifecycle
 
@@ -419,13 +419,18 @@ not mention this development assistance in application architecture, RAG design,
 implementation plans, TODOs, handoffs, or product-status reporting.
 
 ### Session Learnings 2026-08-02
-- Test data must never become canonical: design-phase ingests are disposable and re-runnable from originals; only reference.* and hand-labeled gold are precious. Wipe + re-ingest once the design settles (owner ruling; executed 2026-08-02).
+- The design-phase wipe/re-ingest performed on 2026-08-02 is historical. The
+  root's 2026-10-05 single-case contract governs current Dev/Live behavior and
+  supersedes pre-launch resets; this note grants no current reset permission.
 - Config accepted ≠ feature working: agno accepted `EntityMemoryConfig(mode=PROPOSE)` for months and silently did nothing. Verify features via docs + an observed write, never via config acceptance.
 - Custody canon tags name the exact construction: new H3 rows carry `h3-chain-sbv-genesisempty-v1`; legacy `h3-chain-v1` rows are read-only and disambiguated by writer (see docs/DECISION_LOG.md 2026-08-02).
 - Remove a worktree when its branch merges — 13 stale ones hid an unmerged security fix. Quarantine untracked remnants before `--force` removal.
 
 ### Session Learnings 2026-08-12
-- Root `compose.yaml` is the stack definition that GETS MIRRORED TO THE VPS — never describe its comments/docs as "local dev" or "laptop-only" (owner correction 2026-08-12). Compose-file changes to live sections are production-facing edits.
+- The former root `compose.yaml` is now `deploy/compose.yaml`. Service-specific
+  deployment definitions are under `deploy/`; follow the selected Coolify app's
+  source and compose path recorded in the root contract and deployment config.
+  Changes to a live service's definition remain production-facing edits.
 - Owner vocabulary: "artifact" = created WORKS (AI chats, generated documents/code). Never name extraction output tables/columns `artifact_*` — fact-claims are `claim_candidate` (entities can be merged/deduped; claims accumulate and are NEVER rewritten). Locked in ADR-0052 ruling Q6 / D-054.
 - Linked worktrees for this repository belong under `E:/AI_Workspace/Projects/Propria/_worktrees/`,
   except Codex-managed worktrees under `C:/Users/matts/.codex/worktrees/`. Always verify the

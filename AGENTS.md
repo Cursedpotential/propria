@@ -121,23 +121,25 @@ repository, and the root source-preservation note in
 this import._
 
 
-<!-- Updated by: Codex | Date: 2026-09-12 | Rev: 3 | Platform: Codex / win32 | Changes: establish universal Docstore use | Context: explicit owner clarification -->
+## Repository history — superseded routing
 
-**Owner decision — 2026-09-12 (repository topology):**
-`E:\AI_Workspace\Projects\Propria` is the top of the Propria monorepo. Owned
-applications and product modules converge under `projects/`; shared, reusable,
-reference, and vendor-governance material converges under `resources/`. Large
-corpora, databases, caches, generated indexes, secrets, and runtime state are not
-monorepo source and must remain ignored or externally mounted with manifests.
+The 2026-09-12 proposed `projects/` / `resources/` layout, the 2026-09-18
+overlay reconciliation, and the 2026-09-20 independent-repository routes are
+history. The completed 2026-09-26 import and the current routing table above
+replace those commit instructions. Original decisions and receipts remain in
+[the dated migration plan](docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md),
+`docs/monorepo-migration-manifest.json` under `historical_snapshots`, and Git
+history. They do not establish current checkout paths.
 
-Existing child Git repositories must retain their histories and local-only work
-until a staged import is independently verified. ~~Consignatio remains an explicit
-independent canonical repository; its `projects/consignatio` import is a duplicate
-overlay pending reconciliation, not an authority transfer.~~ **Corrected 2026-09-18 (Claude Code · Opus 5; owner: Propria is the project, no separate `projects/` home):** the 09-12 `projects/consignatio` overlay is quarantined in `Consignatio/to_be_deleted/2026-09-17-projects-consignatio-overlay-from-2026-09-12/`; Consignatio stays at `Propria/Consignatio/` (a same-day move into `projects/` was reversed). An upstream fork may
-remain an explicit external dependency when its update/provenance lifecycle
-requires that boundary.
+Large corpora, databases, caches, generated indexes, secrets and runtime state
+remain outside monorepo source, ignored or externally mounted with manifests.
 
-See [the staged migration plan](docs/MONOREPO-MIGRATION-PLAN-2026-09-12.md).
+_Routing amendment: ChatGPT · GPT-6 Astra · 2026-10-17. Sources: this file's
+2026-09-26 root contract and `modules/vestigia-geodata_processor/AGENTS.md`
+(2026-10-02), read at `68f369e`. Original topology bylines: Codex, 2026-09-12;
+Claude Code · Opus 5, 2026-09-18._
+
+## System boundaries
 
 <!-- Updated by: Codex | Date: 2026-09-12 | Rev: 1 | Platform: Codex / win32 | Changes: record three-system boundary | Context: explicit owner clarification -->
 
@@ -163,29 +165,16 @@ first result. <!-- added by Claude Code · Fable 5.1 · 2026-09-14 -->
 
 > _Byline: Codex · GPT-5 · 2026-08-27; repository reconciliation refreshed 2026-08-29._
 
-This directory currently contains several former independent product repositories
-and historical/reference material. During migration, select the intended lane and
-descend into its local `AGENTS.md` and `AGENT_MEMORY.md`. Those local contracts
-remain authoritative until their lane is imported and the root manifest marks the
-cutover complete.
+## Product authority
 
-These child references resolve in the configured live workspace. The parent repository does not
-currently hydrate every child on a fresh clone; use `../REPOSITORY_BOUNDARIES.md` for canonical origins
-and verified representation state.
+Select the intended product in the current routing table above, then read its
+local `AGENTS.md` and `AGENT_MEMORY.md`. Module contracts still govern their
+subtrees; every imported module shares the Propria root Git boundary.
 
-## Active products
-
-| Work | Repository | Next instructions | Commit root |
-|---|---|---|---|
-| Evidence custody, ingestion, parsing, knowledge horizons, analysis, and operations — **Indicia Probata** | `Probata/probata/` | `Probata/probata/AGENTS.md` | verify inside `Probata/probata/` |
-| Legal research, strategy, drafting, review, and release preparation — **advocatio** (the legal workdesk / legal workbench; GitHub repo still `Legal-Workspace`) | `Legal-desktop/` | `Legal-desktop/AGENTS.md`, `Legal-desktop/AGENT_MEMORY.md` | independent Git root at `Legal-desktop/` |
-| Simple record / reference / calendar surface usable from a phone and by agents — **Family Court Workbench** | `FL-MCP/` (**2026-09-18, owner: Propria is the project, no `projects/` folder** — moved back from ~~`projects/family-court-workbench/`~~) | its local `AGENTS.md` | Propria root |
-| Vault, corpus preparation, search and Intake desktop | `Consignatio/` | `Consignatio/AGENTS.md`, `Consignatio/AGENT_MEMORY.md` | independent canonical Git root at `Consignatio/` (~~`projects/consignatio/` duplicate overlay~~ quarantined 2026-09-18) |
-
-Current paths above were reconciled against the migration manifest on 2026-09-13.
-Owner decision, 2026-09-13: Legal-desktop/ is the canonical independent Advocatio application. Its original build kit is preserved under resources/build-kit/. This is an explicit exception to the proposed projects/ layout.
-The retired workspace layout is historical evidence and is not a current route.
-The former `milvus-coolify/` path is absent here; do not recreate it from old routing.
+Advocatio is the legal workdesk at `modules/Legal-desktop/`; its original build
+kit remains reference material at `modules/Legal-desktop/resources/build-kit/`.
+The retired workspace layout and the former `milvus-coolify/` path are not
+current routes.
 
 The Evidence Platform is canonical for evidence. Legal Workspace consumes accepted,
 versioned `LegalSourcePackage` data and never becomes a second writable evidence store.
@@ -193,7 +182,7 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
 ## Reference-only areas
 
 - `Agno-MCP-Platform-agno - alpha/` is a parts bin, not an active build.
-- `dev-resources/` and `Legal-desktop/resources/build-kit/` are references/parts bins. Port bounded useful material only;
+- `dev-resources/` and `modules/Legal-desktop/resources/build-kit/` are references/parts bins. Port bounded useful material only;
   never revive an archived iteration wholesale.
 - `dev-resources/` is indexed for local search, and so is
   `dev-resources/Archives/OTHER_RESOURCES_TO_SORT/` — each as its **own** ccc collection,
@@ -210,23 +199,23 @@ versioned `LegalSourcePackage` data and never becomes a second writable evidence
 ## Repository rules
 
 1. Run `git rev-parse --show-toplevel` from the target path before staging or committing.
-2. Until a project is marked imported in the root migration manifest, product
-   changes commit in its existing child repository. After cutover, they commit in
-   this root repository under `projects/<project>/`.
+2. Product changes commit in this root repository at the `modules/*` paths in
+   the current routing table. The deliberately external development tools keep
+   their own boundaries under `E:/AI_Workspace/plugins/forks/`.
 3. Root governance and migration files commit from this directory with an explicit
    path allowlist.
-4. A dirty child or changed parent pointer is not authorization to stage that pointer.
+4. Other sessions' changes in the shared index are not authorization to stage or
+   commit those paths.
 5. Never reset, clean, stash, overwrite, or hard-delete concurrent work. Quarantine files under the
    owning repository's `to_be_deleted/` directory; only the owner deletes from quarantine.
-6. Create Propria-owned migration worktrees under `E:\AI_Workspace\Projects\Propria\_worktrees\`.
-   That directory is machine-local and ignored. During the transition, a child repository may link
-   a worktree there without changing its Git boundary. Move an existing linked worktree only with
+6. Create Propria-owned worktrees under `E:\AI_Workspace\Projects\Propria\_worktrees\`.
+   That directory is machine-local and ignored. Move an existing linked worktree only with
    `git worktree move`, after its owner is paused and its branch, dirty state, `.git` pointer, common
    directory, and representative hashes have been captured.
 
-Read `AGENT_MEMORY.md` for progressive routing. The current workspace boundary
-map is `../REPOSITORY_BOUNDARIES.md`; the migration manifest governs each lane's
-transition state.
+Read `AGENT_MEMORY.md` for progressive routing. The current routing table and
+`docs/monorepo-migration-manifest.json` record the shared root boundary; dated
+pre-import boundary maps are historical evidence.
 
 > _Sprint mode was removed by owner order on 2026-08-25. Confirm and discuss before changing._
 
@@ -243,10 +232,9 @@ transition state.
   auto-memory store is `C:\Users\matts\.claude\projects\E--AI-Workspace-Projects-Propria\memory`.
   The per-product store keys (`…-Propria-Probata`, `…-Propria-Probata-probata`) are junctions
   into that same folder, so all of Propria shares one memory store.
-- **Probata repo, git root:** `E:\AI_Workspace\Projects\Propria\modules\Probata\probata`. It is
-  its own Git repository until its import is recorded in `docs\monorepo-migration-manifest.json`.
-  Commit only from there, staging by explicit path — other sessions share that index and stage
-  hundreds of their own files.
+- **Probata module:** `E:\AI_Workspace\Projects\Propria\modules\Probata\probata`.
+  Its Git root is `E:\AI_Workspace\Projects\Propria`, shared with the other imported
+  modules. Stage and commit only the explicitly assigned paths in that root.
 - **memsearch (shared agent memory):** ONE folder for every agent and project,
   `C:\Users\matts\.memsearch\memory`, and ONE Milvus collection,
   `agent_session_memory_nemotron3`, pinned by `C:\Users\matts\.memsearch\.collection`. Claude
@@ -271,8 +259,8 @@ transition state.
 - **Worktrees:** `E:\AI_Workspace\Projects\Propria\_worktrees`. New Propria-owned linked
   worktrees belong here; relocate an existing linked worktree only with `git worktree move`,
   after its owner is paused and its state is captured.
-- **Running TODO:** `modules\Probata\probata\docs\planning\<date>-TODO.md`. Current file is
-  `2026-09-20-TODO.md`.
+- **Running TODO:** `modules\Probata\probata\docs\planning\<date>-TODO.md`.
+  Select the relevant active ledger through the module's `docs/COORDINATION.md`.
 - **Handoffs:** `modules\Probata\probata\docs\handoffs\HANDOFF-<date>-<topic>.md`.
 - **Secrets:** `C:\Users\matts\.secrets`. Parse with a regex and never `source` these files.
 - **probata-db** (PostgreSQL 18 on ovh-files, `100.91.190.107:5432`, tailnet only): every client has its own login, kept in `~/.secrets/probata-db.env` and Infisical `/desktop/probata-db`. Schema changes, test databases and new logins use `platform_dba`, whose sessions run as `platform_migrator`, the owner of the platform objects. `ai` is the bootstrap superuser and refuses password logins since 2026-10-02; it works only inside the database container. _(Claude Code · Opus 5.5 · 2026-10-02)_

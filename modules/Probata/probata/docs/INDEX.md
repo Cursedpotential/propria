@@ -1,97 +1,72 @@
 # Documentation Index — Current Entry Points
 
-> _2026-10-17 amendment: ChatGPT — indexed the owner's explicitly approved as-lived/hindsight/foreshadowing use-case explanation. This is intended behavior, not a live completion claim._
-> _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
-> _2026-08-27 amendment: Codex · GPT-5 — added the static API-to-Workbench coverage census._
-> _2026-08-29 amendment: Codex · GPT-5 — recorded accepted ADR-0061 Workbench/SBV composition._
-> _2026-08-29 amendment: Codex · GPT-5.6-Sol — indexed the AgentOS retirement cutover handoff._
-> _2026-08-27 amendment: Codex · GPT-5 — corrected the live `platform` baseline and indexed
-> D-093 Slice 1 plus the durable run-event implementation status._
-> _2026-08-27 amendment: Codex · GPT-5 — added the open-source live observability shortlist._
-> _2026-08-27 amendment: Codex · GPT-5 — added the D-091 fresh `platform` database hold,
-> D-092 court-export-only redaction boundary, and the held migration-0036 runbook._
-> _2026-09-05 amendment: Claude Code · Fable 5.1 — indexed docs/NAMING.md, the naming canon
-register for D-137..D-141 (probata/proffer/indagatio/consignatio/advocatio/vestigia)._
-> _2026-08-26 amendment: Claude Code · Opus 5 — added the two current naming-migration artifacts
-> (owner HTML + census/handoff) to Start Here and the D-086 naming paragraph to Current truth._
-> _2026-08-23 amendment: Claude Code · Opus 5 — corrected the "Held activation" migration
-> claim (0026-0030 are applied, CH-15/CH-16) and added the Temporal plan, ingestion-readiness
-> note, and cross-repo review directory to Start Here._
+> **Reconciled 2026-10-17 — ChatGPT · GPT-6 Astra.** This index routes current
+> accepted requirements separately from dated implementation and deployment records.
+> It preserves the owner's October 17 as-lived/hindsight/foreshadowing reference.
+> The old August "current live" paragraph, stale dirty-worktree claim, resolved
+> six-question review hold and superseded migration-status summary have been removed.
+> [Reconciliation sources and scope](../../../../docs/ARCHITECTURE-REFERENCE-RECONCILIATION-2026-10-17.md).
 
-Use this page to distinguish durable canon, the accepted 2026-08-15 target, current local
-implementation, and historical planning. A file describing a target does not prove it is
-deployed.
+Read the latest scoped owner conversation and current Docstore decisions before a
+lane's packet. An accepted design does not prove implementation or deployment.
+Use [root AGENTS.md](../../../../AGENTS.md) for the single repository and current
+module routes. Current context processing follows the October 8 owner correction:
+all sources enter context without hashing, custody or pre-storage/search approval
+gates; AI conversation bodies remain external context.
 
 ## Start here
 
-| Need | Document | Authority |
+| Need | Document | Authority and validation boundary |
 |---|---|---|
-- `docs/PURPOSE.md` — **what this app is for**: the owner's six steps (2026-09-22) and the dated record they came from. Read before touching any surface.
-| Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
-| Intended as-lived/hindsight walk, foreshadowing and perspective-correct review | [AS-LIVED-HINDSIGHT-USE-CASE.md](AS-LIVED-HINDSIGHT-USE-CASE.md) | Owner-approved explanation; 2026-10-17; not implementation proof |
-| Naming canon (product + component names) | [NAMING.md](NAMING.md) | Durable canon; D-137..D-141 |
-| Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
-| Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |
-| Independent verification of the above | [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | Confirms/contradicts MASTER-TODO against live code+DB; lists gaps and owner-blocked items |
-| Evidence Desk handoff | [HANDOFF-2026-08-18-evidence-operations-desk-mvp.md](handoffs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | Immediate production MVP |
-| Derived-document ingest wiring | [HANDOFF-2026-08-29-derived-document-ingest-wiring.md](handoffs/HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | AI work products (chronologies/strategy/guides) → context → timeline/vectors/graphs; WP-1..WP-11 |
-| AgentOS retirement and Agno bounded role | [HANDOFF-2026-08-29-agno-role-dissection.md](handoffs/HANDOFF-2026-08-29-agno-role-dissection.md) | Current cutover status, owner rulings, local verification, and live release holds |
-| Repository placement | [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | Structural index |
-| Live multi-lane log | [COORDINATION.md](COORDINATION.md) | Append-only coordination history |
-| Pending historical review | [awaiting-verification/README.md](awaiting-verification/README.md) | Moved records; all claims UNVERIFIED |
-| ~~Archive policy~~ | ~~[archive/README.md](archive/README.md)~~ | **Corrected 2026-09-09: `docs/archive/` no longer exists (removed by commit `288591e`, 2026-09-08 docs restructure). No replacement invented — there is currently no archive-policy doc.** |
-| Temporal adoption plan | [plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | Phased adoption plan; D-067 ruled it 2026-08-23 |
-| Ingestion readiness | [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | What's up and working for tonight's ingest |
-| Cross-repo evidence audit | [reviews/2026-08-23-cross-repo-evidence-audit/](reviews/2026-08-23-cross-repo-evidence-audit/) | Issues/TODO register (ISS-/TODO-numbered), framework-roles ruling (TODO-212), custody ruling (TODO-101/207) |
+| Product purpose and operator experience | [PURPOSE.md](PURPOSE.md) | Dated owner statement, with the current context-processing amendment |
+| Accepted architecture and decision routing | [PROJECT_CANON.md](PROJECT_CANON.md) | Current responsibility map; newer scoped owner decisions control |
+| Intended as-lived/hindsight walk, foreshadowing and perspective-correct review | [AS-LIVED-HINDSIGHT-USE-CASE.md](AS-LIVED-HINDSIGHT-USE-CASE.md) | Owner-approved explanation, October 17; not implementation proof |
+| Current architecture corrections and source record | [Architecture reference reconciliation](../../../../docs/ARCHITECTURE-REFERENCE-RECONCILIATION-2026-10-17.md) | Existing owner decisions reconciled; documentation-only validation |
+| Decision history and supersession | [DECISION_LOG.md](DECISION_LOG.md), [ADR index](adr/README.md) | Read decision date, scope and subsequent amendments |
+| Naming | [NAMING.md](NAMING.md) | Product/component naming record |
+| One case identity and Dev / Live behavior | [October 5 contract](../../../../docs/decisions/2026-10-05-single-case-operating-flags.md) | Owner contract; deployment status comes from current receipts |
+| Source, module and commit ownership | [Root AGENTS.md](../../../../AGENTS.md), [September 26 import](../../../../docs/decisions/2026-09-26-monorepo-import.md), [module AGENTS.md](../AGENTS.md) | One Propria repository with imported modules |
+| Indexing and data boundaries | [SYSTEM-BOUNDARIES.md](../../../../SYSTEM-BOUNDARIES.md) | CCC, Intake and Docstore remain separate |
+| Forward work | Selected current lane packet, [BUILD_PLAN.md](BUILD_PLAN.md), [handoffs](handoffs/) | Reconcile dated plan entries with later owner decisions and current code |
+| Code placement and conventions | [REPO_STRUCTURE.md](REPO_STRUCTURE.md), [CONVENTIONS.md](CONVENTIONS.md) | Apply alongside the current root/module contracts |
+| Coordination history | [COORDINATION.md](COORDINATION.md) | Append-only, dated record |
 
-## Current truth in one paragraph
+## Current accepted roles
 
-AgentOS is retired from the production API target; the plain FastAPI host and direct-caller cutover
-are implemented locally and held for live Coolify proof. Agno 2.8.7 remains only as a disabled,
-bounded atomic-agent library dependency while Temporal task contracts are built. Knowledge is ingested once without horizon
-restriction; agents later receive immutable, filtered horizon experiences. Semantica is a VIP
-service whose findings may be governed candidates. PostgreSQL is authoritative; Graphiti is a
-retired adapter, while SurrealDB is the governed manually promoted temporal/walk projection.
-Portkey remains preferred routing, OpenCode adds persistent
-workspace/provider flexibility. Go routing is
-decoder-coverage based at every file size.
+Temporal is the durable execution spine; n8n is the visual integration layer;
+the existing Go engine invokes bounded tools through individual Activities.
+ContextForge federates MCP tools and Portkey routes models. AgentOS is retired;
+Agno remains only the bounded disabled library adapter described by D-107.
 
-ADR-0056–0058 add a governed Surreal analytical/walk-memory target, claim-centered evidence
-assembly, Investigation Search, and scoped behavioral analysis. This does not reactivate the
-parked legacy Surreal deployment or change PostgreSQL authority. See the goal hierarchy and
-technical blueprint above; the new capabilities are design-only.
+PostgreSQL retains canonical state and metadata, with the source-configured
+pg_duckdb/PostGIS/pgvector extensions. Weaviate serves governed search, Neo4j
+serves the independent Semantica/SAT graph projections, and SurrealDB serves
+governed temporal/walk analysis. Graphiti is retired. LlamaIndex and LangGraph
+have the accepted roles in D-143/D-144. Current context-source rules and each
+store's scope are in [PROJECT_CANON.md](PROJECT_CANON.md#4-current-stack).
 
-The Phase-0 review package now defines logical contracts, routes 33 unresolved questions,
-specifies the gold corpus/evaluation gates, and adds a 14-test synthetic future-fact canary.
-It does not verify live adapters or authorize Phase 1. Six compact owner choices remain pending.
+The source configuration, registered tools and a service's current health are
+separate evidence. This index makes no claim that every accepted capability is
+implemented or that old activation holds still describe today's deployment.
 
-## Held activation
+## Dated implementation and review records
 
-The Matter/CourtCase foundation, migration `0030`, neutral spine APIs,
-Workbench adapters/UI, provenance-preserving Knowledge-to-Evidence promotion,
-custody inspection, court-readiness read side, and activation preflight are
-committed and pushed to `main`. ~~The worktree is clean.~~ **Corrected
-2026-08-18 (Claude Code · Fable 5): the worktree is currently DIRTY** — live
-`git status` shows uncommitted changes (docs reorg, SurrealDB runner files,
-`AGENTS.md`, compose/deploy yaml); see
-[OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md)
-Part 2. ~~Migrations `0026–0030`
-remain unapplied~~ **Corrected 2026-08-23 (Claude Code · Opus 5, CH-15/CH-16): migrations
-`0026`–`0030` are APPLIED** to live PG18 (`100.91.190.107:5432`, db `ai`) — `0026`-`0029`
-were found already live (stale banners), `0030` was applied the same night on owner
-instruction. The **feature** (Matter/CourtCase-aware evidence pipeline, native evidence
-vectors) remains undeployed; no live-service proof beyond the applied schema is
-claimed. Use the R9 handoff and activation preflight pre-mortem for current
-verification and release gates.
+These links preserve traceability. They do not establish the current next task,
+current live health, or a continuing hold without newer corroboration.
 
-Three divergent self-contained Workbench mockups and their evaluation reports
-are available through the comparison page above. They are design donors/prototypes, not production
-applications. Accepted ADR-0061 defines the production composition: Workbench is the unified shell and
-the storage-free SBV client is its bounded `/evidence/preview` pipeline surface.
+| Record | Historical scope |
+|---|---|
+| [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | August production-resume ledger |
+| [OWNER-REVIEW-2026-08-18-verified-todo-audit.md](OWNER-REVIEW-2026-08-18-verified-todo-audit.md) | August code/DB verification and gaps |
+| [Evidence Desk handoff](handoffs/HANDOFF-2026-08-18-evidence-operations-desk-mvp.md) | August MVP packet |
+| [Derived-document ingest handoff](handoffs/HANDOFF-2026-08-29-derived-document-ingest-wiring.md) | August work-product wiring; later context decisions control |
+| [AgentOS retirement handoff](handoffs/HANDOFF-2026-08-29-agno-role-dissection.md) | D-107 retirement/cutover record |
+| [Temporal adoption plan](plans/TEMPORAL-INTEGRATION-PLAN-2026-08-23.md) | D-067 adoption sequence |
+| [INGESTION-READINESS-2026-08-23.md](INGESTION-READINESS-2026-08-23.md) | Readiness observed on its date |
+| [Cross-repo evidence audit](reviews/2026-08-23-cross-repo-evidence-audit/) | Dated audit; superseded framework and capture-time custody rules are not current |
+| [Awaiting-verification index](awaiting-verification/README.md) | Unverified historical records |
+| [R0–R14 packets](awaiting-verification/handoffs/) | Dated review packets |
 
-## Archived lane packets and historical plans
-
-- [R0–R14 packets](awaiting-verification/handoffs/) (pending independent review)
-
-Historical packets, dated plans, inventories, summaries, evaluations, and design history are
-archived by category. They remain read-only context and never override current production truth.
+The historical `docs/archive/` directory was removed in the September 8
+restructure; do not follow its retired link or invent a replacement archive policy.
+Original decision records and Git history preserve the superseded material.

@@ -4,11 +4,16 @@
 
 **Owner decision — 2026-09-12:** CCC means project-local CocoIndex Code indexes only. Intake is the multifaceted CocoIndex-based filesystem workstation, using Weaviate for advanced search and SurrealDB for relationships, with multimodal tools/libraries (OCR, STT, video transcription/processing, advanced SLM extraction/classification). Docstore is CocoIndex + SurrealDB for project documentation. Keep their apps, tracking state, locks, configuration and target ownership isolated; shared technology is not a shared runtime. This defines scope, not proof every feature is implemented.
 
-See [CCC / Intake / Docstore boundaries](../SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
+See [CCC / Intake / Docstore boundaries](../../SYSTEM-BOUNDARIES.md) for indexing eligibility, duplicate provenance and the human-agent organizing workflow.
 
-`E:\AI_Workspace\Projects\Propria\Consignatio` is an independent product repository inside the
-`E:\AI_Workspace` repository router. Product code, documentation, tests, and
-ordinary commits belong to this child repository, never to the parent router.
+Consignatio is the product module at
+`E:/AI_Workspace/Projects/Propria/modules/Consignatio` in the single
+`Cursedpotential/propria` repository. Product code, documentation and tests commit
+at the Propria root, with explicit paths under this module. The completed
+[2026-09-26 import](../../docs/decisions/2026-09-26-monorepo-import.md) and
+[root contract](../../AGENTS.md) supersede the former independent-repository routing.
+
+_Routing reconciliation: ChatGPT · GPT-6 Astra · 2026-10-17; existing owner import decision._
 
 ## Safety
 
@@ -29,7 +34,8 @@ ordinary commits belong to this child repository, never to the parent router.
 - Never stage evidence bytes, databases, generated indexes, exports, credentials,
   or machine-local configuration.
 - Before staging or committing, run `git rev-parse --show-toplevel` from the target
-  path and confirm it resolves to `E:/AI_Workspace/Projects/Propria/Consignatio`.
+  path and confirm it resolves to the Propria monorepo root
+  (`E:/AI_Workspace/Projects/Propria` in the configured desktop workspace).
 - Stage only explicit, reviewed paths. Never use `git add .` or `git add -A`.
 - Never initiate host reboot, restart, shutdown, sleep, hibernation or logoff.
 - Do not hydrate cloud placeholders, scan a corpus, start recurring workers or
@@ -73,22 +79,21 @@ changing its contracts or interface. Keep the browser UI usable independently of
 the Tauri host; privileged filesystem and process operations must pass through
 explicit, least-privilege native commands.
 
-## Child repositories
+## Imported Xplorer source
 
-`Intake/xplorer-copilot-buildkit/` holds two independent Git roots, ignored by this repository
-(`.gitignore`, ignore-only, no gitlink). Commit inside the child, never here.
+Both Xplorer source folders belong to the Propria monorepo. Read their applicable
+local instructions and commit reviewed changes at the Propria root.
 
-| Child | Path | Remote | Rule |
-|---|---|---|---|
-| Xplorer copilot build kit | `Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit/` | `Cursedpotential/xplorer-copilot-buildkit` (private) | own `CLAUDE.md`; push to `origin` only |
-| Xplorer fork (`xplorer-copilot`) | `Intake/xplorer-copilot-buildkit/xplorer-copilot/` | `private` = `Cursedpotential/Intake-desktop`; public `origin` and `upstream` are fetch-only | push Intake work to `private` only; active branch `feat/acp-copilot` |
+| Component | Path relative to this module | Import authority |
+|---|---|---|
+| Xplorer copilot build kit | `Intake/xplorer-copilot-buildkit/xplorer-copilot-buildkit/` | Root history import, 2026-09-23 |
+| Xplorer fork (`xplorer-copilot`) | `Intake/xplorer-copilot-buildkit/xplorer-copilot/` | Monorepo import, 2026-09-26 |
 
-Private source publication is documented in `REPOSITORIES.md`. Never push all
-branches or mirror this repository: local archival branches contain imported
-corpus history intentionally excluded from GitHub. `repair-tool-kit-codex/` is
-a linked local worktree, not an independent repository; preserve its branch.
-
-> _Byline amendment: Claude Code · Fable 5.1 · 2026-09-09 — added Child repositories section for the Xplorer copilot kit and fork._
+`REPOSITORIES.md` records the former publication boundaries. The old per-product
+remotes are archives; current work goes to `Cursedpotential/propria`. The excluded
+local archival branches and corpus history stay excluded, as documented in the
+root import decision. Preserve linked worktrees and their branches; their presence
+does not establish a separate product repository.
 
 ## Execution direction
 
