@@ -45,7 +45,7 @@
       "typeVersion": 4.4,
       "parameters": {
         "method": "POST",
-        "url": "https://REPLACE_WITH_VERIFIED_PLATFORM_OR_SEARCH_GATEWAY.example.invalid/v1/knowledge-reconcile/snapshot",
+        "url": "http://100.72.169.40:8000/v1/knowledge-reconcile/snapshot",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -64,7 +64,10 @@
           "id": "REPLACE_ME",
           "name": "PROPRIA_KNOWLEDGE_SOURCE_READER (bind before activation)"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
       "id": "38e077ef-04d1-4b9e-84e1-000000000004",
@@ -86,7 +89,7 @@
       "typeVersion": 4.4,
       "parameters": {
         "method": "POST",
-        "url": "https://REPLACE_WITH_VERIFIED_PLATFORM_REVIEW_API.example.invalid/v1/knowledge-reconcile/reviews",
+        "url": "http://100.72.169.40:8000/v1/knowledge-reconcile/reviews",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
