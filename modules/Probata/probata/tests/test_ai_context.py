@@ -81,7 +81,7 @@ def test_markdown_prepare_retains_exact_original_bytes(monkeypatch, tmp_path):
     params = {**_request(), "source_format": "gemini_markdown", "source_sha256": digest}
     monkeypatch.setenv("AI_CONTEXT_ROOT", str(tmp_path.resolve()))
     monkeypatch.setattr(context, "_source_bytes", lambda request: raw)
-    monkeypatch.setattr(context, "topic_chunks", lambda records, request, neural=None: [])
+    monkeypatch.setattr(context, "topic_chunks", lambda records, request, segmenter=None: ([], [], {}))
     receipt = context.prepare(params)
     prepared = context._read(receipt["bundle_ref"], params, "prepared")
     assert Path(prepared["original_ref"].removeprefix("file://")).name == "original.md"
@@ -124,7 +124,7 @@ def test_actual_original_hash_without_identity_mutation(monkeypatch, tmp_path):
     params = {**_request(), "source_format": "gemini_markdown"}
     monkeypatch.setenv("AI_CONTEXT_ROOT", str(tmp_path.resolve()))
     monkeypatch.setattr(context, "_source_bytes", lambda request: raw)
-    monkeypatch.setattr(context, "topic_chunks", lambda records, request, neural=None: [])
+    monkeypatch.setattr(context, "topic_chunks", lambda records, request, segmenter=None: ([], [], {}))
     before = context.identity(params)
     receipt = context.prepare(params)
     prepared = context._read(receipt["bundle_ref"], params, "prepared")

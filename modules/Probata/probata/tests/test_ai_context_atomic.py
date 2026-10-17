@@ -54,21 +54,6 @@ def _chatgpt():
                                        "content": {"parts": ["alternate branch retained only in original"]}}}}}]
 
 
-class _Neural:
-    """Supply deterministic chunk boundaries while exercising the real window adapter.
-
-    Inputs: fictional text. Output: one complete window. Effects: none; this
-    validates plumbing/coverage, not a claim about real Neural inference quality.
-    """
-    def chunk(self, text):
-        """Return a whole bounded test window.
-
-        Inputs: window text. Output: start-index object; effects: none. Pick for
-        deterministic source-span coverage independently of remote models.
-        """
-        return [SimpleNamespace(start_index=0, text=text)]
-
-
 def test_actual_duckdb_native_fields_preserve_unicode_roles_clocks_and_branch(tmp_path, monkeypatch):
     """Decode real synthetic files through DuckDB without PG or topic inference.
 
@@ -136,7 +121,7 @@ def test_works_before_chunks_keep_multipart_and_repeated_occurrences(tmp_path, m
     monkeypatch.setattr(context, "_source_bytes", lambda p: pytest.fail("chunk Activity re-read source"))
     monkeypatch.setattr(context, "decode_records", lambda *a: pytest.fail("chunk Activity decoded source"))
     params["work_products_ref"] = works_receipt["bundle_ref"]
-    params["prepared_ref"] = context.prepare(params, neural=_Neural())["bundle_ref"]
+    params["prepared_ref"] = context.prepare(params, segmenter=False)["bundle_ref"]
     prepared = context._read(params["prepared_ref"], params, "prepared")
     assert prepared["decoded_ref"] == params["decoded_ref"]
     assert prepared["records"] == context._read(params["decoded_ref"], params, "decoded")["records"]
@@ -293,7 +278,7 @@ def test_publication_precedes_enrichment_and_retains_actual_models_and_pins(tmp_
     params, _ = _source(tmp_path, monkeypatch, _chatgpt())
     params["decoded_ref"] = context.decode(params)["bundle_ref"]
     params["work_products_ref"] = context.extract_work_products(params)["bundle_ref"]
-    prepared_receipt = context.prepare(params, neural=_Neural())
+    prepared_receipt = context.prepare(params, segmenter=False)
     params["prepared_ref"] = prepared_receipt["bundle_ref"]
     embedder = SimpleNamespace(model="synthetic-explicit-embedding", calls=1,
                               embed=lambda texts: [[0.0] * 2048 for _ in texts])
@@ -347,7 +332,7 @@ def test_real_candidate_unit_reports_grounded_typed_held_and_model_coverage(tmp_
     params, _ = _source(tmp_path, monkeypatch, _chatgpt())
     params["decoded_ref"] = context.decode(params)["bundle_ref"]
     params["work_products_ref"] = context.extract_work_products(params)["bundle_ref"]
-    params["prepared_ref"] = context.prepare(params, neural=_Neural())["bundle_ref"]
+    params["prepared_ref"] = context.prepare(params, segmenter=False)["bundle_ref"]
     prepared = context._read(params["prepared_ref"], params, "prepared")
     record = prepared["records"][0]
     base = {"record_id": record["record_id"], "quote": "Alice", "confidence": 0.8}

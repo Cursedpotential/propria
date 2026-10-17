@@ -423,42 +423,30 @@ def decode_markdown_records(text: str, params: dict[str, Any]) -> list[dict[str,
     return records
 
 
-def topic_chunks(records: list[dict[str, Any]], params: dict[str, Any], *, neural: Any = None) -> list[dict[str, Any]]:
-    """Partition complete conversations at NeuralChunker topic boundaries.
+def topic_chunks(records: list[dict[str, Any]], params: dict[str, Any], *, segmenter: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Segment conversations by topic/domain, then sentence-chunk each segment.
 
-    Inputs: native records, bounds and optional test chunker. Outputs: chunks
-    with exact codepoint slices. Effects: Neural inference. Choose for search.
+    Inputs: native records, bounds and optional injected segmenter (``False``
+    forces the untagged path). Outputs: chunks with exact codepoint slices, the
+    segment index and segmentation statistics. Effects: remote segmentation calls
+    when configured. Choose for search. Owner design 2026-10-16; replaces the
+    NeuralChunker topic split, whose unmerged cuts exceeded the chunk bound.
     """
-    from server.context_chunks.chunker import neural_text_spans
-    grouped: dict[int, list[dict[str, Any]]] = {}
-    for record in records:
-        grouped.setdefault(record["conversation_index"], []).append(record)
-    chunks = []
-    for ci, members in grouped.items():
-        offsets, rendered, cursor = [], [], 0
-        for record in members:
-            if rendered:
-                rendered.append("\n\n")
-                cursor += 2
-            offsets.append((cursor, cursor + len(record["body"]), record))
-            rendered.append(record["body"])
-            cursor += len(record["body"])
-        full = "".join(rendered)
-        for index, (start, end) in enumerate(neural_text_spans(full, max_chars=CHUNK_CHARS, neural=neural)):
-            segments = []
-            for first, last, record in offsets:
-                left, right = max(start, first), min(end, last)
-                if left < right:
-                    segments.append({**{key: value for key, value in record.items() if key != "body"},
-                                     "body_start": left - first, "body_end": right - first,
-                                     "text": record["body"][left - first:right - first]})
-            if segments:
-                chunks.append({"conversation_index": ci, "conversation_id": members[0]["conversation_id"],
-                               "chunk_index": index, "text_start": start, "text_end": end,
-                               "text": full[start:end], "segments": segments})
+    from server.analysis.ai_context_segments import segment_chunks
+    chunks, segments, stats = segment_chunks(records, identity(params), segmenter=segmenter)
     if len(chunks) > _bound(params, "max_chunks", MAX_CHUNKS):
         raise ContextInvalid("topic chunks exceed chunk bound")
-    return chunks
+    return chunks, segments, stats
+
+
+def _segmentation_counts(stats: dict[str, Any]) -> dict[str, int]:
+    """Project integer segmentation counters for receipts.
+
+    Inputs: segment_chunks statistics. Outputs: integer counts. Effects: none.
+    Choose for bundle counts so Temporal receipts stay flat integers.
+    """
+    return {"topic_segments": int(stats.get("topic_segments", 0)), "untagged_segments": int(stats.get("untagged_segments", 0)),
+            "segment_model_calls": int(stats.get("segment_model_calls", 0)), "segment_windows": int(stats.get("segment_windows", 0))}
 
 
 def decode(params: dict[str, Any]) -> dict[str, Any]:
@@ -530,7 +518,7 @@ def _verify_original(bundle: dict[str, Any], params: dict[str, Any]) -> None:
         raise ContextInvalid("retained original SHA256 differs")
 
 
-def prepare(params: dict[str, Any], *, neural: Any = None) -> dict[str, Any]:
+def prepare(params: dict[str, Any], *, segmenter: Any = None) -> dict[str, Any]:
     """Read native original and retain its complete package and topic projection.
 
     Inputs: decoded_ref and bounds for new runs; absent decoded_ref preserves
@@ -547,9 +535,10 @@ def prepare(params: dict[str, Any], *, neural: Any = None) -> dict[str, Any]:
             if bundle.get("decoded_ref") != params["decoded_ref"]:
                 raise ContextInvalid("prepared predecessor differs")
             return _receipt(path.as_uri(), bundle)
-        chunks = topic_chunks(decoded["records"], params, neural=neural)
+        chunks, segments, stats = topic_chunks(decoded["records"], params, segmenter=segmenter)
         bundle = {**decoded, "stage": "prepared", "decoded_ref": params["decoded_ref"],
-                  "chunks": chunks, "counts": {**decoded["counts"], "chunks": len(chunks)}}
+                  "chunks": chunks, "topic_segments": segments, "segmentation": stats,
+                  "counts": {**decoded["counts"], "chunks": len(chunks), **_segmentation_counts(stats)}}
         ref = _write(path, bundle)
         return _receipt(ref, bundle)
     source = identity(params)
@@ -577,12 +566,12 @@ def prepare(params: dict[str, Any], *, neural: Any = None) -> dict[str, Any]:
     text_bytes = sum(len(record["body"].encode("utf-8")) for record in records)
     if text_bytes > _bound(params, "max_text_bytes", MAX_TEXT_BYTES):
         raise ContextInvalid("native text exceeds text byte bound")
-    chunks = topic_chunks(records, params, neural=neural)
+    chunks, segments, stats = topic_chunks(records, params, segmenter=segmenter)
     counts = {"records": len(records), "conversations": len({record["conversation_index"] for record in records}),
-              "chunks": len(chunks), "text_bytes": text_bytes}
+              "chunks": len(chunks), "text_bytes": text_bytes, **_segmentation_counts(stats)}
     bundle = {"contract_version": VERSION, "stage": "prepared", "source": identity(params),
               "original_ref": original.as_uri(), "original_sha256": digest,
-              "records": records, "chunks": chunks, "counts": counts}
+              "records": records, "chunks": chunks, "topic_segments": segments, "segmentation": stats, "counts": counts}
     ref = _write(path, bundle)
     return _receipt(ref, bundle)
 
@@ -899,7 +888,7 @@ def embed(params: dict[str, Any], *, embedder: Any = None) -> dict[str, Any]:
             from server.context_chunks.embed import NimEmbedder
             embedder = NimEmbedder(load_config())
         model_id = getattr(embedder, "model", None)
-        vectors = embedder.embed([chunk["text"] for chunk in prepared["chunks"]])
+        vectors = embedder.embed([chunk.get("context", "") + chunk["text"] for chunk in prepared["chunks"]])
         if len(vectors) != len(prepared["chunks"]) or any(len(vector) != 2048 or any(
             isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in vector
         ) for vector in vectors):
@@ -972,6 +961,18 @@ def search_objects(params: dict[str, Any], prepared: dict[str, Any], candidates:
                       "promotion_policy": "forbidden"}
         if source.get("source_version_id"):
             properties["source_version_id"] = source["source_version_id"]
+        if chunk.get("segment_id"):
+            # Segment fields (2026-10-16): fetch every chunk of one conversation segment by
+            # segment_id; filter by primary or secondary domain. Older chunks keep their shape.
+            properties.update({"segment_id": chunk["segment_id"], "segment_index": chunk["segment_index"],
+                               "segment_chunk_index": chunk["segment_chunk_index"],
+                               "segment_chunk_count": chunk["segment_chunk_count"],
+                               "segment_domain": chunk["domain"] or "", "segment_secondary_domain": chunk["secondary_domain"] or "",
+                               "segment_topic": chunk["topic"] or "", "segment_status": chunk["segment_status"]})
+            properties["topics"] = [chunk["topic"]] if chunk["topic"] else []
+            provenance.update({"segment_id": chunk["segment_id"], "text_start": chunk["text_start"], "text_end": chunk["text_end"],
+                               "context_start": chunk["context_start"]})
+            properties["provenance"] = [json.dumps(provenance, ensure_ascii=False, sort_keys=True)]
         locator = json.dumps([VERSION, source, params.get("temporal_run_id") or params.get("request_id"),
                               chunk["conversation_index"], chunk["chunk_index"], collection], sort_keys=True)
         obj = {"id": str(uuid5(NAMESPACE_URL, locator)), "class": collection, "properties": properties}
