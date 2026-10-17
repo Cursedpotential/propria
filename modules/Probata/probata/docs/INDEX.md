@@ -1,5 +1,6 @@
 # Documentation Index — Current Entry Points
 
+> _2026-10-17 amendment: ChatGPT — indexed the owner's explicitly approved as-lived/hindsight/foreshadowing use-case explanation. This is intended behavior, not a live completion claim._
 > _Byline: Codex · GPT-5 · 2026-08-15 · updated 2026-08-18 (Codex · GPT-5)._
 > _2026-08-27 amendment: Codex · GPT-5 — added the static API-to-Workbench coverage census._
 > _2026-08-29 amendment: Codex · GPT-5 — recorded accepted ADR-0061 Workbench/SBV composition._
@@ -27,6 +28,7 @@ deployed.
 |---|---|---|
 - `docs/PURPOSE.md` — **what this app is for**: the owner's six steps (2026-09-22) and the dated record they came from. Read before touching any surface.
 | Product invariant and locked decisions | [PROJECT_CANON.md](PROJECT_CANON.md) | Durable canon |
+| Intended as-lived/hindsight walk, foreshadowing and perspective-correct review | [AS-LIVED-HINDSIGHT-USE-CASE.md](AS-LIVED-HINDSIGHT-USE-CASE.md) | Owner-approved explanation; 2026-10-17; not implementation proof |
 | Naming canon (product + component names) | [NAMING.md](NAMING.md) | Durable canon; D-137..D-141 |
 | Current forward order | [BUILD_PLAN.md](BUILD_PLAN.md) | Forward entry point |
 | Entire application TODO | [MASTER-TODO-2026-08-18.md](MASTER-TODO-2026-08-18.md) | Authoritative production resume ledger |

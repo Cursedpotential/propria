@@ -21,6 +21,10 @@ contains_secrets: false
 
 > _Byline: Codex · GPT-5 · 2026-08-27._
 
+## Owner-approved use-case references
+
+- **As-lived, hindsight, foreshadowing, relationship significance and timeline/graph contributions:** read [AS-LIVED-HINDSIGHT-USE-CASE.md](AS-LIVED-HINDSIGHT-USE-CASE.md). The owner explicitly accepted the explanation and requested it as a source of truth on 2026-10-17. This is the intended behavior, not a completed implementation claim; link to it rather than reconstructing a different temporal use case from memory. _ChatGPT · 2026-10-17._
+
 ## Durable local rules
 
 - **Verified:** `docs/INDEX.md` routes current truth. A document merely existing under `docs/`
