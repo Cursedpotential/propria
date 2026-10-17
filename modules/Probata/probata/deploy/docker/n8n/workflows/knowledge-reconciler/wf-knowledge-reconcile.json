@@ -1,0 +1,357 @@
+{
+  "name": "Propria Knowledge Reconciliation · End-to-end n8n Workflow",
+  "nodes": [
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000001",
+      "name": "Webhook - Reconcile",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "propria/knowledge/reconcile",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "position": [
+        -760,
+        0
+      ],
+      "webhookId": "38e077ef-04d1-4b9e-84e1-000000000101",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "N8N_KNOWLEDGE_TRIGGER (bind before activation)"
+        }
+      }
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000002",
+      "name": "Validate Trigger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// One complete n8n run; never pass raw evidence or transcripts in a trigger.\nconst request=$input.first()?.json||{};\nconst body=request.body??request;\nif(!body||typeof body!=='object'||Array.isArray(body)||body.schema!=='propria-knowledge-trigger/v1')throw Error('invalid trigger schema');\nif(!['scheduled','event','manual'].includes(body.kind))throw Error('invalid trigger kind');\nconst scope=String(body.scope||'');\nif(!(scope==='propria'||scope.startsWith('propria/'))||scope.length>120)throw Error('invalid scope');\nif(Object.keys(body).some(k=>['content','records','binary','transcripts','raw'].includes(k)))throw Error('trigger must contain record references only');\nconst source=body.source||null;\nconst validSources=new Set(['memsearch','engram','cnf','docstore','propria-search','superindex','casebible','workbench','ccc']);\nif(source&&!validSources.has(source))throw Error('unrecognized source');\nconst input={schema:body.schema,kind:body.kind,scope,source};\nif(body.kind==='event'){\n  if(!source||!String(body.record_ref||'').trim()||!String(body.revision||'').trim())throw Error('event identity incomplete');\n  input.type=String(body.type||'');input.record_ref=String(body.record_ref).slice(0,1024);input.revision=String(body.revision).slice(0,256);\n}\nconst stamp=typeof $execution?.id==='string'||typeof $execution?.id==='number'?$execution.id:'manual';\ninput.run_id='n8n-knowledge-'+String(stamp);\nreturn [{json:input}];"
+      },
+      "position": [
+        -480,
+        0
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000003",
+      "name": "Collect Source Snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "parameters": {
+        "method": "POST",
+        "url": "http://100.72.169.40:8000/v1/knowledge-reconcile/snapshot",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "position": [
+        -200,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "PROPRIA_KNOWLEDGE_SOURCE_READER (bind before activation)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000004",
+      "name": "Build Review Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Verify source coverage, compare only same-topic records and emit candidate refs.\n// Original content never moves into the review receipt; original source remains authoritative.\nconst payload=$input.first()?.json||{};\nif(payload.schema!=='propria-knowledge-snapshot/v1'||!Array.isArray(payload.records)||!Array.isArray(payload.coverage))throw Error('snapshot schema mismatch');\nif(payload.records.length>500||payload.coverage.length>30)throw Error('snapshot exceeds bounds');\nconst trigger=$('Validate Trigger').first().json;\nconst coverage=payload.coverage.map(x=>({store:String(x.store||'').slice(0,64),state:String(x.state||'unavailable').slice(0,32),reason:String(x.reason||'').slice(0,180)}));\nconst active=new Map(),bySubject=new Map(),fingerprints=new Set(),candidates=[];\nconst clean=s=>String(s||'').replace(/<!(?:--[\\s\\S]*?--)>/g,' ').replace(/<[^>]+>/g,' ').replace(/^\\s*(?:\\[(?:Tool|System|Assistant):.*|(?:User|Assistant):\\s*(?:hello|thanks|ok)\\s*)$/gim,'').replace(/\\s+/g,' ').trim().toLowerCase();\nfor(const raw of payload.records){\n if(!raw||!raw.store||!raw.id||!raw.revision||!raw.scope)throw Error('snapshot record has no provenance');\n const id=String(raw.store)+':'+String(raw.id);\n if(active.has(id))throw Error('snapshot includes duplicate active identity');\n const record={key:id,store:String(raw.store),id:String(raw.id),revision:String(raw.revision),scope:String(raw.scope),subject:String(raw.subject_key||'').slice(0,240),\n   claim:clean(raw.text||''),source_hash:String(raw.source_hash||''),state:String(raw.state||'active'),supersedes:Array.isArray(raw.supersedes)?raw.supersedes.map(String):[],\n   expires_at:raw.expires_at||null};\n if(record.scope!==trigger.scope&&!record.scope.startsWith(trigger.scope+'/'))throw Error('out of scope record');\n if(record.state==='active'){\n   active.set(id,record);\n   if(record.subject){const group=bySubject.get(record.subject)||[];group.push(record);bySubject.set(record.subject,group);}\n }\n}\nfunction emit(kind,records,severity,summary) {\n const refs=[...new Set(records.map(r=>r.key))].sort();\n const signature=kind+':'+refs.join('|')+':'+records.map(r=>r.revision).sort().join('|');\n if(fingerprints.has(signature))return;fingerprints.add(signature);\n candidates.push({kind,scope:trigger.scope,source_refs:refs,source_revisions:records.map(r=>({ref:r.key,revision:r.revision})),\n   severity,summary,idempotency_key:signature.slice(0,800),proposed_action:'review',automatic:false});\n}\nfor(const r of active.values()){\n for(const predecessor of r.supersedes){\n   const old=active.get(predecessor);\n   if(old)emit('explicit_supersession',[old,r],'medium','A currently active record is explicitly superseded by a newer record');\n }\n if(r.expires_at){\n   const expiry=Date.parse(r.expires_at);\n   if(Number.isFinite(expiry)&&expiry<Date.now())emit('expired_active_record',[r],'medium','Record expiration is past but its active status remains');\n }\n}\nfor(const group of bySubject.values()){\n if(group.length<2)continue;\n const seen=new Map();\n for(const r of group) {\n   if(!r.claim)continue;\n   if(seen.has(r.claim))emit('duplicate_active_claim',[seen.get(r.claim),r],'low','Two active records contain the same claim');\n   else seen.set(r.claim,r);\n }\n if(seen.size>1){\n   // Different text about the same subject is only a review candidate, not proof of a contradiction.\n   emit('possible_topic_conflict',group.slice(0,10),\n     group.some(r=>r.store==='docstore'||r.store==='engram')?'high':'medium',\n     'Multiple active source assertions about the same subject differ; inspect original records');\n }\n}\nif(candidates.length>100)throw Error('too many candidates; narrow the scope');\nreturn [{json:{schema:'propria-knowledge-review-proposals/v1',run_id:trigger.run_id,scope:trigger.scope,\n scanned:payload.records.length,findings:candidates.length,coverage,review_candidates:candidates}}];"
+      },
+      "position": [
+        80,
+        0
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000005",
+      "name": "Persist Reviews Through Canonical API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "parameters": {
+        "method": "POST",
+        "url": "http://100.72.169.40:8000/v1/knowledge-reconcile/reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "position": [
+        360,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "PROPRIA_KNOWLEDGE_REVIEW_WRITER (bind before activation)"
+        }
+      }
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000006",
+      "name": "Verify Persisted Review Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Trust only persisted PG review identities, never unverified model output.\nconst saved=$input.first()?.json||{};\nconst proposed=$('Build Review Candidates').first().json;\nif(saved.schema!=='propria-knowledge-review-write/v1'||saved.run_id!==proposed.run_id||!Array.isArray(saved.review_queue))throw Error('review API did not confirm a correlated persistence receipt');\nif(saved.review_queue.length>100)throw Error('review receipt too large');\nconst reviews=saved.review_queue.map(r=>{\n if(!r||typeof r.review_ref!=='string'||!r.review_ref||!['queued','deferred','decided'].includes(r.status)||!['low','medium','high','critical'].includes(r.severity))throw Error('review persistence unverified');\n return {review_ref:r.review_ref,status:r.status,severity:r.severity,kind:String(r.kind||'knowledge_conflict').slice(0,80),newly_created:r.newly_created===true};\n});\nconst alerts=reviews.filter(r=>r.newly_created&&r.status==='queued'&&['high','critical'].includes(r.severity));\nconst incomplete=proposed.coverage.some(s=>s.state!=='queried');\nconst result={schema:'propria-knowledge-workflow-result/v1',run_id:proposed.run_id,\n status:incomplete?'partial':reviews.some(r=>r.status==='queued')?'review_pending':'completed',\n scanned:proposed.scanned,findings:proposed.findings,\n coverage:proposed.coverage,review_queue:reviews,alert_candidates:alerts.slice(0,20),\n alerts:[]};\nif(alerts.length>20)result.status='partial';\nreturn [{json:result}];"
+      },
+      "position": [
+        640,
+        0
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000007",
+      "name": "Any Urgent Alerts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "38e077ef-04d1-4b9e-84e1-000000000071",
+              "leftValue": "={{ $json.alert_candidates.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "position": [
+        910,
+        0
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000008",
+      "name": "Send Owner Review Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "parameters": {
+        "fromEmail": "REPLACE_WITH_VERIFIED_FROM_ADDRESS",
+        "toEmail": "REPLACE_WITH_OWNER_NOTIFICATION_ADDRESS",
+        "subject": "={{ 'Propria knowledge review · ' + $('Verify Persisted Review Receipt').first().json.alert_candidates.length + ' items' }}",
+        "emailType": "text",
+        "message": "={{ 'New knowledge review items require attention.\\n\\nReferences: ' + $('Verify Persisted Review Receipt').first().json.alert_candidates.map(x => x.review_ref).join(', ') + '\\n\\nOpen your authenticated Propria Workbench /activity page to inspect them. No source text is included in this notification.' }}",
+        "options": {}
+      },
+      "position": [
+        1150,
+        -120
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_ME",
+          "name": "PROPRIA_OWNER_SMTP (bind before activation)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000009",
+      "name": "Confirm Alert Delivery",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// Only label an alert delivered if the SMTP node succeeded.\nconst previous=$('Verify Persisted Review Receipt').first().json;\nconst smtp=$input.first()?.json||{};\nconst hadError=!!smtp.error;\nconst result={...previous,alerts:previous.alert_candidates.map(r=>({review_ref:r.review_ref,status:hadError?'failed':'sent'}))};\ndelete result.alert_candidates;\nif(hadError)result.status='partial';\nreturn [{json:result}];"
+      },
+      "position": [
+        1400,
+        -120
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000010",
+      "name": "No Alert Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const result=$input.first().json;delete result.alert_candidates;return [{json:result}];"
+      },
+      "position": [
+        1400,
+        140
+      ]
+    },
+    {
+      "id": "38e077ef-04d1-4b9e-84e1-000000000011",
+      "name": "Respond With Compact Receipt",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "position": [
+        1650,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Reconcile": {
+      "main": [
+        [
+          {
+            "node": "Validate Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Trigger": {
+      "main": [
+        [
+          {
+            "node": "Collect Source Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Source Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Build Review Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Review Candidates": {
+      "main": [
+        [
+          {
+            "node": "Persist Reviews Through Canonical API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Reviews Through Canonical API": {
+      "main": [
+        [
+          {
+            "node": "Verify Persisted Review Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Persisted Review Receipt": {
+      "main": [
+        [
+          {
+            "node": "Any Urgent Alerts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Urgent Alerts?": {
+      "main": [
+        [
+          {
+            "node": "Send Owner Review Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Alert Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Owner Review Email": {
+      "main": [
+        [
+          {
+            "node": "Confirm Alert Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Alert Delivery": {
+      "main": [
+        [
+          {
+            "node": "Respond With Compact Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Alert Needed": {
+      "main": [
+        [
+          {
+            "node": "Respond With Compact Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "38e077ef-04d1-4b9e-84e1-000000000999",
+  "tags": []
+}

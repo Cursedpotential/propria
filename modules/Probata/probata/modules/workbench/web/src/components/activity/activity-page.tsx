@@ -5,6 +5,7 @@ import { useAppNavigate, useBrowserSearchParams } from "@/lib/router-compat";
 
 import { ActivityOperationsLedger } from "./activity-operations-ledger";
 import { BatchActivityPanel } from "./batch-activity-panel";
+import { KnowledgeReviewInbox } from "./knowledge-review-inbox";
 
 // Byline: Codex · GPT-6 · 2026-10-06
 /** Present durable single-source operations and folder batches on one Activity page.
@@ -45,6 +46,10 @@ export function ActivityPage() {
           <p>Folder imports appear here by their saved batch reference. Their item states come from the durable batch record.</p>
         </div>
       )}
+
+      <div className="px-5 lg:px-8">
+        <KnowledgeReviewInbox />
+      </div>
 
       <div className="px-5 lg:px-8">
         <ActivityOperationsLedger />

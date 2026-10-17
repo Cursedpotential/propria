@@ -42,6 +42,7 @@ from app.runtime import (
     inspect,
     intake_discovery,
     knowledge,
+    knowledge_review,
     metrics,
     proffer,
     proffer_batch,
@@ -168,6 +169,7 @@ app.include_router(runs.router)
 app.include_router(run_events.router)
 app.include_router(inspect.router)
 app.include_router(knowledge.router)
+app.include_router(knowledge_review.router)  # read-only reconciliation inbox; decisions stay with canonical HITL
 app.include_router(conversation_actions.router)  # /api/extractors, /api/imported/threads/{extract,send-to-surreal,.../extractions}, /api/imported/workflows/* (Claude Code · Sonnet 5.5 · 2026-10-02)
 app.include_router(imported.router)  # /api/imported/* — the mobile Imported view, read-only (Claude Code · Sonnet · 2026-10-02)
 app.include_router(discovery.router)
