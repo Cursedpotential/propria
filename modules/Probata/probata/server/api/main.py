@@ -212,6 +212,7 @@ def create_app() -> FastAPI:
 
     from server.api.case_management_routes import register_case_management_routes
     from server.api.context_retrieval_routes import register_context_retrieval_routes
+    from server.api.knowledge_reconcile_routes import register_knowledge_reconcile_routes
     from server.api.entity_routes import register_entity_routes
     from server.api.evidence_routes import register_evidence_routes
     from server.api.ingest_routes import register_ingest_routes
@@ -231,6 +232,7 @@ def create_app() -> FastAPI:
     register_entity_routes(app)
     register_case_management_routes(app)
     register_context_retrieval_routes(app)
+    register_knowledge_reconcile_routes(app)  # single source/review backend for complete n8n reconciliation
     app.include_router(repair_router)
     return app
 
