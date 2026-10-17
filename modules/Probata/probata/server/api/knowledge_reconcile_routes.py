@@ -94,6 +94,26 @@ def _db():
     return _engine
 
 
+def _decision_db():
+    """Load a distinct, owner-scoped PostgreSQL credential only for HITL decisions.
+
+    Inputs: a mounted secret-file path; outputs a narrowly authorized DB engine.
+    Effects: no database mutation. The ordinary Platform runtime credential cannot
+    be reused for adjudication and must not be granted the adjudicator role.
+    """
+    path = os.getenv("KNOWLEDGE_REVIEW_DECISION_DB_DSN_FILE", "")
+    if not path:
+        raise HTTPException(503, "knowledge review adjudicator database credential is not configured")
+    try:
+        value = Path(path).read_text(encoding="utf-8").strip()
+    except OSError:
+        raise HTTPException(503, "knowledge review adjudicator database credential unavailable") from None
+    if not value.startswith(("postgresql://", "postgresql+psycopg://")) or len(value) > 4096:
+        raise HTTPException(503, "knowledge review adjudicator database credential invalid")
+    # Never echo DSN or the backend exception, even in unsuccessful requests.
+    return create_engine(value, pool_pre_ping=True, pool_size=1, max_overflow=0)
+
+
 def _unpack(raw: Any) -> Any:
     return json.loads(raw) if isinstance(raw, str) else raw
 
@@ -231,9 +251,10 @@ def _reviewer_token_ok(request: Request) -> bool:
 
 
 def _decide(review_ref: UUID, payload: Decision) -> dict:
-    """Append a checked human verdict. Approve_plan does not mutate a source or certify an apply."""
+    """Append a checked human verdict using ONLY the separate adjudicator DB identity."""
+    engine = _decision_db()
     try:
-        with _db().begin() as conn:
+        with engine.begin() as conn:
             prior = conn.execute(text("""
                 SELECT action_id,review_ref,decision,case_version FROM ops.knowledge_review_action
                 WHERE idempotency_key=:key
@@ -280,6 +301,8 @@ def _decide(review_ref: UUID, payload: Decision) -> dict:
         raise
     except Exception:
         raise HTTPException(503, "review decision could not be committed") from None
+    finally:
+        engine.dispose()
 
 
 def _configured_adapters() -> dict[str, tuple[str, str]]:
