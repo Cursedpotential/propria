@@ -17,7 +17,7 @@ The hub advertises six actions. Each domain advertises five. Native tools and fu
 | storage | https://mcp.mitechconsult.com/storage/mcp | 28 |
 | platform | https://mcp.mitechconsult.com/platform/mcp | 44 |
 | think | https://mcp.mitechconsult.com/think/mcp | 101 |
-| search | https://mcp.mitechconsult.com/search/mcp | 16 |
+| search | https://mcp.mitechconsult.com/search/mcp | 19 |
 | admin | https://mcp.mitechconsult.com/admin/mcp | 43 |
 
 ## Agent controls

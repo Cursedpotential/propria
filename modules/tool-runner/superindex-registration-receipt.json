@@ -1,0 +1,50 @@
+{
+  "registered": true,
+  "created": 3,
+  "source_indexes_created": 0,
+  "native_tools": 19,
+  "calls": [
+    {
+      "tool": "superindex-chunks-search",
+      "is_error": false,
+      "fields": [
+        "query",
+        "collection",
+        "slot",
+        "hits"
+      ],
+      "hits": 1
+    },
+    {
+      "tool": "superindex-filesystem-search",
+      "is_error": false,
+      "fields": [
+        "query",
+        "backend",
+        "collection",
+        "target_vector",
+        "coverage",
+        "hits",
+        "image_collection",
+        "image_hits"
+      ],
+      "hits": 0
+    },
+    {
+      "tool": "superindex-images-search",
+      "is_error": false,
+      "fields": [
+        "query",
+        "collection",
+        "kind",
+        "app",
+        "app_filter_scope",
+        "app_candidate_cap",
+        "lanes",
+        "hits"
+      ],
+      "hits": 0
+    }
+  ],
+  "verified_at": "2026-10-17T19:01:01Z"
+}

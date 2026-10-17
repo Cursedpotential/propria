@@ -59,7 +59,7 @@
       "name": "Federated search and recall",
       "server_id": "5ed4b88921104386876ffbb3ba8fc326",
       "path": "/search/mcp",
-      "native_count": 16,
+      "native_count": 19,
       "resource_root": "search",
       "availability": "registered"
     },
