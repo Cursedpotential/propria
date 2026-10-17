@@ -84,7 +84,7 @@ test("desktop: Read retains conversation tools and legacy bookmarks", () => {
   const page = read("../src/components/read/read-conversation.tsx");
   assert.match(page, /<ConversationToolbar threadId=\{threadId\} placement="desktop" \/>/);
   assert.match(read("../src/components/read/read-context.tsx"), /<ExtractionsView threadId=\{threadId\} \/>/);
-  assert.match(read("../src/components/read/read-workspace.tsx"), /<SelectableConversations items=\{items\} placement="desktop" \/>/);
+  assert.match(read("../src/components/read/unit-workspace.tsx"), /<SelectableConversations items=\{items\} placement="desktop" \/>/);
 });
 
 test("only message conversations are offered: the ids are the Imported view's threads, never an AI chat", () => {

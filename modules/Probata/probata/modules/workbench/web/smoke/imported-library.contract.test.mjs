@@ -67,7 +67,10 @@ test("UI reuses the existing Read reader and search rather than introducing a de
   const library = readFileSync(new URL("library/imported-library.tsx", root), "utf8");
   const search = readFileSync(new URL("read/context-search.tsx", root), "utf8");
   assert.match(read, /<ImportedLibrary /);
-  assert.match(read, /<ReadConversation /);
+  assert.match(read, /<UnitWorkspace /);
+  const unit = readFileSync(new URL("read/unit-workspace.tsx", root), "utf8");
+  assert.match(unit, /<MessageBubble /);
+  assert.match(unit, /unitMessages/);
   assert.doesNotMatch(read, /<ReadAnalysis /);
   assert.match(library, /importedApi\.sources/);
   assert.match(library, /Load more recorded imports/);
