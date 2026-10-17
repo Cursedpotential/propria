@@ -1,104 +1,113 @@
-# Propria Knowledge Reconciler — Cloudflare trigger and HITL alerts
+# Propria Knowledge Reconciler — n8n-led workflow
 
-**Status:** source implementation / **NOT DEPLOYED** (2026-10-17). This is deliberately a small edge coordinator, **not** a new memory store, vector index, approval database, or rule engine. It uses the existing Propria Workbench Activity and canonical human-review workflow.
+**Implementation source committed, NOT LIVE, as of 2026-10-17.**
 
-## Existing ownership contract
+The owner selected a deliberately simple structure: **Cloudflare Worker triggers ONE n8n workflow; n8n owns the entire end-to-end reconciliation; existing Propria PostgreSQL stores human reviews; Workbench Activity is the human interface.** Temporal is NOT required on the ordinary path. No new independent index, evidence queue, or agent state machine.
 
-- **Sources of truth:** Memsearch Markdown journals, Engram, CNF, Propria Docstore, governed PostgreSQL records and Case Bible documents, each with its own native writer. Supersession must never delete an immutable original or silently rewrite third-party testimony/evidence.
-- **Discovery / reconciliation:** Propria Search, using each real adapter and preserving exact source identity. Use DuckDB for bounded joins and filtering or `jq` for focused JSON selection at the backend presentation boundary. Do **not** remove source evidence or raw tool outputs to make displays shorter.
-- **Approval:** the **existing PostgreSQL-backed review decision** (not a new Cloudflare D1/KV state machine).
-- **Long human waits, retry and exact activity receipts:** Temporal.
-- **Human-facing inbox:** existing Propria Workbench Activity route (`/activity`), with an additional read-only *Knowledge review* panel.
-- **Alert delivery:** existing n8n. It sends only safe links, severity, scope and review references. n8n **does not approve** a decision.
-- **Cloudflare Worker:** daily/on-demand/source-event trigger, bounded ingestion of **persisted review-case receipts**, and notification dispatch. No capability to approve, archive or edit a source.
+## End-to-end diagram
 
-The current implementation does not claim that the August `context` conflict-review migration is live; its old design receipt explicitly described an unverified local-only database migration. Do not bind the Worker to that schema until the **current live** canonical review API, owner identity and authorization are established. In particular, do not use the old Agno HITL system: Agno AgentOS was retired in platform decision D-107.
+    Cloudflare scheduled/manual/change event
+       -> POST n8n /webhook/propria/knowledge/reconcile
+          -> Validate source identity, scope, revision
+          -> One Platform source-snapshot request (fan-in across native source adapters)
+          -> n8n Code: compare within subject, duplicates, explicit supersession, expired actives
+          -> One canonical PostgreSQL review-batch write
+          -> Verify persisted review refs and duplicate suppression
+          -> IF new high/critical: owner email via n8n SMTP credential
+          -> Respond with compact verified receipt
+       -> Workbench Activity: Knowledge review card -> inspect -> approve plan/reject/defer
+          -> Native memory/document writer stage remains separately gated
 
-## Entrypoints
+The n8n workflow is an actual editable 11-node workflow, not an n8n wrapper around dozens of atomic parser calls. It is stored at:
 
-| Trigger | Method | Contract |
+    modules/Probata/probata/deploy/docker/n8n/workflows/knowledge-reconciler/wf-knowledge-reconcile.json
+
+n8n uses real Webhook, Code, HTTP Request, IF, Send Email and Respond nodes. The same workflow is called from all triggers. SMTP errors are surfaced without erasing a queued review. A repeated fingerprint returns newly_created=false, so it cannot generate another urgent alert.
+
+## Where each part is implemented
+
+| Part | Source | Responsibility |
 |---|---|---|
-| Daily sweep | Cloudflare Cron (`0 12 * * *`, 12:00 UTC) | Submits a **reference-only** scheduled reconciliation task to the configured backend |
-| On demand | `POST /runs` | `{"scope":"propria"}`, optional valid `"source"` |
-| On change | `POST /events` | `{"type":"memory.changed","source":"memsearch","record_ref":"...","revision":"...","scope":"propria"}` |
-| Process check | `GET /health` | Public minimal liveness only; no claims about backend/HITL connectivity |
+| Cloudflare Worker | workers/knowledge-reconciler/src/index.js | Daily cron, on-demand POST /runs, signed source-change POST /events |
+| n8n whole workflow | deploy/docker/n8n/workflows/knowledge-reconciler/wf-knowledge-reconcile.json | Retrieve, compare, propose, persist, notify and return |
+| Platform API | server/api/knowledge_reconcile_routes.py | Authorized source snapshots and canonical review persistence |
+| PostgreSQL | sql/drafts/0101_knowledge_reconciliation_review.sql | Idempotent versioned review case and append-only human decision |
+| Workbench API | modules/workbench/api/app/runtime/knowledge_review.py | Authenticated review read and owner-guarded decision proxy |
+| Workbench UI | modules/workbench/web/src/components/activity/knowledge-review-*.tsx | Same Activity inbox, review card, version-pinned source references, decision |
+| Native source adapters | Existing source-specific readers, configured in Platform env | Search original stores; report missing/offline sources honestly |
 
-Both POST endpoints require `Authorization: Bearer <RECONCILER_TRIGGER_TOKEN>`. Event types: `memory.created|changed|retired`, `document.created|changed`, `record.created|changed`. Sources: `memsearch`, `engram`, `cnf`, `docstore`, `propria-search`, `superindex`, `casebible`, `workbench`, `ccc`.
+The current source adapter interface is intentionally not allowed to improvise credentials, read directly from arbitrary host paths, or silently substitute one memory store for another. Native adapters must implement the fixed source-snapshot contract before going live. In particular, Engram, local CNF, and desktop CCC are NOT made reachable by committing this Worker. Desktop adapters need the authenticated Tailscale bridge and the correct device/account. Hosted Memsearch and Docstore need their authorized native adapters; search availability alone is insufficient for a full daily inventory.
 
-Events carry references and revisions, **not raw personal/case contents**. The backend must retrieve the referenced version under the correct authorization and inspect source records there.
+## Security and authority
 
-## Deployment configuration
+- **One native source of truth per domain.** Memsearch Markdown journals; Engram conversations; CNF local JSON; Docstore revisions; Superindex/Case Bible source catalogs; canonical Platform PostgreSQL. None are merged or rewritten into a second replica.
+- **No unreviewed global rules.** A per-record correction never becomes a platform-wide policy without explicit owner approval and scope.
+- **HITL in existing Workbench Activity.** Decisions are version-checked and the reviewer comes from authenticated Workbench request state. n8n cannot approve the proposal or submit an owner decision.
+- **An approval is not application.** Approve_plan means the human accepted a proposed change; source_applied=false. A separate authorized native writer must apply the approved revision and produce a receipt before status is described as cleaned.
+- **Source originals and evidence stay immutable.** References and version hashes are preserved; historical content stays queryable for hindsight, with as-lived horizon controls unaffected.
+- **Compact results, not destructive source filtering.** In the n8n Code node, duplicate greetings, superficial tool-call lines and embedded system noise are removed only from the comparison projection. The original memory text is not modified. Native source adapters should use their installed DuckDB or jq-based presentation packs when available, but a Cloudflare Worker does not execute these host binaries.
+- **Record-only events.** Worker triggers contain IDs, scope and revisions, not raw case data. Cloudflare cron is at 12:00 UTC daily (8 AM EDT / 7 AM EST); adjust only if the owner changes cadence.
+- **No credential values in git.** MCP, PostgreSQL, n8n and SMTP secrets live in their respective provider/host credential systems. n8n Community blocks node access to environment variables; the workflow uses fixed nonsecret tailnet API URLs and managed credential references.
 
-Build in `modules/Probata/probata/workers/knowledge-reconciler`. Run `npm test` (Node's built-in test runner), `npm run check`, then build/deploy using Wrangler **after** the backend and n8n routes are verified.
+## What must be connected for activation
 
-Configure these Worker secrets (no values in git):
+1. Apply the audited, additive SQL from sql/drafts/0101_knowledge_reconciliation_review.sql to the **existing Platform PostgreSQL** after checking the current schema, grants and rollback path. The older context-review foundation is not assumed live.
+2. Publish the Platform API route on the correct existing service. Confirm the n8n machine identity can invoke POST /v1/knowledge-reconcile/snapshot and POST /v1/knowledge-reconcile/reviews, but not a human decision. The checked-in workflow targets the established nonpublic Platform tailnet address at 100.72.169.40:8000; verify reachability from the running n8n container before activation.
+3. Configure Platform KNOWLEDGE_RECONCILE_SOURCES_JSON as a JSON list of authorized adapters with store, fixed URL, and token_file; mount the token files read-only. Each native adapter returns a bounded array of record IDs, revisions, subject keys, text for comparison, explicit supersession metadata, and whether there are more results. Missing adapters remain reported unavailable, never silently skipped. Event producers need to POST the corresponding reference-only change event after a committed update.
+4. Import the checked-in workflow in the **existing n8n** instance. Keep active=false until URL, input schema, credentials and host routes are verified. Bind: N8N_KNOWLEDGE_TRIGGER (Webhook Header Auth, matching Worker N8N_RECONCILER_TOKEN), PROPRIA_KNOWLEDGE_SOURCE_READER, PROPRIA_KNOWLEDGE_REVIEW_WRITER (Platform service bearer), and PROPRIA_OWNER_SMTP (owner-authorized SMTP account). Replace the two REPLACE_WITH_* notification addresses in the Email node with verified sender/recipient details. Do not reuse a case/court SMTP identity without owner authorization.
+5. Configure Workbench and Platform KNOWLEDGE_REVIEW_DECISION_TOKEN_FILE, each pointing to a managed, identical capability secret accessible only to the authenticated Workbench and Platform processes, never to n8n or browser JavaScript. Deploy Workbench's API and web changes together. The human click sends owner identity, expected case version, rationale, and a unique request ID.
+6. Set Cloudflare Worker secrets N8N_RECONCILER_WEBHOOK_URL, N8N_RECONCILER_TOKEN, RECONCILER_TRIGGER_TOKEN. The Worker calls the n8n workflow over HTTPS. Do not expose the n8n container's private tailnet IP directly from Cloudflare; use its already-authenticated public HTTPS ingress.
+7. After live tests with synthetic data and explicit owner-approved sources, activate n8n webhook and deploy Worker; verify one recorded run, one persisted review ID, one notification acknowledgement, and one owner decision. Test duplicate delivery, offline CNF/CCC and no unexpected source writes.
 
-| Variable | Purpose |
-|---|---|
-| `RECONCILER_TRIGGER_TOKEN` | Authorize caller-generated events/on-demand runs |
-| `RECONCILER_BACKEND_URL` | Fixed HTTPS URL of the existing Propria reconciliation engine route |
-| `RECONCILER_BACKEND_TOKEN` | Scoped service token for reconciliation submission |
-| `N8N_ALERT_WEBHOOK_URL` | Fixed HTTPS n8n workflow endpoint which accepts notifications only |
-| `N8N_ALERT_TOKEN` | Scoped notification token |
+## Contracts
 
-Cloudflare Workers do **not** inherently join the user's Tailscale network. Use an existing authenticated HTTPS ingress or Cloudflare Access/Tunnel service-token route for backend calls. Do not configure a raw `100.x` tailnet address in the Worker or enable Tailscale Funnel.
+POST /v1/knowledge-reconcile/snapshot accepts the validated Cloudflare/n8n trigger and returns:
 
-The backend must return a JSON object with this contract **only after persisting its HITL queue entries**:
-
-```json
-{
-  "schema": "propria-reconciliation-result/v1",
-  "run_id": "durable-run-id",
-  "state": "review_pending",
-  "scanned": 100,
-  "findings": 2,
-  "review_queue": [
     {
-      "review_ref": "canonical-review-ref",
-      "status": "queued",
-      "severity": "high",
-      "kind": "contradictory_owner_decision",
-      "scope": "propria",
-      "newly_created": true
+      "schema":"propria-knowledge-snapshot/v1",
+      "coverage":[{"store":"memsearch","state":"queried","reason":""}],
+      "records":[{
+        "store":"memsearch","id":"stable-native-id","revision":"42",
+        "scope":"propria","subject_key":"tool availability",
+        "text":"the bounded source claim","state":"active",
+        "source_hash":"sha256 value or source-native digest",
+        "supersedes":["memsearch:earlier-record"]
+      }]
     }
-  ]
-}
-```
 
-**No persisted `review_ref` = no alert.** This is the guard against inventing an owner's inbox item or reporting an analysis candidate as already queued. Duplicate scans must return `newly_created:false` for the same unresolved case (backend idempotency, pinned to source IDs/versions). The Worker sends immediate notifications only for **new high/critical** cases; medium/low issues remain visible in the authoritative inbox and should be digestible there, rather than firing an alert per extracted row. Worker returns explicit `blocked`, `review_queued_alert_blocked` or `review_queued_alert_failed` states when downstream systems cannot confirm success.
+The native reader is capped at 100 per store; a truncated cursor must be explicitly marked partial. A zero-match result from one source is not proof all historical records are absent. POST /v1/knowledge-reconcile/reviews accepts the bounded batch of n8n proposals (no free-form automatic archival) and returns:
 
-The n8n webhook must acknowledge each alert with `{"accepted":true,"review_ref":"canonical-review-ref"}`. It can deliver an email/chat/other owner-selected notification; **no external notification channel is configured by this source change**. Do not include source text, evidence excerpts, tool-call bodies, transcripts, credentials or model prompts in an alert.
+    {
+      "schema":"propria-knowledge-review-write/v1",
+      "run_id":"n8n-knowledge-123",
+      "review_queue":[{
+        "review_ref":"verified-uuid","status":"queued",
+        "severity":"high","kind":"possible_topic_conflict",
+        "newly_created":true
+      }],
+      "source_mutations":0
+    }
 
-## Workbench read-only Activity inbox
+n8n returns a separate compact workflow receipt with status, run_id, review_queue, coverage and alerts. The Cloudflare Worker trusts only that contract and reports blocked on a mismatch.
 
-The existing Workbench API gains `GET /api/knowledge-review/inbox`, authenticated by its current Authentik/Tailscale middleware. Add **server-side** environment variables:
+The Workbench GET /api/knowledge-review/inbox uses its existing authenticated Platform API credential and displays source-ref metadata. GET /api/knowledge-review/{uuid} loads the original revision pins; POST /decision records approve_plan, reject, or defer with a nonblank reason and expected version.
 
-- `KNOWLEDGE_REVIEW_QUEUE_URL`: fixed route returning the canonical review queue from the already-owned backend.
-- `KNOWLEDGE_REVIEW_QUEUE_TOKEN`: backend query-only service token.
+**One important limitation:** the current PR does not yet include native-source apply/retire adapters. Approval is recorded, but the proposed source mutation is held pending owner-authorized application. The code does not automatically archive or rewrite memories simply because a classifier called them stale.
 
-The backend queue response must be `{"schema":"propria-knowledge-review-queue/v1","total":N,"items":[...],"next_cursor":null}`. Each bounded item contains `review_ref`, `kind`, `severity`, `status` (`queued` or `deferred`), `scope`, `summary`, `source_count`, and optionally a verified same-origin `review_href` path (`/review...` or `/activity...`). No externally supplied URL is accepted in a review link. This read-only panel does not implement approval: that requires the live validated owner decision endpoint, exact expected revision, recorded identity, rationale and receipt.
+## Verification
 
-**Until a real backend provides the contract:** the Activity panel explicitly reports that it is not connected. It cannot display fake zero findings, approve a review, or claim that alert delivery is working.
+Run from the repo checkout, using the installed supported runtimes:
 
-## Decision rules — no accidental policy promotion
+    cd modules/Probata/probata/workers/knowledge-reconciler
+    npm test
+    npm run check
 
-1. **Verified same-record version replacement**: detect from explicit `supersedes` refs/revisions; propose archival of prior active view. Historical bytes remain intact.
-2. **Exact duplicates**: collapse only the **presented** results; all source occurrences remain traceable. Any durable retirement must use the owner's existing approved method.
-3. **Conflicting statements / ungrounded recency**: generate an actionable review candidate with both sources and versions. **Never auto-pick a winner.**
-4. **Important owner corrections / approved policy changes**: require actual owner approval and explicit scope. A correction to one memory does not become a global system rule.
-5. **As-lived/hindsight**: never retroactively expose a later correction or foreshadowing marker inside an earlier knowledge-horizon view.
-6. **Alert volume**: present the actionable subset, not every unreviewed extraction row. Deduplicate by underlying case ID and source versions, with daily review rather than an email per record.
-7. **Output hygiene**: sources retain verbatim input. Returned result summaries should be bounded, DuckDB/`jq`-filtered when running on the backend, grouped by source/decision and free of greetings, redundant tool calls, progress narration and repeated fragments. The Worker uses bounded structured JSON because it is an edge HTTP dispatcher, not a host with a DuckDB/`jq` subprocess.
+    node ../deploy/docker/n8n/workflows/knowledge-reconciler/test-workflow.mjs
 
-## Acceptance before production
+    cd ../..
+    python -m pytest tests/test_knowledge_reconcile_routes.py
+    python -m pytest modules/workbench/api/tests/test_knowledge_review.py
 
-- [ ] Verify the **current** authoritative PostgreSQL HITL review queue/decision API and permissions (older schema receipts are insufficient).
-- [ ] Implement and test the reconciliation backend (native Engram/Memsearch/CNF/Docstore/Case Bible adapters); it must persist canonical review-case references and not accept AI text alone as authority.
-- [ ] Wire native change events or CDC/outbox to `POST /events`; validate authorization and idempotency.
-- [ ] Implement n8n notification workflow with authenticated correlated acknowledgements and owner-selected destination.
-- [ ] Verify Workbench's queue endpoint, same-origin review deep links, and actual owner approval/reject/defer/modify controls through the original review authority.
-- [ ] Run Node/Python unit tests, then safe integration tests with synthetic conflicting memories and an actual authenticated user in the Workbench.
-- [ ] Verify action receipt, alert delivery, duplicate suppression, deferred state and no memory/evidence deletion.
-- [ ] Only then deploy Worker and Workbench deliberately; pushes are not deployment approval.
+Do not claim end-to-end success from unit tests, Coolify healthy state, or an n8n workflow definition. An actual signed HTTP request must traverse Worker -> n8n -> Platform database -> Workbench authenticated review and result in the correct human-visible review item. Native-source writes need their own separately checked receipt.
 
-Source changes are intentionally reviewable without altering existing documents, source stores, configured secrets, or live Workbench state.
+This source branch is a reviewable implementation candidate; it is not a request to auto-create new rules, delete memories, or deploy to production untested.
