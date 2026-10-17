@@ -2,6 +2,7 @@
 // Client for the mobile Imported view (/api/imported/*). Read-only: every call here is a GET.
 // The Review decision on a preview stays on the existing Review client (decideProffer).
 import { ApiError } from "@/lib/api-client";
+import type { ImportedUnit, UnitMessagePage, UnitRecord } from "./unit-workspace-types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -279,6 +280,17 @@ async function getJson<T>(path: string, params: Record<string, string | number |
 }
 
 export const importedApi = {
+  /** Read server-resolved unit membership, not a filename grouping performed in the UI. */
+  unit: (sourceId: string, threadId?: string | null, signal?: AbortSignal) =>
+    getJson<ImportedUnit>(`/api/imported/sources/${encodeURIComponent(sourceId)}/unit`, { thread_id: threadId }, signal),
+  /** Search all selected generation records before keyset pagination. Read-only. */
+  unitMessages: (sourceId: string, params: { threadId?: string | null; memberId?: string | null; q?: string; cursor?: string | null }, signal?: AbortSignal) =>
+    getJson<UnitMessagePage>(`/api/imported/sources/${encodeURIComponent(sourceId)}/unit/messages`, {
+      thread_id: params.threadId, member_id: params.memberId, q: params.q, cursor: params.cursor, limit: 50,
+    }, signal),
+  /** Inspect the actual stored current or historical normalized record within this unit. */
+  unitRecord: (sourceId: string, recordId: string, signal?: AbortSignal) =>
+    getJson<UnitRecord>(`/api/imported/sources/${encodeURIComponent(sourceId)}/unit/records/${encodeURIComponent(recordId)}`, {}, signal),
   summary: (signal?: AbortSignal) => getJson<ImportedSummary>("/api/imported/summary", {}, signal),
   sources: (offset: number, format?: string, signal?: AbortSignal, filters?: { q?: string; status?: string; owner?: string }) =>
     getJson<SourcesPage>("/api/imported/sources", { limit: 20, offset, format, ...filters }, signal),

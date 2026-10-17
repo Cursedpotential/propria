@@ -26,7 +26,10 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.service import imported as service
 
+from app.runtime.imported_units import router as unit_router
+
 router = APIRouter(prefix="/api/imported", tags=["imported"])
+router.include_router(unit_router)
 
 Opaque = Annotated[str, Path(min_length=1, max_length=2048, pattern=r"^[A-Za-z0-9_-]+$")]
 
