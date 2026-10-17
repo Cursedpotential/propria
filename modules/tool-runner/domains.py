@@ -113,7 +113,7 @@ def package_bytes(selected):
     """Build one portable multi-MCP plugin with scoped skills and preserved Think resources."""
     buf=io.BytesIO()
     with zipfile.ZipFile(buf,'w',zipfile.ZIP_DEFLATED) as z:
-        manifest={'$schema':'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json','name':'propria','version':'0.2.0',
+        manifest={'$schema':'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json','name':'propria','version':'0.2.1',
                   'description':'Domain MCP servers, progressive agent skills and the complete human runner.','author':{'name':'Matthew Salem'}}
         z.writestr('propria/plugin.json',json.dumps(manifest,indent=2))
         servers={d:{'type':'streamable-http','url':BASE+DOMAINS[d]['path']} for d in selected}
@@ -180,7 +180,7 @@ def owner_key(value):
 
 def pack(value,result):
     """Return bounded data while retaining the unchanged native result for authorized expansion."""
-    native_error=bool(isinstance(result,dict) and result.get('isError'))
+    native_error=bool(isinstance(result,dict) and (result.get('isError') or result.get('is_error')))
     result=normalize(result)
     raw=json.dumps(result,ensure_ascii=False)
     if len(raw)<=LIMIT:return {'content':[{'type':'text','text':raw}],'structuredContent':result if isinstance(result,dict) else {'items':result},'isError':native_error}
@@ -200,8 +200,8 @@ def resource(value,domain,uri,offset=0,limit=12000):
     elif uri.startswith('think://') and domain=='think':
         relative=uri[8:]
         path=(LIBRARY/relative).resolve()
-        if not path.is_relative_to(LIBRARY.resolve()) or not path.is_file() or path.suffix!='.md':raise HTTPException(404,'Resource not found.')
-        raw=path.read_text(encoding='utf-8')
+        if not path.is_relative_to(LIBRARY.resolve()) or not path.is_file() or (path.suffix not in {'.md','.json','.yaml','.yml','.py'} and not path.name.startswith('LICENSE')):raise HTTPException(404,'Resource not found.')
+        raw=path.read_bytes().decode('utf-8')
     elif uri.startswith('result://'):
         saved=RESULTS.get(uri[9:])
         if not saved or saved['until']<time.time() or saved['owner']!=owner_key(value):raise HTTPException(404,'Result expired or belongs to a different connection.')
@@ -215,10 +215,10 @@ def activate(name,args):
     entry=next((x for x in THINK if 'think--'+x['id']==name),None)
     if not entry:raise HTTPException(404,'Think process is unavailable.')
     args={'depth':'adaptive','scope':'conversation','output':'silent',**args}
-    text=(LIBRARY/entry['path']).read_text(encoding='utf-8')
+    text=(LIBRARY/entry['path']).read_bytes().decode('utf-8')
     reflex=next((x for x in THINK if x['id']=='reflex'),None)
-    control=(LIBRARY/reflex['path']).read_text(encoding='utf-8') if reflex else ''
-    workflow=(LIBRARY/'skills/workflows/SKILL.md').read_text(encoding='utf-8') if entry['id'].startswith('workflow-') else ''
+    control=(LIBRARY/reflex['path']).read_bytes().decode('utf-8') if reflex else ''
+    workflow=(LIBRARY/'skills/workflows/SKILL.md').read_bytes().decode('utf-8') if entry['id'].startswith('workflow-') else ''
     return {'kind':'think-activation','selected':entry['id'],'selection':args,'source':entry['source'],'sha256':entry['sha256'],'workflow_control':workflow,
       'methodology':text,'persistent_control':control,'resources':['think://'+entry['path']]+(['think://'+reflex['path']] if reflex else [])+(['think://skills/workflows/SKILL.md'] if workflow else []),
       'instruction':'Apply the complete selected process in the requested scope. Depth and output are independent. Micro is real silent reasoning, not a checklist/report. Preserve manual choice; do not route away without permission. Maintain conversation scope until the user changes it.',
@@ -232,7 +232,7 @@ async def invoke(value,domain,name,args,read_only=False,confirmed=False):
     if not tool:raise HTTPException(404,'Tool not available in this domain for this caller.')
     try:Draft202012Validator(tool['inputSchema'],registry=Registry()).validate(args)
     except Exception:raise HTTPException(422,'Inputs do not match the selected tool schema.')
-    declared_read=tool.get('annotations',{}).get('readOnlyHint') is True
+    declared_read=(tool.get('annotations') or {}).get('readOnlyHint') is True
     if read_only and not declared_read:raise HTTPException(409,'This tool is not declared read-only; use the explicitly authorized execute action.')
     if not declared_read and not confirmed:raise HTTPException(409,'Explicit authorization is required for this operation.')
     if domain=='think':return activate(name,args)
@@ -254,7 +254,7 @@ async def progressive(request):
     data=await bounded_json(request)
     method=data.get('method');rid=data.get('id');params=data.get('params') or {}
     if method=='notifications/initialized':return Response(status_code=202)
-    if method=='initialize':result={'protocolVersion':'2025-06-18','capabilities':{'tools':{},'resources':{}},'serverInfo':{'name':'propria-'+domain,'version':'0.2.0'},'instructions':'Use domains/discover, inspect only the selected tool, then read or execute. Human runner shows all tools directly. Never load all schemas by default. Octopoda is excluded. Preserve manual Think selections and full methodology.'}
+    if method=='initialize':result={'protocolVersion':'2025-06-18','capabilities':{'tools':{},'resources':{}},'serverInfo':{'name':'propria-'+domain,'version':'0.2.1'},'instructions':'Use domains/discover, inspect only the selected tool, then read or execute. Human runner shows all tools directly. Never load all schemas by default. Octopoda is excluded. Preserve manual Think selections and full methodology.'}
     elif method=='ping':result={}
     elif method=='tools/list':result={'tools':interface(domain)}
     elif method=='resources/list':result={'resources':[{'uri':'skill://'+d,'name':d+' instructions','mimeType':'text/markdown'} for d in (DOMAINS if domain=='hub' else [domain])]}
@@ -275,7 +275,7 @@ async def progressive(request):
             else:
                 q=args.get('query','');start=args.get('offset',0);size=args.get('limit',20)
                 matches,total=catalog_page(catalog,q,start,size)
-                output={'domain':chosen,'total':total,'processor':'duckdb','tools':[{'name':t['name'],'title':t.get('title',t['name']),'description':(t.get('description') or '').split('\n\n')[0][:240],'read_only':t.get('annotations',{}).get('readOnlyHint') is True} for t in matches],'next_offset':start+size if start+size<total else None}
+                output={'domain':chosen,'total':total,'processor':'duckdb','tools':[{'name':t['name'],'title':t.get('title',t['name']),'description':(t.get('description') or '').split('\n\n')[0][:240],'read_only':(t.get('annotations') or {}).get('readOnlyHint') is True} for t in matches],'next_offset':start+size if start+size<total else None}
         else:
             if rid is None:raise HTTPException(400,'Tool execution requires a JSON-RPC request ID.')
             if action=='execute':

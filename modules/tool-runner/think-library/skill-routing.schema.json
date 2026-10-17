@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.example/skill-routing.schema.json",
+  "title": "Portable Skill Routing Registry",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plugin",
+    "skills"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "plugin": {
+      "type": "string"
+    },
+    "generated_for": {
+      "type": "string"
+    },
+    "public_skill_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "model_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skill"
+      }
+    }
+  },
+  "$defs": {
+    "skill": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "path",
+        "description",
+        "tags",
+        "aliases"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "router",
+            "family",
+            "workflow-family",
+            "workflow",
+            "model",
+            "core",
+            "other"
+          ]
+        },
+        "family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "depths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "micro",
+              "focused",
+              "full"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "default_depth": {
+          "type": "string",
+          "enum": [
+            "micro",
+            "focused",
+            "full"
+          ]
+        },
+        "reflex_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "manual_invocation": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

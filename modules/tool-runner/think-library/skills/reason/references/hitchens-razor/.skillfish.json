@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "hitchens-razor",
+  "owner": "lev-os",
+  "repo": "agents",
+  "path": "skills-db/thinking/patterns/hitchens-razor",
+  "branch": "main",
+  "sha": "92e656eb7a8d690a6fb2d31b89c63eb2aa4d2b76",
+  "source": "manual"
+}

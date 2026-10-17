@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Strategy"
+  short_description: "Build coherent strategy and direction"
+  default_prompt: "Use $strategy to select and apply the most relevant strategy thinking model for this task."
+policy:
+  allow_implicit_invocation: true

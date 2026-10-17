@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Decide"
+  short_description: "Make decisions with risk and reversibility"
+  default_prompt: "Use $decide to select and apply the most relevant decide thinking model for this task."
+policy:
+  allow_implicit_invocation: true

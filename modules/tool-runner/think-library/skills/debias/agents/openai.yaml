@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Debias"
+  short_description: "Check bias, framing, and evidence"
+  default_prompt: "Use $debias to select and apply the most relevant debias thinking model for this task."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,137 @@
+[
+  {
+    "path": "skills/debias/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/debias/agents/openai.yaml",
+    "sha256": "37b17c89d7b76ef0c0a53460f3073b6f61c57436edbcf6171b1761676059170c"
+  },
+  {
+    "path": "skills/decide/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/decide/agents/openai.yaml",
+    "sha256": "651d1d0c5dcde48a3a15db41cdee85e683d4557da411ba755b3f603bde285e84"
+  },
+  {
+    "path": "skills/diagnose/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/diagnose/agents/openai.yaml",
+    "sha256": "5a7da4c964c4a4c76dfd25b26c466a5040817b34912aff0b7045f064e932f5e7"
+  },
+  {
+    "path": "skills/forecast/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/forecast/agents/openai.yaml",
+    "sha256": "bd9f9a3d1d02c3d0d9ed083eb23d193305b46a175fc2d1aad5b819aa81f334ac"
+  },
+  {
+    "path": "skills/incentives/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/incentives/agents/openai.yaml",
+    "sha256": "69f14dd374189f0c434dd0f02b3524d261a780f8eb81e144f7e7a5c3c6f4cf13"
+  },
+  {
+    "path": "skills/reason/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/reason/agents/openai.yaml",
+    "sha256": "767c776b30ee81c2498cfd3c277e5b375e958b6bbe62466e82128beaf751a8d3"
+  },
+  {
+    "path": "skills/reason/references/hitchens-razor/.skillfish.json",
+    "source": "propria-plugins/plugins/think/skills/reason/references/hitchens-razor/.skillfish.json",
+    "sha256": "7e199bce5a4592610d2fc7c64fc00ceda4d9dbbc7ad83df717c830baf92cce5e"
+  },
+  {
+    "path": "skills/strategy/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/strategy/agents/openai.yaml",
+    "sha256": "7b54635d9e72150c04d00bd4738a773fc1d0f0b1b2bed1f961bb1be8e5f84c55"
+  },
+  {
+    "path": "skills/systems/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/systems/agents/openai.yaml",
+    "sha256": "c26b79293d89a2dd749c1ec56a7f9abb77a4494165d8727c0f3eb82cdb83422e"
+  },
+  {
+    "path": "skills/systems/references/graph-thinking/.skillfish.json",
+    "source": "propria-plugins/plugins/think/skills/systems/references/graph-thinking/.skillfish.json",
+    "sha256": "468e03a5bbd90bb3b5f0f9cb60807d85cc4fdc3229e38fc1331e1024a9f497a0"
+  },
+  {
+    "path": "skills/thinking-model-router/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/agents/openai.yaml",
+    "sha256": "1dd6c1077a1c808339dab17eb23051f92271736a5563b2979d0b22ad79841900"
+  },
+  {
+    "path": "skills/thinking-model-router/references/decision-matrix.md",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/references/decision-matrix.md",
+    "sha256": "d585f9153f3671b95125702e4e9c1c8027a0537291d0d1d1579f4be175b8097f"
+  },
+  {
+    "path": "skills/thinking-model-router/references/model-combination-legacy.md",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/references/model-combination-legacy.md",
+    "sha256": "9bcb5a08ab618ab69f5b4684dede41dbe815eda3ba05041ee86a5d6ef9cf9e19"
+  },
+  {
+    "path": "skills/thinking-model-router/references/model-selection-legacy.md",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/references/model-selection-legacy.md",
+    "sha256": "b6f697ec911736cdb5aeb6684e60cd955d4624adf7d5157c0a0167336529e1e9"
+  },
+  {
+    "path": "skills/thinking-model-router/scripts/pick.py",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/scripts/pick.py",
+    "sha256": "a7fbc82ea07bd98da3505ed5ca86f1aca83b28cb3ce3053af580c003a45ecde1"
+  },
+  {
+    "path": "skills/workflows/agents/openai.yaml",
+    "source": "propria-plugins/plugins/think/skills/workflows/agents/openai.yaml",
+    "sha256": "0262682921f7282c3fef2022ea0191fa320f4bb926bbb1ab1375650bfc8fb7e0"
+  },
+  {
+    "path": "skills/workflows/references/debias.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/debias.md",
+    "sha256": "cda0c4c0670e40b88118139a13b42af30411cd1b384b3d51108aec590a4335bb"
+  },
+  {
+    "path": "skills/workflows/references/debug.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/debug.md",
+    "sha256": "4de4f38bb602c422fbe487677157000f71a40102fd38fbfb21145100c84e81dd"
+  },
+  {
+    "path": "skills/workflows/references/decide.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/decide.md",
+    "sha256": "b785f8ae3895c0eb14c78281b3f516ceafda2ff599e05252bdeaaecc114a9fc7"
+  },
+  {
+    "path": "skills/workflows/references/evaluate.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/evaluate.md",
+    "sha256": "2eca2bbad43ab8a90833d3b86a086367574f526a69b795a17cf0930506260e7f"
+  },
+  {
+    "path": "skills/workflows/references/plan.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/plan.md",
+    "sha256": "c46c1fe890ee5e66e2692a25ade4a18bfb7f3287628570dff5b91949a3166672"
+  },
+  {
+    "path": "skills/workflows/references/verify-claim.md",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/verify-claim.md",
+    "sha256": "98705d5888835c4c8d357fb7e69619d79a4be9f918a4b8785dccba4fbfa0e15c"
+  },
+  {
+    "path": "skill-registry.json",
+    "source": "propria-plugins/plugins/think/skill-registry.json",
+    "sha256": "c456ac84cd75f26e01d461f4daefb226517a3de7788f3bb74c6e5892f89905dc"
+  },
+  {
+    "path": "skill-routing.schema.json",
+    "source": "propria-plugins/plugins/think/skill-routing.schema.json",
+    "sha256": "507c816764efe5e9bbff19a975278f9861346097641687295fefb5e9490ad358"
+  },
+  {
+    "path": "DIRECT-COMMANDS.md",
+    "source": "propria-plugins/plugins/think/DIRECT-COMMANDS.md",
+    "sha256": "30d90228d541c457f6bf2eda380775fc96c879359343a74a0728a02b2006c95b"
+  },
+  {
+    "path": "ROUTING-METADATA-ADOPTION.md",
+    "source": "propria-plugins/plugins/think/ROUTING-METADATA-ADOPTION.md",
+    "sha256": "e688196b4ec42a9e4fb2de10e3d9162484141627ea0cd0444bfd8e32794e1ddb"
+  },
+  {
+    "path": "README.md",
+    "source": "propria-plugins/plugins/think/README.md",
+    "sha256": "1242a4ba94021cb11930f6d7df98ecdad6a2fd3f57f3efe055e34d24bd13dca9"
+  }
+]

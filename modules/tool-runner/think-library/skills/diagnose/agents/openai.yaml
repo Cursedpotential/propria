@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Diagnose"
+  short_description: "Find causes and diagnose failures"
+  default_prompt: "Use $diagnose to select and apply the most relevant diagnose thinking model for this task."
+policy:
+  allow_implicit_invocation: true

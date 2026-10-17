@@ -312,7 +312,7 @@ async def run_tool(request):
     """Validate submitted inputs and execute exactly one explicitly chosen gateway tool.
 
     Inputs: name, arguments, request_id and confirmation for non-read-only tools.
-    Output: untouched MCP result with timing. Effects: selected tool's documented
+    Output: semantic result, native error flag and timing; only redundant protocol envelopes are removed. Effects: selected tool's documented
     effects; duplicate request IDs and concurrent runs are rejected, never replayed.
     """
     value = session(request)
@@ -342,7 +342,7 @@ async def run_tool(request):
         raise HTTPException(422, 'This tool has an unsupported input schema; execution was not started.')
     if errors:
         raise HTTPException(422, 'Check input at ' + '/'.join(str(p) for p in errors[0].path) + ': ' + errors[0].message[:300])
-    if tool.get('annotations', {}).get('readOnlyHint') is not True and payload.get('confirmed') is not True:
+    if (tool.get('annotations') or {}).get('readOnlyHint') is not True and payload.get('confirmed') is not True:
         raise HTTPException(409, 'Review the inputs and confirm this tool may make changes.')
     if value['run_lock'].locked():
         raise HTTPException(409, 'A tool is already running in this session.')
@@ -358,7 +358,9 @@ async def run_tool(request):
             result = await domains.invoke(value, tool['_domain'], name, arguments, confirmed=payload.get('confirmed', False))
         else:
             result = await mcp(value, 'tools/call', {'name': name, 'arguments': arguments})
-        return JSONResponse({'tool': name, 'request_id': rid, 'elapsed_ms': round((time.monotonic()-start)*1000), 'result': result})
+        native_error = bool(isinstance(result, dict) and (result.get('isError') or result.get('is_error')))
+        from response_projection import normalize
+        return JSONResponse({'tool': name, 'request_id': rid, 'elapsed_ms': round((time.monotonic()-start)*1000), 'result': normalize(result), 'is_error': native_error, 'projection': 'duckdb'})
 
 
 async def http_error(request, exc):

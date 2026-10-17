@@ -25,7 +25,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/propria-ui-test" --ignore-scripts --no-audit --no-fund jsdom@30.1.3
       - name: Verify protocol, authorization and domain separation
         working-directory: modules/tool-runner
-        run: python -m unittest test_app.py test_domains.py -q
+        run: python -m unittest test_app.py test_domains.py test_projection.py -q
       - name: Verify human UI and JavaScript syntax
         working-directory: modules/tool-runner
         run: |

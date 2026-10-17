@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Workflows"
+  short_description: "Run integrated repeatable thinking workflows"
+  default_prompt: "Use $workflows to choose and run the appropriate integrated thinking workflow for this task."
+policy:
+  allow_implicit_invocation: true

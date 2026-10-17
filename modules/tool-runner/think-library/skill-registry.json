@@ -1,0 +1,3370 @@
+{
+  "schema_version": "1.0.0",
+  "plugin": "think",
+  "generated_for": "dual Claude Code + Codex skill routing",
+  "public_skill_count": 10,
+  "model_count": 84,
+  "skills": [
+    {
+      "id": "think:router",
+      "name": "thinking-model-router",
+      "kind": "router",
+      "family": null,
+      "path": "skills/thinking-model-router/SKILL.md",
+      "description": "Route a task to the smallest useful combination of think families/models, choose micro/focused/full depth, and orchestrate them as one process. Use when the right thinking approach is unclear or mixed.",
+      "tags": [
+        "router",
+        "orchestration",
+        "model-selection",
+        "combination",
+        "discovery"
+      ],
+      "aliases": [
+        "router",
+        "model router",
+        "thinking router"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "orchestrate"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-model-router [model] [depth]",
+        "codex": "$thinking-model-router [model] [depth]"
+      }
+    },
+    {
+      "id": "think:debias",
+      "name": "debias",
+      "kind": "family",
+      "family": "debias",
+      "path": "skills/debias/SKILL.md",
+      "description": "Bias, perspective, and map-versus-territory checks",
+      "tags": [
+        "bias",
+        "debias",
+        "perspective",
+        "assumptions",
+        "evidence",
+        "judgment"
+      ],
+      "aliases": [
+        "debias"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:debias [model] [depth]",
+        "codex": "$debias [model] [depth]"
+      }
+    },
+    {
+      "id": "think:decide",
+      "name": "decide",
+      "kind": "family",
+      "family": "decide",
+      "path": "skills/decide/SKILL.md",
+      "description": "Decision quality, reversibility, risk, prioritization, and adversarial checks",
+      "tags": [
+        "decision",
+        "reversibility",
+        "risk",
+        "premortem",
+        "red-team",
+        "priority",
+        "ooda"
+      ],
+      "aliases": [
+        "decide"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:decide [model] [depth]",
+        "codex": "$decide [model] [depth]"
+      }
+    },
+    {
+      "id": "think:diagnose",
+      "name": "diagnose",
+      "kind": "family",
+      "family": "diagnose",
+      "path": "skills/diagnose/SKILL.md",
+      "description": "Root-cause, failure analysis, and structured diagnosis",
+      "tags": [
+        "diagnose",
+        "debug",
+        "root-cause",
+        "failure",
+        "causal",
+        "problem-analysis"
+      ],
+      "aliases": [
+        "diagnose"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:diagnose [model] [depth]",
+        "codex": "$diagnose [model] [depth]"
+      }
+    },
+    {
+      "id": "think:forecast",
+      "name": "forecast",
+      "kind": "family",
+      "family": "forecast",
+      "path": "skills/forecast/SKILL.md",
+      "description": "Probability, estimation, uncertainty, and calibration",
+      "tags": [
+        "forecast",
+        "probability",
+        "uncertainty",
+        "estimation",
+        "calibration",
+        "risk"
+      ],
+      "aliases": [
+        "forecast"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:forecast [model] [depth]",
+        "codex": "$forecast [model] [depth]"
+      }
+    },
+    {
+      "id": "think:incentives",
+      "name": "incentives",
+      "kind": "family",
+      "family": "incentives",
+      "path": "skills/incentives/SKILL.md",
+      "description": "Consequences, incentives, tradeoffs, value over time, and game theory",
+      "tags": [
+        "incentives",
+        "second-order",
+        "tradeoffs",
+        "game-theory",
+        "opportunity-cost",
+        "consequences"
+      ],
+      "aliases": [
+        "incentives"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:incentives [model] [depth]",
+        "codex": "$incentives [model] [depth]"
+      }
+    },
+    {
+      "id": "think:reason",
+      "name": "reason",
+      "kind": "family",
+      "family": "reason",
+      "path": "skills/reason/SKILL.md",
+      "description": "General reasoning, claims, assumptions, and explanation",
+      "tags": [
+        "reason",
+        "logic",
+        "evidence",
+        "assumptions",
+        "claims",
+        "first-principles",
+        "scientific"
+      ],
+      "aliases": [
+        "reason"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:reason [model] [depth]",
+        "codex": "$reason [model] [depth]"
+      }
+    },
+    {
+      "id": "think:strategy",
+      "name": "strategy",
+      "kind": "family",
+      "family": "strategy",
+      "path": "skills/strategy/SKILL.md",
+      "description": "Strategy, competition, innovation, product direction, and coherent choices",
+      "tags": [
+        "strategy",
+        "competition",
+        "innovation",
+        "product",
+        "market",
+        "execution",
+        "tradeoffs"
+      ],
+      "aliases": [
+        "strategy"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:strategy [model] [depth]",
+        "codex": "$strategy [model] [depth]"
+      }
+    },
+    {
+      "id": "think:systems",
+      "name": "systems",
+      "kind": "family",
+      "family": "systems",
+      "path": "skills/systems/SKILL.md",
+      "description": "Systems, feedback, constraints, dependencies, and leverage",
+      "tags": [
+        "systems",
+        "feedback",
+        "constraints",
+        "dependencies",
+        "leverage",
+        "architecture"
+      ],
+      "aliases": [
+        "systems"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:systems [model] [depth]",
+        "codex": "$systems [model] [depth]"
+      }
+    },
+    {
+      "id": "think:workflows",
+      "name": "workflows",
+      "kind": "workflow-family",
+      "family": null,
+      "path": "skills/workflows/SKILL.md",
+      "description": "Six integrated repeatable processes: evaluate, decide, plan, debug, verify-claim, debias.",
+      "tags": [
+        "workflow",
+        "evaluate",
+        "decide",
+        "plan",
+        "debug",
+        "verify",
+        "debias"
+      ],
+      "aliases": [
+        "workflows"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows <workflow>",
+        "codex": "$workflows <workflow>"
+      }
+    },
+    {
+      "id": "think:workflows:debias",
+      "name": "debias",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/debias.md",
+      "description": "Integrated debias workflow.",
+      "tags": [
+        "workflow",
+        "debias"
+      ],
+      "aliases": [
+        "debias"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows debias",
+        "codex": "$workflows debias"
+      }
+    },
+    {
+      "id": "think:workflows:debug",
+      "name": "debug",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/debug.md",
+      "description": "Integrated debug workflow.",
+      "tags": [
+        "workflow",
+        "debug"
+      ],
+      "aliases": [
+        "debug"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows debug",
+        "codex": "$workflows debug"
+      }
+    },
+    {
+      "id": "think:workflows:decide",
+      "name": "decide",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/decide.md",
+      "description": "Integrated decide workflow.",
+      "tags": [
+        "workflow",
+        "decide"
+      ],
+      "aliases": [
+        "decide"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows decide",
+        "codex": "$workflows decide"
+      }
+    },
+    {
+      "id": "think:workflows:evaluate",
+      "name": "evaluate",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/evaluate.md",
+      "description": "Integrated evaluate workflow.",
+      "tags": [
+        "workflow",
+        "evaluate"
+      ],
+      "aliases": [
+        "evaluate"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows evaluate",
+        "codex": "$workflows evaluate"
+      }
+    },
+    {
+      "id": "think:workflows:plan",
+      "name": "plan",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/plan.md",
+      "description": "Integrated plan workflow.",
+      "tags": [
+        "workflow",
+        "plan"
+      ],
+      "aliases": [
+        "plan"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows plan",
+        "codex": "$workflows plan"
+      }
+    },
+    {
+      "id": "think:workflows:verify-claim",
+      "name": "verify-claim",
+      "kind": "workflow",
+      "family": "workflows",
+      "path": "skills/workflows/references/verify-claim.md",
+      "description": "Integrated verify-claim workflow.",
+      "tags": [
+        "workflow",
+        "verify-claim"
+      ],
+      "aliases": [
+        "verify-claim"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "focused",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:workflows verify-claim",
+        "codex": "$workflows verify-claim"
+      }
+    },
+    {
+      "id": "think:debias:anchoring",
+      "name": "anchoring",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/anchoring/SKILL.md",
+      "description": "First information disproportionately influences judgments and decisions, even when the initial value is arbitrary or irrelevant",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "anchoring",
+        "decision"
+      ],
+      "aliases": [
+        "anchoring"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:anchoring [micro|focused|full] [task]",
+        "codex": "$debias anchoring [micro|focused|full]",
+        "router": "anchoring [micro|focused|full]",
+        "claude_family_fallback": "/think:debias anchoring [micro|focused|full] [task]"
+      },
+      "command": "commands/anchoring.md"
+    },
+    {
+      "id": "think:debias:availability-heuristic",
+      "name": "availability-heuristic",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/availability-heuristic/SKILL.md",
+      "description": "Correct probability and frequency judgments distorted by mentally available examples by seeking base rate data before relying on vivid anecdotes",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "availability",
+        "heuristic",
+        "probability"
+      ],
+      "aliases": [
+        "availability-heuristic",
+        "availability heuristic"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:availability-heuristic [micro|focused|full] [task]",
+        "codex": "$debias availability-heuristic [micro|focused|full]",
+        "router": "availability-heuristic [micro|focused|full]",
+        "claude_family_fallback": "/think:debias availability-heuristic [micro|focused|full] [task]"
+      },
+      "command": "commands/availability-heuristic.md"
+    },
+    {
+      "id": "think:debias:confirmation-bias",
+      "name": "confirmation-bias",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/confirmation-bias/SKILL.md",
+      "description": "Combat the tendency to seek evidence supporting existing beliefs by actively searching for disconfirming data and treating opinions as testable hypotheses",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "confirmation",
+        "bias",
+        "evidence"
+      ],
+      "aliases": [
+        "confirmation-bias",
+        "confirmation bias"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:confirmation-bias [micro|focused|full] [task]",
+        "codex": "$debias confirmation-bias [micro|focused|full]",
+        "router": "confirmation-bias [micro|focused|full]",
+        "claude_family_fallback": "/think:debias confirmation-bias [micro|focused|full] [task]"
+      },
+      "command": "commands/confirmation-bias.md"
+    },
+    {
+      "id": "think:debias:dunning-kruger-effect",
+      "name": "dunning-kruger-effect",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/dunning-kruger-effect/SKILL.md",
+      "description": "Low-skill individuals overestimate their competence because they lack the metacognitive ability to recognize their own incompetence",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "dunning",
+        "kruger",
+        "effect"
+      ],
+      "aliases": [
+        "dunning-kruger-effect",
+        "dunning kruger effect"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:dunning-kruger-effect [micro|focused|full] [task]",
+        "codex": "$debias dunning-kruger-effect [micro|focused|full]",
+        "router": "dunning-kruger-effect [micro|focused|full]",
+        "claude_family_fallback": "/think:debias dunning-kruger-effect [micro|focused|full] [task]"
+      },
+      "command": "commands/dunning-kruger-effect.md"
+    },
+    {
+      "id": "think:debias:fundamental-attribution-error",
+      "name": "fundamental-attribution-error",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/fundamental-attribution-error/SKILL.md",
+      "description": "Over-attributing others' behavior to their character while under-weighting situational factors that shape their actions",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "fundamental",
+        "attribution",
+        "error"
+      ],
+      "aliases": [
+        "fundamental-attribution-error",
+        "fundamental attribution error"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:fundamental-attribution-error [micro|focused|full] [task]",
+        "codex": "$debias fundamental-attribution-error [micro|focused|full]",
+        "router": "fundamental-attribution-error [micro|focused|full]",
+        "claude_family_fallback": "/think:debias fundamental-attribution-error [micro|focused|full] [task]"
+      },
+      "command": "commands/fundamental-attribution-error.md"
+    },
+    {
+      "id": "think:debias:halo-effect",
+      "name": "halo-effect",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/halo-effect/SKILL.md",
+      "description": "One positive trait creates a global positive impression, influencing judgments about unrelated characteristics",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "halo",
+        "effect"
+      ],
+      "aliases": [
+        "halo-effect",
+        "halo effect"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:halo-effect [micro|focused|full] [task]",
+        "codex": "$debias halo-effect [micro|focused|full]",
+        "router": "halo-effect [micro|focused|full]",
+        "claude_family_fallback": "/think:debias halo-effect [micro|focused|full] [task]"
+      },
+      "command": "commands/halo-effect.md"
+    },
+    {
+      "id": "think:debias:hindsight-bias",
+      "name": "hindsight-bias",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/hindsight-bias/SKILL.md",
+      "description": "The tendency to perceive past events as more predictable than they actually were, leading to distorted learning and overconfidence",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "hindsight",
+        "bias"
+      ],
+      "aliases": [
+        "hindsight-bias",
+        "hindsight bias"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:hindsight-bias [micro|focused|full] [task]",
+        "codex": "$debias hindsight-bias [micro|focused|full]",
+        "router": "hindsight-bias [micro|focused|full]",
+        "claude_family_fallback": "/think:debias hindsight-bias [micro|focused|full] [task]"
+      },
+      "command": "commands/hindsight-bias.md"
+    },
+    {
+      "id": "think:debias:sunk-cost-fallacy",
+      "name": "sunk-cost-fallacy",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/sunk-cost-fallacy/SKILL.md",
+      "description": "Continuing an endeavor due to previously invested resources (time, money, effort) rather than current and future costs and benefits, escalating commitment to failing courses of action",
+      "origin": "owner",
+      "tags": [
+        "debias",
+        "sunk",
+        "cost",
+        "fallacy"
+      ],
+      "aliases": [
+        "sunk-cost-fallacy",
+        "sunk cost fallacy"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:sunk-cost-fallacy [micro|focused|full] [task]",
+        "codex": "$debias sunk-cost-fallacy [micro|focused|full]",
+        "router": "sunk-cost-fallacy [micro|focused|full]",
+        "claude_family_fallback": "/think:debias sunk-cost-fallacy [micro|focused|full] [task]"
+      },
+      "command": "commands/sunk-cost-fallacy.md"
+    },
+    {
+      "id": "think:debias:thinking-circle-of-competence",
+      "name": "thinking-circle-of-competence",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/thinking-circle-of-competence/SKILL.md",
+      "description": "Know the boundaries of your expertise and operate within them. Use when evaluating opportunities, making decisions outside your domain, or assessing when to defer to experts.",
+      "origin": "upstream",
+      "tags": [
+        "debias",
+        "circle",
+        "competence",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-circle-of-competence",
+        "circle-of-competence",
+        "circle of competence"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-circle-of-competence [micro|focused|full] [task]",
+        "codex": "$debias thinking-circle-of-competence [micro|focused|full]",
+        "router": "thinking-circle-of-competence [micro|focused|full]",
+        "claude_family_fallback": "/think:debias thinking-circle-of-competence [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-circle-of-competence.md"
+    },
+    {
+      "id": "think:debias:thinking-debiasing",
+      "name": "thinking-debiasing",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/thinking-debiasing/SKILL.md",
+      "description": "Systematic checklist to identify and counteract cognitive biases in decision-making. Use before major decisions, when evaluating recommendations, or when stakes are high.",
+      "origin": "upstream",
+      "tags": [
+        "debias",
+        "debiasing",
+        "bias",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-debiasing",
+        "debiasing"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-debiasing [micro|focused|full] [task]",
+        "codex": "$debias thinking-debiasing [micro|focused|full]",
+        "router": "thinking-debiasing [micro|focused|full]",
+        "claude_family_fallback": "/think:debias thinking-debiasing [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-debiasing.md"
+    },
+    {
+      "id": "think:debias:thinking-dual-process",
+      "name": "thinking-dual-process",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/thinking-dual-process/SKILL.md",
+      "description": "Apply Kahneman's Dual-Process Theory to recognize when to trust intuition vs engage deliberate analysis. Use for high-stakes decisions, error-prone contexts, or when balancing speed vs accuracy.",
+      "origin": "upstream",
+      "tags": [
+        "debias",
+        "dual",
+        "process",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-dual-process",
+        "dual-process",
+        "dual process"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-dual-process [micro|focused|full] [task]",
+        "codex": "$debias thinking-dual-process [micro|focused|full]",
+        "router": "thinking-dual-process [micro|focused|full]",
+        "claude_family_fallback": "/think:debias thinking-dual-process [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-dual-process.md"
+    },
+    {
+      "id": "think:debias:thinking-map-territory",
+      "name": "thinking-map-territory",
+      "kind": "model",
+      "family": "debias",
+      "path": "skills/debias/references/thinking-map-territory/SKILL.md",
+      "description": "Recognize limits of mental models and diagrams. Use when models diverge from reality, debugging expectation mismatches, or questioning abstraction accuracy.",
+      "origin": "upstream",
+      "tags": [
+        "debias",
+        "map",
+        "territory",
+        "map-territory",
+        "assumptions",
+        "evidence",
+        "reality-check",
+        "verification",
+        "documentation",
+        "observed-behavior",
+        "mismatch",
+        "reality"
+      ],
+      "aliases": [
+        "thinking-map-territory",
+        "map-territory",
+        "map territory",
+        "documentation mismatch",
+        "docs differ from reality",
+        "observed behavior differs",
+        "expectation mismatch",
+        "reality check"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "reality-check"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-map-territory [micro|focused|full] [task]",
+        "codex": "$debias thinking-map-territory [micro|focused|full]",
+        "router": "thinking-map-territory [micro|focused|full]",
+        "claude_family_fallback": "/think:debias thinking-map-territory [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-map-territory.md"
+    },
+    {
+      "id": "think:decide:eisenhower-matrix",
+      "name": "eisenhower-matrix",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/eisenhower-matrix/SKILL.md",
+      "description": "Prioritize tasks by urgency and importance—focus on important but not urgent work to prevent firefighting",
+      "origin": "owner",
+      "tags": [
+        "decide",
+        "eisenhower",
+        "matrix"
+      ],
+      "aliases": [
+        "eisenhower-matrix",
+        "eisenhower matrix"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:eisenhower-matrix [micro|focused|full] [task]",
+        "codex": "$decide eisenhower-matrix [micro|focused|full]",
+        "router": "eisenhower-matrix [micro|focused|full]",
+        "claude_family_fallback": "/think:decide eisenhower-matrix [micro|focused|full] [task]"
+      },
+      "command": "commands/eisenhower-matrix.md"
+    },
+    {
+      "id": "think:decide:rice-prioritization",
+      "name": "rice-prioritization",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/rice-prioritization/SKILL.md",
+      "description": "Scoring framework using Reach, Impact, Confidence, and Effort to objectively prioritize product features and projects",
+      "origin": "owner",
+      "tags": [
+        "decide",
+        "rice",
+        "prioritization"
+      ],
+      "aliases": [
+        "rice-prioritization",
+        "rice prioritization"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:rice-prioritization [micro|focused|full] [task]",
+        "codex": "$decide rice-prioritization [micro|focused|full]",
+        "router": "rice-prioritization [micro|focused|full]",
+        "claude_family_fallback": "/think:decide rice-prioritization [micro|focused|full] [task]"
+      },
+      "command": "commands/rice-prioritization.md"
+    },
+    {
+      "id": "think:decide:schelling-fence",
+      "name": "schelling-fence",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/schelling-fence/SKILL.md",
+      "description": "Strategic precommitment to defend an arbitrary line on a slippery slope. Use when you face a continuum from acceptable to unacceptable and need a conspicuous, defensible boundary.",
+      "origin": "owner",
+      "tags": [
+        "decide",
+        "schelling",
+        "fence"
+      ],
+      "aliases": [
+        "schelling-fence",
+        "schelling fence"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:schelling-fence [micro|focused|full] [task]",
+        "codex": "$decide schelling-fence [micro|focused|full]",
+        "router": "schelling-fence [micro|focused|full]",
+        "claude_family_fallback": "/think:decide schelling-fence [micro|focused|full] [task]"
+      },
+      "command": "commands/schelling-fence.md"
+    },
+    {
+      "id": "think:decide:thinking-bounded-rationality",
+      "name": "thinking-bounded-rationality",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-bounded-rationality/SKILL.md",
+      "description": "Apply Herbert Simon's Bounded Rationality and satisficing to make good-enough decisions under real-world constraints. Use for design decisions under time pressure, recognizing cognitive limits, and setting appropriate stopping criteria.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "bounded",
+        "rationality",
+        "decision",
+        "constraint"
+      ],
+      "aliases": [
+        "thinking-bounded-rationality",
+        "bounded-rationality",
+        "bounded rationality"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-bounded-rationality [micro|focused|full] [task]",
+        "codex": "$decide thinking-bounded-rationality [micro|focused|full]",
+        "router": "thinking-bounded-rationality [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-bounded-rationality [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-bounded-rationality.md"
+    },
+    {
+      "id": "think:decide:thinking-cynefin",
+      "name": "thinking-cynefin",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-cynefin/SKILL.md",
+      "description": "Classify problems by complexity domain (clear, complicated, complex, chaotic) and match approach to domain. Use for choosing methodologies, problem framing, and process design.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "cynefin"
+      ],
+      "aliases": [
+        "thinking-cynefin",
+        "cynefin"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-cynefin [micro|focused|full] [task]",
+        "codex": "$decide thinking-cynefin [micro|focused|full]",
+        "router": "thinking-cynefin [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-cynefin [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-cynefin.md"
+    },
+    {
+      "id": "think:decide:thinking-inversion",
+      "name": "thinking-inversion",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-inversion/SKILL.md",
+      "description": "Approach problems backward by identifying paths to failure, then systematically avoiding them. Use for risk identification, planning, and avoiding obvious mistakes.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "inversion",
+        "risk"
+      ],
+      "aliases": [
+        "thinking-inversion",
+        "inversion"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-inversion [micro|focused|full] [task]",
+        "codex": "$decide thinking-inversion [micro|focused|full]",
+        "router": "thinking-inversion [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-inversion [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-inversion.md"
+    },
+    {
+      "id": "think:decide:thinking-lindy-effect",
+      "name": "thinking-lindy-effect",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-lindy-effect/SKILL.md",
+      "description": "For non-perishable things, future life expectancy is proportional to current age. Use for technology selection, evaluating frameworks/libraries, and predicting tool longevity.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "lindy",
+        "effect"
+      ],
+      "aliases": [
+        "thinking-lindy-effect",
+        "lindy-effect",
+        "lindy effect"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-lindy-effect [micro|focused|full] [task]",
+        "codex": "$decide thinking-lindy-effect [micro|focused|full]",
+        "router": "thinking-lindy-effect [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-lindy-effect [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-lindy-effect.md"
+    },
+    {
+      "id": "think:decide:thinking-margin-of-safety",
+      "name": "thinking-margin-of-safety",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-margin-of-safety/SKILL.md",
+      "description": "Build in buffers for unknown unknowns and don't optimize to the edge. Use for capacity planning, deadline estimation, architecture design, and risk management.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "margin",
+        "safety",
+        "architecture",
+        "risk"
+      ],
+      "aliases": [
+        "thinking-margin-of-safety",
+        "margin-of-safety",
+        "margin of safety"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-margin-of-safety [micro|focused|full] [task]",
+        "codex": "$decide thinking-margin-of-safety [micro|focused|full]",
+        "router": "thinking-margin-of-safety [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-margin-of-safety [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-margin-of-safety.md"
+    },
+    {
+      "id": "think:decide:thinking-ooda",
+      "name": "thinking-ooda",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-ooda/SKILL.md",
+      "description": "Rapid decision-making loop for dynamic situations. Use for incident response, competitive scenarios, time-sensitive decisions, and situations requiring quick adaptation.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "ooda",
+        "observe",
+        "orient",
+        "act",
+        "adaptation",
+        "feedback",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-ooda",
+        "ooda"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "observe",
+        "orient",
+        "adapt"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-ooda [micro|focused|full] [task]",
+        "codex": "$decide thinking-ooda [micro|focused|full]",
+        "router": "thinking-ooda [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-ooda [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-ooda.md"
+    },
+    {
+      "id": "think:decide:thinking-pre-mortem",
+      "name": "thinking-pre-mortem",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-pre-mortem/SKILL.md",
+      "description": "Imagine a project has failed and work backward to identify why. Use at project kickoffs, before major decisions, or when optimism may be obscuring risks.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "pre",
+        "mortem",
+        "pre-mortem",
+        "failure",
+        "risk",
+        "prevention",
+        "mitigation",
+        "decision",
+        "failure-mode"
+      ],
+      "aliases": [
+        "thinking-pre-mortem",
+        "pre-mortem",
+        "pre mortem",
+        "premortem",
+        "what could go wrong",
+        "assume this fails"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "pre-action-risk"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-pre-mortem [micro|focused|full] [task]",
+        "codex": "$decide thinking-pre-mortem [micro|focused|full]",
+        "router": "thinking-pre-mortem [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-pre-mortem [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-pre-mortem.md"
+    },
+    {
+      "id": "think:decide:thinking-red-team",
+      "name": "thinking-red-team",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-red-team/SKILL.md",
+      "description": "Deliberately attack your own plans, systems, and assumptions to find weaknesses before adversaries or reality does. Use for security review, architecture validation, plan stress-testing, and pre-launch preparation.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "red",
+        "team",
+        "red-team",
+        "challenge",
+        "adversarial",
+        "counterexample",
+        "failure",
+        "architecture",
+        "assumption",
+        "weaknesses",
+        "stress-test"
+      ],
+      "aliases": [
+        "thinking-red-team",
+        "red-team",
+        "red team",
+        "attack this plan",
+        "find weaknesses",
+        "stress test this"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "challenge",
+        "reflection"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-red-team [micro|focused|full] [task]",
+        "codex": "$decide thinking-red-team [micro|focused|full]",
+        "router": "thinking-red-team [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-red-team [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-red-team.md"
+    },
+    {
+      "id": "think:decide:thinking-regret-minimization",
+      "name": "thinking-regret-minimization",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-regret-minimization/SKILL.md",
+      "description": "Project to your future self and ask what you would regret not doing. Use for career decisions, strategic pivots, risk-taking choices, and life-changing decisions.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "regret",
+        "minimization",
+        "risk",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-regret-minimization",
+        "regret-minimization",
+        "regret minimization"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-regret-minimization [micro|focused|full] [task]",
+        "codex": "$decide thinking-regret-minimization [micro|focused|full]",
+        "router": "thinking-regret-minimization [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-regret-minimization [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-regret-minimization.md"
+    },
+    {
+      "id": "think:decide:thinking-reversibility",
+      "name": "thinking-reversibility",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-reversibility/SKILL.md",
+      "description": "Classify decisions by reversibility and match decision process to decision type. Use for technology choices, architecture decisions, process changes, and hiring decisions.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "reversibility",
+        "rollback",
+        "irreversible",
+        "commitment",
+        "risk",
+        "architecture",
+        "decision",
+        "undo",
+        "migration",
+        "recoverability"
+      ],
+      "aliases": [
+        "thinking-reversibility",
+        "reversibility",
+        "rollback",
+        "roll back",
+        "undo safely",
+        "reversible change",
+        "can we undo this"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "reversibility",
+        "blast-radius"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-reversibility [micro|focused|full] [task]",
+        "codex": "$decide thinking-reversibility [micro|focused|full]",
+        "router": "thinking-reversibility [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-reversibility [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-reversibility.md"
+    },
+    {
+      "id": "think:decide:thinking-via-negativa",
+      "name": "thinking-via-negativa",
+      "kind": "model",
+      "family": "decide",
+      "path": "skills/decide/references/thinking-via-negativa/SKILL.md",
+      "description": "Improve by removal rather than addition. Focus on what to stop doing, eliminate the negative, and subtract complexity. Use for system simplification, process improvement, and feature prioritization.",
+      "origin": "upstream",
+      "tags": [
+        "decide",
+        "via",
+        "negativa"
+      ],
+      "aliases": [
+        "thinking-via-negativa",
+        "via-negativa",
+        "via negativa"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-via-negativa [micro|focused|full] [task]",
+        "codex": "$decide thinking-via-negativa [micro|focused|full]",
+        "router": "thinking-via-negativa [micro|focused|full]",
+        "claude_family_fallback": "/think:decide thinking-via-negativa [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-via-negativa.md"
+    },
+    {
+      "id": "think:diagnose:current-reality-tree",
+      "name": "current-reality-tree",
+      "kind": "model",
+      "family": "diagnose",
+      "path": "skills/diagnose/references/current-reality-tree/SKILL.md",
+      "description": "A logical diagram that maps cause-effect relationships between undesirable effects to identify root causes that drive most organizational problems",
+      "origin": "owner",
+      "tags": [
+        "diagnose",
+        "current",
+        "reality",
+        "tree",
+        "current-reality-tree",
+        "root-cause",
+        "systems",
+        "causal"
+      ],
+      "aliases": [
+        "current-reality-tree",
+        "current reality tree"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:current-reality-tree [micro|focused|full] [task]",
+        "codex": "$diagnose current-reality-tree [micro|focused|full]",
+        "router": "current-reality-tree [micro|focused|full]",
+        "claude_family_fallback": "/think:diagnose current-reality-tree [micro|focused|full] [task]"
+      },
+      "command": "commands/current-reality-tree.md"
+    },
+    {
+      "id": "think:diagnose:fault-tree-analysis",
+      "name": "fault-tree-analysis",
+      "kind": "model",
+      "family": "diagnose",
+      "path": "skills/diagnose/references/fault-tree-analysis/SKILL.md",
+      "description": "Top-down deductive methodology for analyzing system failures by mapping logical relationships between faults, subsystems, and redundant safety elements using Boolean logic diagrams",
+      "origin": "owner",
+      "tags": [
+        "diagnose",
+        "fault",
+        "tree",
+        "analysis",
+        "fault-tree",
+        "failure",
+        "root-cause",
+        "risk",
+        "causal"
+      ],
+      "aliases": [
+        "fault-tree-analysis",
+        "fault tree analysis"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:fault-tree-analysis [micro|focused|full] [task]",
+        "codex": "$diagnose fault-tree-analysis [micro|focused|full]",
+        "router": "fault-tree-analysis [micro|focused|full]",
+        "claude_family_fallback": "/think:diagnose fault-tree-analysis [micro|focused|full] [task]"
+      },
+      "command": "commands/fault-tree-analysis.md"
+    },
+    {
+      "id": "think:diagnose:fishbone-diagram",
+      "name": "fishbone-diagram",
+      "kind": "model",
+      "family": "diagnose",
+      "path": "skills/diagnose/references/fishbone-diagram/SKILL.md",
+      "description": "Visually map all potential causes of a problem across structured categories to systematically identify root causes through team collaboration",
+      "origin": "owner",
+      "tags": [
+        "diagnose",
+        "fishbone",
+        "diagram",
+        "root-cause",
+        "causal",
+        "categories",
+        "diagnosis"
+      ],
+      "aliases": [
+        "fishbone-diagram",
+        "fishbone diagram"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:fishbone-diagram [micro|focused|full] [task]",
+        "codex": "$diagnose fishbone-diagram [micro|focused|full]",
+        "router": "fishbone-diagram [micro|focused|full]",
+        "claude_family_fallback": "/think:diagnose fishbone-diagram [micro|focused|full] [task]"
+      },
+      "command": "commands/fishbone-diagram.md"
+    },
+    {
+      "id": "think:diagnose:thinking-five-whys-plus",
+      "name": "thinking-five-whys-plus",
+      "kind": "model",
+      "family": "diagnose",
+      "path": "skills/diagnose/references/thinking-five-whys-plus/SKILL.md",
+      "description": "Enhanced root cause analysis with explicit bias guards and stopping criteria. Use for incident post-mortems, bug investigations, and process failures where standard 5 Whys might mislead.",
+      "origin": "upstream",
+      "tags": [
+        "diagnose",
+        "five",
+        "whys",
+        "five-whys",
+        "root-cause",
+        "causal",
+        "debugging",
+        "incident",
+        "bias"
+      ],
+      "aliases": [
+        "thinking-five-whys-plus",
+        "five-whys-plus",
+        "five whys plus",
+        "5 whys",
+        "five whys"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-five-whys-plus [micro|focused|full] [task]",
+        "codex": "$diagnose thinking-five-whys-plus [micro|focused|full]",
+        "router": "thinking-five-whys-plus [micro|focused|full]",
+        "claude_family_fallback": "/think:diagnose thinking-five-whys-plus [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-five-whys-plus.md"
+    },
+    {
+      "id": "think:diagnose:thinking-kepner-tregoe",
+      "name": "thinking-kepner-tregoe",
+      "kind": "model",
+      "family": "diagnose",
+      "path": "skills/diagnose/references/thinking-kepner-tregoe/SKILL.md",
+      "description": "Systematic rational process for complex problem analysis, decision making, and risk assessment. Use for high-stakes engineering decisions, root cause analysis beyond 5 Whys, and multi-factor evaluations requiring structured criteria.",
+      "origin": "upstream",
+      "tags": [
+        "diagnose",
+        "kepner",
+        "tregoe",
+        "kepner-tregoe",
+        "diagnosis",
+        "decision",
+        "problem-analysis",
+        "risk"
+      ],
+      "aliases": [
+        "thinking-kepner-tregoe",
+        "kepner-tregoe",
+        "kepner tregoe"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-kepner-tregoe [micro|focused|full] [task]",
+        "codex": "$diagnose thinking-kepner-tregoe [micro|focused|full]",
+        "router": "thinking-kepner-tregoe [micro|focused|full]",
+        "claude_family_fallback": "/think:diagnose thinking-kepner-tregoe [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-kepner-tregoe.md"
+    },
+    {
+      "id": "think:forecast:calibration",
+      "name": "calibration",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/calibration/SKILL.md",
+      "description": "Align predicted probabilities with actual outcomes - train yourself so things you say are 70% likely actually happen 70% of the time",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "calibration"
+      ],
+      "aliases": [
+        "calibration"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:calibration [micro|focused|full] [task]",
+        "codex": "$forecast calibration [micro|focused|full]",
+        "router": "calibration [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast calibration [micro|focused|full] [task]"
+      },
+      "command": "commands/calibration.md"
+    },
+    {
+      "id": "think:forecast:monte-carlo-simulation",
+      "name": "monte-carlo-simulation",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/monte-carlo-simulation/SKILL.md",
+      "description": "Probabilistic modeling technique that runs thousands of scenarios with random variable inputs to quantify uncertainty and assess risk distributions",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "monte",
+        "carlo",
+        "simulation",
+        "uncertainty",
+        "risk"
+      ],
+      "aliases": [
+        "monte-carlo-simulation",
+        "monte carlo simulation"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:monte-carlo-simulation [micro|focused|full] [task]",
+        "codex": "$forecast monte-carlo-simulation [micro|focused|full]",
+        "router": "monte-carlo-simulation [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast monte-carlo-simulation [micro|focused|full] [task]"
+      },
+      "command": "commands/monte-carlo-simulation.md"
+    },
+    {
+      "id": "think:forecast:outside-view-inside-view",
+      "name": "outside-view-inside-view",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/outside-view-inside-view/SKILL.md",
+      "description": "Forecast by comparing to similar past cases (outside view) instead of analyzing unique project details (inside view) - cures planning fallacy",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "outside",
+        "view",
+        "inside"
+      ],
+      "aliases": [
+        "outside-view-inside-view",
+        "outside view inside view"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:outside-view-inside-view [micro|focused|full] [task]",
+        "codex": "$forecast outside-view-inside-view [micro|focused|full]",
+        "router": "outside-view-inside-view [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast outside-view-inside-view [micro|focused|full] [task]"
+      },
+      "command": "commands/outside-view-inside-view.md"
+    },
+    {
+      "id": "think:forecast:sensitivity-analysis",
+      "name": "sensitivity-analysis",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/sensitivity-analysis/SKILL.md",
+      "description": "Systematic testing of how changes in input variables (assumptions) affect output results, revealing which factors drive outcomes and where model risk is concentrated.",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "sensitivity",
+        "analysis",
+        "risk",
+        "assumption"
+      ],
+      "aliases": [
+        "sensitivity-analysis",
+        "sensitivity analysis"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:sensitivity-analysis [micro|focused|full] [task]",
+        "codex": "$forecast sensitivity-analysis [micro|focused|full]",
+        "router": "sensitivity-analysis [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast sensitivity-analysis [micro|focused|full] [task]"
+      },
+      "command": "commands/sensitivity-analysis.md"
+    },
+    {
+      "id": "think:forecast:superforecasting",
+      "name": "superforecasting",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/superforecasting/SKILL.md",
+      "description": "Make probabilistic predictions when strategic decisions require accurate risk assessment",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "superforecasting",
+        "risk",
+        "decision"
+      ],
+      "aliases": [
+        "superforecasting"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:superforecasting [micro|focused|full] [task]",
+        "codex": "$forecast superforecasting [micro|focused|full]",
+        "router": "superforecasting [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast superforecasting [micro|focused|full] [task]"
+      },
+      "command": "commands/superforecasting.md"
+    },
+    {
+      "id": "think:forecast:tetlocks-10-commandments",
+      "name": "tetlocks-10-commandments",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/tetlocks-10-commandments/SKILL.md",
+      "description": "Improve forecast accuracy by following Philip Tetlock's 10 evidence-based principles from superforecaster research distinguishing top 2% predictors",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "tetlocks",
+        "commandments",
+        "evidence"
+      ],
+      "aliases": [
+        "tetlocks-10-commandments",
+        "tetlocks 10 commandments"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:tetlocks-10-commandments [micro|focused|full] [task]",
+        "codex": "$forecast tetlocks-10-commandments [micro|focused|full]",
+        "router": "tetlocks-10-commandments [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast tetlocks-10-commandments [micro|focused|full] [task]"
+      },
+      "command": "commands/tetlocks-10-commandments.md"
+    },
+    {
+      "id": "think:forecast:thinking-bayesian",
+      "name": "thinking-bayesian",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/thinking-bayesian/SKILL.md",
+      "description": "Update beliefs systematically based on new evidence using probabilistic reasoning. Use when estimating probabilities, learning from data, or making decisions under uncertainty.",
+      "origin": "upstream",
+      "tags": [
+        "forecast",
+        "bayesian",
+        "uncertainty",
+        "decision",
+        "evidence"
+      ],
+      "aliases": [
+        "thinking-bayesian",
+        "bayesian"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-bayesian [micro|focused|full] [task]",
+        "codex": "$forecast thinking-bayesian [micro|focused|full]",
+        "router": "thinking-bayesian [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast thinking-bayesian [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-bayesian.md"
+    },
+    {
+      "id": "think:forecast:thinking-fermi-estimation",
+      "name": "thinking-fermi-estimation",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/thinking-fermi-estimation/SKILL.md",
+      "description": "Make order-of-magnitude estimates for unknown quantities by decomposing into known or estimable factors. Use for capacity planning, cost estimation, market sizing, and technical feasibility assessment.",
+      "origin": "upstream",
+      "tags": [
+        "forecast",
+        "fermi",
+        "estimation"
+      ],
+      "aliases": [
+        "thinking-fermi-estimation",
+        "fermi-estimation",
+        "fermi estimation"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-fermi-estimation [micro|focused|full] [task]",
+        "codex": "$forecast thinking-fermi-estimation [micro|focused|full]",
+        "router": "thinking-fermi-estimation [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast thinking-fermi-estimation [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-fermi-estimation.md"
+    },
+    {
+      "id": "think:forecast:thinking-in-bets",
+      "name": "thinking-in-bets",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/thinking-in-bets/SKILL.md",
+      "description": "Frame decisions as probability bets instead of certainties - separate decision quality from outcome quality to avoid resulting bias",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "bets",
+        "bias",
+        "probability",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-in-bets",
+        "in-bets",
+        "in bets"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-in-bets [micro|focused|full] [task]",
+        "codex": "$forecast thinking-in-bets [micro|focused|full]",
+        "router": "thinking-in-bets [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast thinking-in-bets [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-in-bets.md"
+    },
+    {
+      "id": "think:forecast:thinking-probabilistic",
+      "name": "thinking-probabilistic",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/thinking-probabilistic/SKILL.md",
+      "description": "Express confidence in ranges, update predictions with new information, and track calibration over time. Use for project estimation, risk assessment, and decision making under uncertainty.",
+      "origin": "upstream",
+      "tags": [
+        "forecast",
+        "probabilistic",
+        "uncertainty",
+        "risk",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-probabilistic",
+        "probabilistic"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-probabilistic [micro|focused|full] [task]",
+        "codex": "$forecast thinking-probabilistic [micro|focused|full]",
+        "router": "thinking-probabilistic [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast thinking-probabilistic [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-probabilistic.md"
+    },
+    {
+      "id": "think:forecast:wisdom-of-crowds-aggregation",
+      "name": "wisdom-of-crowds-aggregation",
+      "kind": "model",
+      "family": "forecast",
+      "path": "skills/forecast/references/wisdom-of-crowds-aggregation/SKILL.md",
+      "description": "Combine diverse independent estimates to produce more accurate predictions than any single expert, when conditions support collective intelligence",
+      "origin": "owner",
+      "tags": [
+        "forecast",
+        "wisdom",
+        "crowds",
+        "aggregation"
+      ],
+      "aliases": [
+        "wisdom-of-crowds-aggregation",
+        "wisdom of crowds aggregation"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:wisdom-of-crowds-aggregation [micro|focused|full] [task]",
+        "codex": "$forecast wisdom-of-crowds-aggregation [micro|focused|full]",
+        "router": "wisdom-of-crowds-aggregation [micro|focused|full]",
+        "claude_family_fallback": "/think:forecast wisdom-of-crowds-aggregation [micro|focused|full] [task]"
+      },
+      "command": "commands/wisdom-of-crowds-aggregation.md"
+    },
+    {
+      "id": "think:incentives:compound-interest",
+      "name": "compound-interest",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/compound-interest/SKILL.md",
+      "description": "Leverage exponential growth by reinvesting gains to earn returns on returns, whether in finance, skills, relationships, or habits—small consistent improvements compound into transformational outcomes",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "compound",
+        "interest"
+      ],
+      "aliases": [
+        "compound-interest",
+        "compound interest"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:compound-interest [micro|focused|full] [task]",
+        "codex": "$incentives compound-interest [micro|focused|full]",
+        "router": "compound-interest [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives compound-interest [micro|focused|full] [task]"
+      },
+      "command": "commands/compound-interest.md"
+    },
+    {
+      "id": "think:incentives:goodharts-law",
+      "name": "goodharts-law",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/goodharts-law/SKILL.md",
+      "description": "Anticipate metric gaming and unintended optimization by recognizing that when a measure becomes a target, it ceases to be a good measure",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "goodharts",
+        "law"
+      ],
+      "aliases": [
+        "goodharts-law",
+        "goodharts law"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:goodharts-law [micro|focused|full] [task]",
+        "codex": "$incentives goodharts-law [micro|focused|full]",
+        "router": "goodharts-law [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives goodharts-law [micro|focused|full] [task]"
+      },
+      "command": "commands/goodharts-law.md"
+    },
+    {
+      "id": "think:incentives:incentives",
+      "name": "incentives",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/incentives/SKILL.md",
+      "description": "Predict and shape behavior by understanding the hidden rewards and punishments that drive human action",
+      "origin": "owner",
+      "tags": [
+        "incentives"
+      ],
+      "aliases": [
+        "incentives"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:incentives-model [micro|focused|full] [task]",
+        "codex": "$incentives incentives [micro|focused|full]",
+        "router": "incentives [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives incentives [micro|focused|full] [task]"
+      },
+      "command": "commands/incentives-model.md"
+    },
+    {
+      "id": "think:incentives:mechanism-design",
+      "name": "mechanism-design",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/mechanism-design/SKILL.md",
+      "description": "Reverse game theory that engineers rules and incentive structures to achieve desired outcomes when participants have private information and self-interested motivations",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "mechanism",
+        "design",
+        "incentive"
+      ],
+      "aliases": [
+        "mechanism-design",
+        "mechanism design"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:mechanism-design [micro|focused|full] [task]",
+        "codex": "$incentives mechanism-design [micro|focused|full]",
+        "router": "mechanism-design [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives mechanism-design [micro|focused|full] [task]"
+      },
+      "command": "commands/mechanism-design.md"
+    },
+    {
+      "id": "think:incentives:nash-equilibrium",
+      "name": "nash-equilibrium",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/nash-equilibrium/SKILL.md",
+      "description": "Identify stable strategic outcomes where no player benefits from unilaterally changing their strategy - predict where competitive dynamics settle",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "nash",
+        "equilibrium",
+        "strategy"
+      ],
+      "aliases": [
+        "nash-equilibrium",
+        "nash equilibrium"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:nash-equilibrium [micro|focused|full] [task]",
+        "codex": "$incentives nash-equilibrium [micro|focused|full]",
+        "router": "nash-equilibrium [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives nash-equilibrium [micro|focused|full] [task]"
+      },
+      "command": "commands/nash-equilibrium.md"
+    },
+    {
+      "id": "think:incentives:principal-agent-problem",
+      "name": "principal-agent-problem",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/principal-agent-problem/SKILL.md",
+      "description": "Conflicts arising when one party (agent) makes decisions on behalf of another (principal), but their interests diverge and information is asymmetric",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "principal",
+        "agent",
+        "problem",
+        "decision"
+      ],
+      "aliases": [
+        "principal-agent-problem",
+        "principal agent problem"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:principal-agent-problem [micro|focused|full] [task]",
+        "codex": "$incentives principal-agent-problem [micro|focused|full]",
+        "router": "principal-agent-problem [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives principal-agent-problem [micro|focused|full] [task]"
+      },
+      "command": "commands/principal-agent-problem.md"
+    },
+    {
+      "id": "think:incentives:prisoners-dilemma",
+      "name": "prisoners-dilemma",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/prisoners-dilemma/SKILL.md",
+      "description": "Recognize situations where individual rational choices lead to collectively worse outcomes - core model for cooperation vs. defection dynamics",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "prisoners",
+        "dilemma"
+      ],
+      "aliases": [
+        "prisoners-dilemma",
+        "prisoners dilemma"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:prisoners-dilemma [micro|focused|full] [task]",
+        "codex": "$incentives prisoners-dilemma [micro|focused|full]",
+        "router": "prisoners-dilemma [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives prisoners-dilemma [micro|focused|full] [task]"
+      },
+      "command": "commands/prisoners-dilemma.md"
+    },
+    {
+      "id": "think:incentives:thinking-opportunity-cost",
+      "name": "thinking-opportunity-cost",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/thinking-opportunity-cost/SKILL.md",
+      "description": "Evaluate decisions by what you give up, not just what you gain. Use for resource allocation, prioritization, build vs. buy choices, and technical debt evaluation.",
+      "origin": "upstream",
+      "tags": [
+        "incentives",
+        "opportunity",
+        "cost",
+        "decision",
+        "prioritization"
+      ],
+      "aliases": [
+        "thinking-opportunity-cost",
+        "opportunity-cost",
+        "opportunity cost"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-opportunity-cost [micro|focused|full] [task]",
+        "codex": "$incentives thinking-opportunity-cost [micro|focused|full]",
+        "router": "thinking-opportunity-cost [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives thinking-opportunity-cost [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-opportunity-cost.md"
+    },
+    {
+      "id": "think:incentives:thinking-second-order",
+      "name": "thinking-second-order",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/thinking-second-order/SKILL.md",
+      "description": "Think beyond immediate consequences to second and third-order effects. Use for strategic decisions, policy changes, and avoiding unintended consequences.",
+      "origin": "upstream",
+      "tags": [
+        "incentives",
+        "second",
+        "order",
+        "second-order",
+        "consequences",
+        "downstream-effects",
+        "unintended-consequences",
+        "sequence",
+        "decision",
+        "downstream",
+        "impact"
+      ],
+      "aliases": [
+        "thinking-second-order",
+        "second-order",
+        "second order",
+        "second-order thinking",
+        "and then what",
+        "downstream effects",
+        "what else will this affect"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "anticipate",
+        "downstream-effects"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-second-order [micro|focused|full] [task]",
+        "codex": "$incentives thinking-second-order [micro|focused|full]",
+        "router": "thinking-second-order [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives thinking-second-order [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-second-order.md"
+    },
+    {
+      "id": "think:incentives:time-value-of-money",
+      "name": "time-value-of-money",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/time-value-of-money/SKILL.md",
+      "description": "Value money received today higher than the same amount in the future because present money can be invested to earn returns—use Net Present Value to compare cash flows across time and make rational investment decisions",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "time",
+        "value",
+        "money"
+      ],
+      "aliases": [
+        "time-value-of-money",
+        "time value of money"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:time-value-of-money [micro|focused|full] [task]",
+        "codex": "$incentives time-value-of-money [micro|focused|full]",
+        "router": "time-value-of-money [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives time-value-of-money [micro|focused|full] [task]"
+      },
+      "command": "commands/time-value-of-money.md"
+    },
+    {
+      "id": "think:incentives:tit-for-tat",
+      "name": "tit-for-tat",
+      "kind": "model",
+      "family": "incentives",
+      "path": "skills/incentives/references/tit-for-tat/SKILL.md",
+      "description": "Start new business relationships with trust and investment, but immediately match any breach. Return to cooperation as soon as they do. Make the pattern obvious through transparency.",
+      "origin": "owner",
+      "tags": [
+        "incentives",
+        "tit",
+        "for",
+        "tat"
+      ],
+      "aliases": [
+        "tit-for-tat",
+        "tit for tat"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:tit-for-tat [micro|focused|full] [task]",
+        "codex": "$incentives tit-for-tat [micro|focused|full]",
+        "router": "tit-for-tat [micro|focused|full]",
+        "claude_family_fallback": "/think:incentives tit-for-tat [micro|focused|full] [task]"
+      },
+      "command": "commands/tit-for-tat.md"
+    },
+    {
+      "id": "think:reason:chestertons-fence",
+      "name": "chestertons-fence",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/chestertons-fence/SKILL.md",
+      "description": "Before removing something, understand why it was put there in the first place—reforms without understanding cause unintended consequences",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "chestertons",
+        "fence"
+      ],
+      "aliases": [
+        "chestertons-fence",
+        "chestertons fence"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:chestertons-fence [micro|focused|full] [task]",
+        "codex": "$reason chestertons-fence [micro|focused|full]",
+        "router": "chestertons-fence [micro|focused|full]",
+        "claude_family_fallback": "/think:reason chestertons-fence [micro|focused|full] [task]"
+      },
+      "command": "commands/chestertons-fence.md"
+    },
+    {
+      "id": "think:reason:hanlons-razor",
+      "name": "hanlons-razor",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/hanlons-razor/SKILL.md",
+      "description": "Never attribute to malice that which is adequately explained by incompetence",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "hanlons",
+        "razor"
+      ],
+      "aliases": [
+        "hanlons-razor",
+        "hanlons razor"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:hanlons-razor [micro|focused|full] [task]",
+        "codex": "$reason hanlons-razor [micro|focused|full]",
+        "router": "hanlons-razor [micro|focused|full]",
+        "claude_family_fallback": "/think:reason hanlons-razor [micro|focused|full] [task]"
+      },
+      "command": "commands/hanlons-razor.md"
+    },
+    {
+      "id": "think:reason:hitchens-razor",
+      "name": "hitchens-razor",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/hitchens-razor/SKILL.md",
+      "description": "What can be asserted without evidence can be dismissed without evidence",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "hitchens",
+        "razor",
+        "evidence"
+      ],
+      "aliases": [
+        "hitchens-razor",
+        "hitchens razor"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:hitchens-razor [micro|focused|full] [task]",
+        "codex": "$reason hitchens-razor [micro|focused|full]",
+        "router": "hitchens-razor [micro|focused|full]",
+        "claude_family_fallback": "/think:reason hitchens-razor [micro|focused|full] [task]"
+      },
+      "command": "commands/hitchens-razor.md"
+    },
+    {
+      "id": "think:reason:humes-guillotine",
+      "name": "humes-guillotine",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/humes-guillotine/SKILL.md",
+      "description": "You cannot derive an 'ought' from an 'is' without bridging logic",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "humes",
+        "guillotine"
+      ],
+      "aliases": [
+        "humes-guillotine",
+        "humes guillotine"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:humes-guillotine [micro|focused|full] [task]",
+        "codex": "$reason humes-guillotine [micro|focused|full]",
+        "router": "humes-guillotine [micro|focused|full]",
+        "claude_family_fallback": "/think:reason humes-guillotine [micro|focused|full] [task]"
+      },
+      "command": "commands/humes-guillotine.md"
+    },
+    {
+      "id": "think:reason:poppers-falsifiability",
+      "name": "poppers-falsifiability",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/poppers-falsifiability/SKILL.md",
+      "description": "Scientific theories must be testable and capable of being proven false",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "poppers",
+        "falsifiability"
+      ],
+      "aliases": [
+        "poppers-falsifiability",
+        "poppers falsifiability"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:poppers-falsifiability [micro|focused|full] [task]",
+        "codex": "$reason poppers-falsifiability [micro|focused|full]",
+        "router": "poppers-falsifiability [micro|focused|full]",
+        "claude_family_fallback": "/think:reason poppers-falsifiability [micro|focused|full] [task]"
+      },
+      "command": "commands/poppers-falsifiability.md"
+    },
+    {
+      "id": "think:reason:sagan-standard",
+      "name": "sagan-standard",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/sagan-standard/SKILL.md",
+      "description": "Calibrate evidence requirements proportional to claim implausibility when evaluating extraordinary assertions",
+      "origin": "owner",
+      "tags": [
+        "reason",
+        "sagan",
+        "standard",
+        "evidence"
+      ],
+      "aliases": [
+        "sagan-standard",
+        "sagan standard"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:sagan-standard [micro|focused|full] [task]",
+        "codex": "$reason sagan-standard [micro|focused|full]",
+        "router": "sagan-standard [micro|focused|full]",
+        "claude_family_fallback": "/think:reason sagan-standard [micro|focused|full] [task]"
+      },
+      "command": "commands/sagan-standard.md"
+    },
+    {
+      "id": "think:reason:thinking-first-principles",
+      "name": "thinking-first-principles",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-first-principles/SKILL.md",
+      "description": "Break complex problems into fundamental truths by questioning assumptions and rebuilding from irreducible components. Use for innovation, challenging status quo, or when conventional solutions fail.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "first",
+        "principles",
+        "assumption"
+      ],
+      "aliases": [
+        "thinking-first-principles",
+        "first-principles",
+        "first principles"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-first-principles [micro|focused|full] [task]",
+        "codex": "$reason thinking-first-principles [micro|focused|full]",
+        "router": "thinking-first-principles [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-first-principles [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-first-principles.md"
+    },
+    {
+      "id": "think:reason:thinking-occams-razor",
+      "name": "thinking-occams-razor",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-occams-razor/SKILL.md",
+      "description": "Apply parsimony principle to prefer simpler explanations with fewer assumptions. Use for hypothesis selection in debugging, architecture decisions, and choosing between competing approaches.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "occams",
+        "razor",
+        "architecture",
+        "decision",
+        "assumption"
+      ],
+      "aliases": [
+        "thinking-occams-razor",
+        "occams-razor",
+        "occams razor"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-occams-razor [micro|focused|full] [task]",
+        "codex": "$reason thinking-occams-razor [micro|focused|full]",
+        "router": "thinking-occams-razor [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-occams-razor [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-occams-razor.md"
+    },
+    {
+      "id": "think:reason:thinking-scientific-method",
+      "name": "thinking-scientific-method",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-scientific-method/SKILL.md",
+      "description": "Hypothesis → Prediction → Test → Revise with explicit falsification. Use for debugging, feature experimentation, performance investigation, and A/B testing design.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "scientific",
+        "method",
+        "scientific-method",
+        "hypothesis",
+        "test",
+        "falsification",
+        "evidence",
+        "causality"
+      ],
+      "aliases": [
+        "thinking-scientific-method",
+        "scientific-method",
+        "scientific method"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "hypothesis-test",
+        "verification"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-scientific-method [micro|focused|full] [task]",
+        "codex": "$reason thinking-scientific-method [micro|focused|full]",
+        "router": "thinking-scientific-method [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-scientific-method [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-scientific-method.md"
+    },
+    {
+      "id": "think:reason:thinking-socratic",
+      "name": "thinking-socratic",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-socratic/SKILL.md",
+      "description": "Systematic questioning framework to deepen understanding, challenge assumptions, and uncover hidden beliefs. Use for requirements gathering, debugging, coaching, and critical analysis.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "socratic",
+        "assumption"
+      ],
+      "aliases": [
+        "thinking-socratic",
+        "socratic"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-socratic [micro|focused|full] [task]",
+        "codex": "$reason thinking-socratic [micro|focused|full]",
+        "router": "thinking-socratic [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-socratic [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-socratic.md"
+    },
+    {
+      "id": "think:reason:thinking-steel-manning",
+      "name": "thinking-steel-manning",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-steel-manning/SKILL.md",
+      "description": "Argue against the strongest version of opposing positions, not the weakest. Use for design reviews, evaluating alternatives, conflict resolution, and decision validation.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "steel",
+        "manning",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-steel-manning",
+        "steel-manning",
+        "steel manning"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-steel-manning [micro|focused|full] [task]",
+        "codex": "$reason thinking-steel-manning [micro|focused|full]",
+        "router": "thinking-steel-manning [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-steel-manning [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-steel-manning.md"
+    },
+    {
+      "id": "think:reason:thinking-thought-experiment",
+      "name": "thinking-thought-experiment",
+      "kind": "model",
+      "family": "reason",
+      "path": "skills/reason/references/thinking-thought-experiment/SKILL.md",
+      "description": "Test ideas through hypothetical scenarios when empirical testing is impractical. Use for architecture evaluation, edge case analysis, ethics considerations, and strategy development.",
+      "origin": "upstream",
+      "tags": [
+        "reason",
+        "thought",
+        "experiment",
+        "strategy",
+        "architecture"
+      ],
+      "aliases": [
+        "thinking-thought-experiment",
+        "thought-experiment",
+        "thought experiment"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-thought-experiment [micro|focused|full] [task]",
+        "codex": "$reason thinking-thought-experiment [micro|focused|full]",
+        "router": "thinking-thought-experiment [micro|focused|full]",
+        "claude_family_fallback": "/think:reason thinking-thought-experiment [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-thought-experiment.md"
+    },
+    {
+      "id": "think:strategy:good-strategy-bad-strategy",
+      "name": "good-strategy-bad-strategy",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/good-strategy-bad-strategy/SKILL.md",
+      "description": "Craft coherent strategy through diagnosis of core challenge, guiding policy, and coordinated actions when facing complex problems requiring more than goals and aspirations",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "good",
+        "bad"
+      ],
+      "aliases": [
+        "good-strategy-bad-strategy",
+        "good strategy bad strategy"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:good-strategy-bad-strategy [micro|focused|full] [task]",
+        "codex": "$strategy good-strategy-bad-strategy [micro|focused|full]",
+        "router": "good-strategy-bad-strategy [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy good-strategy-bad-strategy [micro|focused|full] [task]"
+      },
+      "command": "commands/good-strategy-bad-strategy.md"
+    },
+    {
+      "id": "think:strategy:pest-analysis",
+      "name": "pest-analysis",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/pest-analysis/SKILL.md",
+      "description": "Generate PEST analysis plans with strategic questions and Perplexity AI prompts. Use when user mentions PEST analysis, strategic planning, market analysis, external factors, environmental scanning, or needs research questions for political economic social technological factors.",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "pest",
+        "analysis"
+      ],
+      "aliases": [
+        "pest-analysis",
+        "pest analysis"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:pest-analysis [micro|focused|full] [task]",
+        "codex": "$strategy pest-analysis [micro|focused|full]",
+        "router": "pest-analysis [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy pest-analysis [micro|focused|full] [task]"
+      },
+      "command": "commands/pest-analysis.md"
+    },
+    {
+      "id": "think:strategy:pest-analysis-critical",
+      "name": "pest-analysis-critical",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/pest-analysis-critical/SKILL.md",
+      "description": "Critically evaluate PEST synthesis tables for biases, gaps, and oversights. Use when user mentions critical review, bias assessment, gap analysis, or after completing PEST synthesis.",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "pest",
+        "analysis",
+        "critical",
+        "bias"
+      ],
+      "aliases": [
+        "pest-analysis-critical",
+        "pest analysis critical"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:pest-analysis-critical [micro|focused|full] [task]",
+        "codex": "$strategy pest-analysis-critical [micro|focused|full]",
+        "router": "pest-analysis-critical [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy pest-analysis-critical [micro|focused|full] [task]"
+      },
+      "command": "commands/pest-analysis-critical.md"
+    },
+    {
+      "id": "think:strategy:pest-analysis-execute",
+      "name": "pest-analysis-execute",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/pest-analysis-execute/SKILL.md",
+      "description": "Execute PEST analysis by processing research results from Perplexity AI prompts. Create synthesis tables with strategic implications, impact and likelihood ratings. Use when user mentions PEST results, analysis execution, research synthesis, or after generating PEST analysis plans.",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "pest",
+        "analysis",
+        "execute"
+      ],
+      "aliases": [
+        "pest-analysis-execute",
+        "pest analysis execute"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:pest-analysis-execute [micro|focused|full] [task]",
+        "codex": "$strategy pest-analysis-execute [micro|focused|full]",
+        "router": "pest-analysis-execute [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy pest-analysis-execute [micro|focused|full] [task]"
+      },
+      "command": "commands/pest-analysis-execute.md"
+    },
+    {
+      "id": "think:strategy:pest-analysis-strategy",
+      "name": "pest-analysis-strategy",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/pest-analysis-strategy/SKILL.md",
+      "description": "Transform PEST analysis into actionable strategy: export to CSV, save to Obsidian, create SWOT, define strategic actions, prioritize, and build work plan. Use after completing PEST critical assessment.",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "pest",
+        "analysis"
+      ],
+      "aliases": [
+        "pest-analysis-strategy",
+        "pest analysis strategy"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:pest-analysis-strategy [micro|focused|full] [task]",
+        "codex": "$strategy pest-analysis-strategy [micro|focused|full]",
+        "router": "pest-analysis-strategy [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy pest-analysis-strategy [micro|focused|full] [task]"
+      },
+      "command": "commands/pest-analysis-strategy.md"
+    },
+    {
+      "id": "think:strategy:pest-analysis-synthesis",
+      "name": "pest-analysis-synthesis",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/pest-analysis-synthesis/SKILL.md",
+      "description": "Create PEST synthesis tables with strategic implications, impact and likelihood ratings. Use when user mentions synthesis table, strategic recommendations, opportunity threat analysis, or after completing PEST research.",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "pest",
+        "analysis",
+        "synthesis"
+      ],
+      "aliases": [
+        "pest-analysis-synthesis",
+        "pest analysis synthesis"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:pest-analysis-synthesis [micro|focused|full] [task]",
+        "codex": "$strategy pest-analysis-synthesis [micro|focused|full]",
+        "router": "pest-analysis-synthesis [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy pest-analysis-synthesis [micro|focused|full] [task]"
+      },
+      "command": "commands/pest-analysis-synthesis.md"
+    },
+    {
+      "id": "think:strategy:playing-to-win",
+      "name": "playing-to-win",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/playing-to-win/SKILL.md",
+      "description": "Five-question strategy cascade framework for making integrated strategic choices from winning aspiration to management systems, from P&G's transformation",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "playing",
+        "win"
+      ],
+      "aliases": [
+        "playing-to-win",
+        "playing to win"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:playing-to-win [micro|focused|full] [task]",
+        "codex": "$strategy playing-to-win [micro|focused|full]",
+        "router": "playing-to-win [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy playing-to-win [micro|focused|full] [task]"
+      },
+      "command": "commands/playing-to-win.md"
+    },
+    {
+      "id": "think:strategy:porters-five-forces",
+      "name": "porters-five-forces",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/porters-five-forces/SKILL.md",
+      "description": "Systematically assess the competitive intensity and attractiveness of an industry by analyzing five fundamental forces that shape competition and profitability",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "porters",
+        "five",
+        "forces"
+      ],
+      "aliases": [
+        "porters-five-forces",
+        "porters five forces"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:porters-five-forces [micro|focused|full] [task]",
+        "codex": "$strategy porters-five-forces [micro|focused|full]",
+        "router": "porters-five-forces [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy porters-five-forces [micro|focused|full] [task]"
+      },
+      "command": "commands/porters-five-forces.md"
+    },
+    {
+      "id": "think:strategy:thinking-effectuation",
+      "name": "thinking-effectuation",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/thinking-effectuation/SKILL.md",
+      "description": "Start with means, not goals; co-create with partners; leverage contingencies. Use for startup strategy, innovation projects, and uncertain/novel domains where planning is unreliable.",
+      "origin": "upstream",
+      "tags": [
+        "strategy",
+        "effectuation"
+      ],
+      "aliases": [
+        "thinking-effectuation",
+        "effectuation"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-effectuation [micro|focused|full] [task]",
+        "codex": "$strategy thinking-effectuation [micro|focused|full]",
+        "router": "thinking-effectuation [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy thinking-effectuation [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-effectuation.md"
+    },
+    {
+      "id": "think:strategy:thinking-jobs-to-be-done",
+      "name": "thinking-jobs-to-be-done",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/thinking-jobs-to-be-done/SKILL.md",
+      "description": "Understand what 'job' users hire your product to do, focusing on progress users seek rather than features. Use for product development, feature prioritization, user research, and market positioning.",
+      "origin": "upstream",
+      "tags": [
+        "strategy",
+        "jobs",
+        "done",
+        "prioritization"
+      ],
+      "aliases": [
+        "thinking-jobs-to-be-done",
+        "jobs-to-be-done",
+        "jobs to be done"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-jobs-to-be-done [micro|focused|full] [task]",
+        "codex": "$strategy thinking-jobs-to-be-done [micro|focused|full]",
+        "router": "thinking-jobs-to-be-done [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy thinking-jobs-to-be-done [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-jobs-to-be-done.md"
+    },
+    {
+      "id": "think:strategy:thinking-triz",
+      "name": "thinking-triz",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/thinking-triz/SKILL.md",
+      "description": "Apply TRIZ (Theory of Inventive Problem Solving) methodology to resolve technical contradictions and find innovative solutions. Use for engineering design, breaking through impossible constraints, and systematic innovation.",
+      "origin": "upstream",
+      "tags": [
+        "strategy",
+        "triz"
+      ],
+      "aliases": [
+        "thinking-triz",
+        "triz"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-triz [micro|focused|full] [task]",
+        "codex": "$strategy thinking-triz [micro|focused|full]",
+        "router": "thinking-triz [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy thinking-triz [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-triz.md"
+    },
+    {
+      "id": "think:strategy:three-horizons-framework",
+      "name": "three-horizons-framework",
+      "kind": "model",
+      "family": "strategy",
+      "path": "skills/strategy/references/three-horizons-framework/SKILL.md",
+      "description": "Balance current business performance with emerging opportunities and future innovation by allocating resources across three time horizons of growth",
+      "origin": "owner",
+      "tags": [
+        "strategy",
+        "three",
+        "horizons",
+        "framework"
+      ],
+      "aliases": [
+        "three-horizons-framework",
+        "three horizons framework"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:three-horizons-framework [micro|focused|full] [task]",
+        "codex": "$strategy three-horizons-framework [micro|focused|full]",
+        "router": "three-horizons-framework [micro|focused|full]",
+        "claude_family_fallback": "/think:strategy three-horizons-framework [micro|focused|full] [task]"
+      },
+      "command": "commands/three-horizons-framework.md"
+    },
+    {
+      "id": "think:systems:causal-loop-diagrams",
+      "name": "causal-loop-diagrams",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/causal-loop-diagrams/SKILL.md",
+      "description": "Map cause-and-effect relationships with reinforcing/balancing feedback loops to visualize system structure and predict behavior patterns",
+      "origin": "owner",
+      "tags": [
+        "systems",
+        "causal",
+        "loop",
+        "diagrams",
+        "feedback"
+      ],
+      "aliases": [
+        "causal-loop-diagrams",
+        "causal loop diagrams"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:causal-loop-diagrams [micro|focused|full] [task]",
+        "codex": "$systems causal-loop-diagrams [micro|focused|full]",
+        "router": "causal-loop-diagrams [micro|focused|full]",
+        "claude_family_fallback": "/think:systems causal-loop-diagrams [micro|focused|full] [task]"
+      },
+      "command": "commands/causal-loop-diagrams.md"
+    },
+    {
+      "id": "think:systems:graph-thinking",
+      "name": "graph-thinking",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/graph-thinking/SKILL.md",
+      "description": "Apply graph-based thinking to visualize complex relationships and solve problems non-linearly. Use when mapping dependencies, analyzing systems, exploring interconnected concepts, or designing architectures.",
+      "origin": "owner",
+      "tags": [
+        "systems",
+        "graph"
+      ],
+      "aliases": [
+        "graph-thinking",
+        "graph thinking"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:graph-thinking [micro|focused|full] [task]",
+        "codex": "$systems graph-thinking [micro|focused|full]",
+        "router": "graph-thinking [micro|focused|full]",
+        "claude_family_fallback": "/think:systems graph-thinking [micro|focused|full] [task]"
+      },
+      "command": "commands/graph-thinking.md"
+    },
+    {
+      "id": "think:systems:thinking-archetypes",
+      "name": "thinking-archetypes",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/thinking-archetypes/SKILL.md",
+      "description": "Recognize Senge's Systems Archetypes to diagnose recurring organizational and technical problems, identify why fixes keep failing, and design interventions that address root structure.",
+      "origin": "upstream",
+      "tags": [
+        "systems",
+        "archetypes"
+      ],
+      "aliases": [
+        "thinking-archetypes",
+        "archetypes"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-archetypes [micro|focused|full] [task]",
+        "codex": "$systems thinking-archetypes [micro|focused|full]",
+        "router": "thinking-archetypes [micro|focused|full]",
+        "claude_family_fallback": "/think:systems thinking-archetypes [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-archetypes.md"
+    },
+    {
+      "id": "think:systems:thinking-feedback-loops",
+      "name": "thinking-feedback-loops",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/thinking-feedback-loops/SKILL.md",
+      "description": "Analyze systems using Donella Meadows' feedback loop framework to identify reinforcing loops, balancing loops, delays, and leverage points. Use for organizational dynamics, product growth design, debugging runaway or oscillating systems, and finding high-impact interventions.",
+      "origin": "upstream",
+      "tags": [
+        "systems",
+        "feedback",
+        "loops"
+      ],
+      "aliases": [
+        "thinking-feedback-loops",
+        "feedback-loops",
+        "feedback loops"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-feedback-loops [micro|focused|full] [task]",
+        "codex": "$systems thinking-feedback-loops [micro|focused|full]",
+        "router": "thinking-feedback-loops [micro|focused|full]",
+        "claude_family_fallback": "/think:systems thinking-feedback-loops [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-feedback-loops.md"
+    },
+    {
+      "id": "think:systems:thinking-leverage-points",
+      "name": "thinking-leverage-points",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/thinking-leverage-points/SKILL.md",
+      "description": "Identify where small changes can have large effects using Donella Meadows' hierarchy of system intervention points. Use for strategic decisions, system optimization, and choosing where to focus engineering effort.",
+      "origin": "upstream",
+      "tags": [
+        "systems",
+        "leverage",
+        "points",
+        "decision"
+      ],
+      "aliases": [
+        "thinking-leverage-points",
+        "leverage-points",
+        "leverage points"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [],
+      "manual_invocation": {
+        "claude": "/think:thinking-leverage-points [micro|focused|full] [task]",
+        "codex": "$systems thinking-leverage-points [micro|focused|full]",
+        "router": "thinking-leverage-points [micro|focused|full]",
+        "claude_family_fallback": "/think:systems thinking-leverage-points [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-leverage-points.md"
+    },
+    {
+      "id": "think:systems:thinking-systems",
+      "name": "thinking-systems",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/thinking-systems/SKILL.md",
+      "description": "Analyze problems as interconnected systems with feedback loops, emergent behavior, and non-linear effects. Use for debugging complex systems, architecture decisions, and understanding unexpected behavior.",
+      "origin": "upstream",
+      "tags": [
+        "systems",
+        "dependencies",
+        "feedback",
+        "blast-radius",
+        "emergence",
+        "architecture",
+        "decision",
+        "cross-component",
+        "impact"
+      ],
+      "aliases": [
+        "thinking-systems",
+        "systems",
+        "blast radius",
+        "cross component impact",
+        "what else does this touch"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "systems-impact",
+        "blast-radius"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-systems [micro|focused|full] [task]",
+        "codex": "$systems thinking-systems [micro|focused|full]",
+        "router": "thinking-systems [micro|focused|full]",
+        "claude_family_fallback": "/think:systems thinking-systems [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-systems.md"
+    },
+    {
+      "id": "think:systems:thinking-theory-of-constraints",
+      "name": "thinking-theory-of-constraints",
+      "kind": "model",
+      "family": "systems",
+      "path": "skills/systems/references/thinking-theory-of-constraints/SKILL.md",
+      "description": "Identify and manage the bottleneck; improvements elsewhere don't matter until the constraint is addressed. Use for performance optimization, process improvement, and resource allocation.",
+      "origin": "upstream",
+      "tags": [
+        "systems",
+        "theory",
+        "constraints",
+        "theory-of-constraints",
+        "constraint",
+        "bottleneck",
+        "throughput",
+        "leverage"
+      ],
+      "aliases": [
+        "thinking-theory-of-constraints",
+        "theory-of-constraints",
+        "theory of constraints",
+        "toc"
+      ],
+      "depths": [
+        "micro",
+        "focused",
+        "full"
+      ],
+      "default_depth": "micro",
+      "reflex_roles": [
+        "constraint-check"
+      ],
+      "manual_invocation": {
+        "claude": "/think:thinking-theory-of-constraints [micro|focused|full] [task]",
+        "codex": "$systems thinking-theory-of-constraints [micro|focused|full]",
+        "router": "thinking-theory-of-constraints [micro|focused|full]",
+        "claude_family_fallback": "/think:systems thinking-theory-of-constraints [micro|focused|full] [task]"
+      },
+      "command": "commands/thinking-theory-of-constraints.md"
+    }
+  ],
+  "command_count": 84
+}

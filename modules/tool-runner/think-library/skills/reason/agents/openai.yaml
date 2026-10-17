@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Reason"
+  short_description: "Test claims, assumptions, and explanations"
+  default_prompt: "Use $reason to select and apply the most relevant reason thinking model for this task."
+policy:
+  allow_implicit_invocation: true

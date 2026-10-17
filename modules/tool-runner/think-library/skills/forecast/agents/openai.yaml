@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Forecast"
+  short_description: "Estimate uncertainty, ranges, and probabilities"
+  default_prompt: "Use $forecast to select and apply the most relevant forecast thinking model for this task."
+policy:
+  allow_implicit_invocation: true

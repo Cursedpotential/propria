@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Systems"
+  short_description: "Trace systems, dependencies, and feedback"
+  default_prompt: "Use $systems to select and apply the most relevant systems thinking model for this task."
+policy:
+  allow_implicit_invocation: true

@@ -123,7 +123,7 @@ $('run-form').onsubmit=async event=>{
     if(selected.annotations?.readOnlyHint!==true&&!$('confirm').checked)throw new Error('Review the inputs and check the confirmation before running.');
     running=true;$('run').disabled=true;$('refresh').disabled=true;renderList();$('run-status').textContent='Running…';$('result-summary').textContent='Waiting for the service…';$('result').textContent='';$('download').disabled=true;lastResult=null;
     const data=await api('run',{name:selected.name,arguments:args,request_id:crypto.randomUUID(),confirmed:$('confirm').checked});lastResult=data;
-    $('result').textContent=JSON.stringify(data.result,null,2);$('result-summary').textContent=`${data.result.isError?'Tool returned an error':'Completed'} · ${(data.elapsed_ms/1000).toFixed(2)} seconds`;$('download').disabled=false;$('run-status').textContent=data.result.isError?'Tool error':'Finished';
+    $('result').textContent=JSON.stringify(data.result,null,2);$('result-summary').textContent=`${(data.is_error ?? data.result?.isError ?? data.result?.is_error)?'Tool returned an error':'Completed'} · ${(data.elapsed_ms/1000).toFixed(2)} seconds`;$('download').disabled=false;$('run-status').textContent=(data.is_error ?? data.result?.isError ?? data.result?.is_error)?'Tool error':'Finished';
   }catch(e){error(e.message);$('run-status').textContent='Not completed';$('result-summary').textContent='No successful result received.';}
   finally{running=false;$('run').disabled=false;$('refresh').disabled=false;$('confirm').checked=false;renderList();}
 };

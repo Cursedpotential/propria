@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "graph-thinking",
+  "owner": "flpbalada",
+  "repo": "thinking-toolkit",
+  "path": "plugins/graph-thinking/skills/graph-thinking",
+  "branch": "main",
+  "sha": "c3c3a390e547f43118d1306ee9df0cb2687e7c72",
+  "source": "manual"
+}

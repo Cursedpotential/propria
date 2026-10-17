@@ -1,0 +1,6 @@
+interface:
+  display_name: "Think — Incentives"
+  short_description: "Analyze incentives and downstream effects"
+  default_prompt: "Use $incentives to select and apply the most relevant incentives thinking model for this task."
+policy:
+  allow_implicit_invocation: true
