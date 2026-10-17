@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { useBrowserSearchParams } from "@/lib/router-compat";
+import { KnowledgeReviewDetail } from "./knowledge-review-detail";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, RefreshCcw } from "lucide-react";
 
 import { AppLink } from "@/lib/router-compat";
@@ -50,6 +52,8 @@ async function loadInbox({ signal }: { signal?: AbortSignal }): Promise<ReviewIn
  * Side effects: polling only; does not approve, edit, archive, or supersede any records.
  */
 export function KnowledgeReviewInbox() {
+  const params = useBrowserSearchParams();
+  const selected = params.get("knowledge_review");
   const query = useQuery({
     queryKey: ["knowledge-review-inbox"],
     queryFn: ({ signal }) => loadInbox({ signal }),
@@ -115,6 +119,7 @@ export function KnowledgeReviewInbox() {
           ))}
         </ul>
       ) : null}
+      {selected ? <KnowledgeReviewDetail key={selected} reviewRef={selected} /> : null}
       {query.data?.truncated ? <p className="text-xs text-muted-foreground">
         More reviews exist. Use the authoritative review queue for the full list.
       </p> : null}
