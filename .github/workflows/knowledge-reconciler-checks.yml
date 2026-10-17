@@ -42,4 +42,4 @@ jobs:
       - name: Python - Workbench owner review tests
         env:
           PYTHONPATH: modules/Probata/probata:modules/Probata/probata/modules/workbench/api
-        run: python -m pytest -q modules/Probata/probata/modules/workbench/api/tests/test_knowledge_review.py
+        run: python -m pytest --noconftest -q modules/Probata/probata/modules/workbench/api/tests/test_knowledge_review.py
