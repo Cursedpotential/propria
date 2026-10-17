@@ -40,14 +40,27 @@ CREATE INDEX IF NOT EXISTS knowledge_review_active
   ON ops.knowledge_review_case (status, severity, created_at DESC)
   WHERE status IN ('queued','deferred');
 
--- The app's existing DB role gets bounded access, while authenticated API handlers
--- enforce separate internal writer and owner-decision capability checks.
-DO $$
+-- Source/review proposal writer can INSERT exact candidate columns, but cannot
+-- forge a decision or alter source revision pins after insertion.
+-- Only a separate NOLOGIN adjudicator capability can make a recorded owner decision.
+DO $
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='knowledge_review_adjudicator') THEN
+    CREATE ROLE knowledge_review_adjudicator NOLOGIN;
+  END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='platform_runtime') THEN
     GRANT USAGE ON SCHEMA ops TO platform_runtime;
-    GRANT SELECT, INSERT, UPDATE ON ops.knowledge_review_case TO platform_runtime;
-    GRANT SELECT, INSERT ON ops.knowledge_review_action TO platform_runtime;
+    GRANT SELECT ON ops.knowledge_review_case TO platform_runtime;
+    GRANT INSERT (fingerprint,scope,kind,severity,summary,source_refs,source_revisions)
+      ON ops.knowledge_review_case TO platform_runtime;
+    GRANT UPDATE (last_seen_at) ON ops.knowledge_review_case TO platform_runtime;
   END IF;
-END $$;
+  GRANT USAGE ON SCHEMA ops TO knowledge_review_adjudicator;
+  GRANT SELECT ON ops.knowledge_review_case TO knowledge_review_adjudicator;
+  GRANT UPDATE (status,case_version,final_disposition,decided_at)
+    ON ops.knowledge_review_case TO knowledge_review_adjudicator;
+  GRANT SELECT, INSERT ON ops.knowledge_review_action TO knowledge_review_adjudicator;
+END $;
+-- No login is created, no password is embedded; administrator must bind one
+-- approved human-review service identity to the NOLOGIN capability out-of-band.
 COMMIT;
