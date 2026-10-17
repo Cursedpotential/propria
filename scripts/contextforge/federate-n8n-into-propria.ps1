@@ -18,7 +18,7 @@ if (-not $base.StartsWith('https://')) {
     throw "ContextForge management must use HTTPS."
 }
 $headers = @{ Authorization = 'Bearer ' + $env:CF_MCP_CLIENT_TOKEN }
-$registered = @(Invoke-RestMethod -Uri "$base/servers?include_pagination=false" -Headers $headers -TimeoutSec 15)
+$registered = Invoke-RestMethod -Uri "$base/servers?include_pagination=false" -Headers $headers -TimeoutSec 15
 $propria = @($registered | Where-Object { $_.name -eq 'propria' })
 $n8n = @($registered | Where-Object { $_.name -eq 'n8n' })
 if ($propria.Count -ne 1 -or $n8n.Count -ne 1) {
