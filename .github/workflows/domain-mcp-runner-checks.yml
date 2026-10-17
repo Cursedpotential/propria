@@ -26,9 +26,10 @@ jobs:
       - name: Verify protocol, authorization and domain separation
         working-directory: modules/tool-runner
         run: python -m unittest test_app.py test_domains.py test_projection.py -q
-      - name: Verify human UI and JavaScript syntax
+      - name: Verify human UI, individual Think selections and JavaScript syntax
         working-directory: modules/tool-runner
         run: |
           NODE_PATH="$RUNNER_TEMP/propria-ui-test/node_modules" node test_ui.cjs
+          NODE_PATH="$RUNNER_TEMP/propria-ui-test/node_modules" node test_think_menu.cjs
           node --check static/app.js
           node --check static/connections.js

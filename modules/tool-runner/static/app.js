@@ -1,6 +1,11 @@
 /** Build the runner from live MCP schemas; inputs are user edits, effects are explicit API calls. */
 const $ = id => document.getElementById(id);
 let tools = [], selected = null, csrf = '', fields = [], lastResult = null, running = false;
+const initialSelection=new URLSearchParams(location.search);
+let initialApplied=false;
+const isThink=t=>t?._domain==='think'||t?.name?.startsWith('think--');
+const descriptionOf=t=>(t.description||'').trim().replace(/^["']|["']$/g,'');
+const kindLabel=t=>({process:'Individual process',workflow:'Integrated / persistent workflow',family:'Process family',router:'Method router'})[t._kind]||'Tool';
 const groups = ['family-court','coolify-write','cloudflare-docs','context7','agno-docs','n8n-docs','atomic-tools','advocatio','memsearch','docstore','n8n','mem','docs','surreal'];
 const groupOf = tool => tool._domain || groups.find(g => tool.name.replaceAll('_','-').startsWith(g)) || tool.name.split(/[-_]/)[0];
 const labelOf = tool => tool.title || tool.name.replaceAll(/[-_]/g,' ');
@@ -17,15 +22,20 @@ function error(message) { $('error').hidden=!message; $('error').textContent=mes
 /** Render filtered tool choices as text nodes; catalog descriptions cannot inject markup. */
 function renderList() {
   const query=$('search').value.toLowerCase().trim(), group=$('group').value;
-  const matches=tools.filter(t=>(!group||(t._domains||[groupOf(t)]).includes(group))&&`${t.name} ${t.title||''} ${t.description||''}`.toLowerCase().includes(query));
+  const kind=group==='think'?$('think-kind').value:'';
+  $('think-filter').hidden=group!=='think';
+  const matches=tools.filter(t=>(!group||(t._domains||[groupOf(t)]).includes(group))&&(!kind||t._kind===kind)&&`${t.name} ${t.title||''} ${t.description||''}`.toLowerCase().includes(query));
   $('tools').replaceChildren();
   $('catalog-status').textContent=`${matches.length} of ${tools.length} tools`;
   for(const tool of matches) {
     const button=document.createElement('button'); button.type='button'; button.className='tool'; button.disabled=running;
     button.setAttribute('aria-current',String(selected?.name===tool.name));
     const title=document.createElement('strong'), subtitle=document.createElement('small');
-    title.textContent=labelOf(tool); subtitle.textContent=groupOf(tool);
-    button.append(title,subtitle); button.onclick=()=>choose(tool); $('tools').append(button);
+    title.textContent=labelOf(tool); subtitle.textContent=isThink(tool)?kindLabel(tool):groupOf(tool);
+    const description=document.createElement('span');description.className='tool-purpose';
+    description.textContent=descriptionOf(tool);
+    button.append(title,subtitle,description);button.title=descriptionOf(tool);button.dataset.tool=tool.name;
+    button.onclick=()=>choose(tool); $('tools').append(button);
   }
   if(!matches.length) $('tools').textContent='No tools match. Try a different search.';
 }
@@ -55,9 +65,11 @@ function choose(tool) {
   if(running)return;
   selected=tool; fields=[]; lastResult=null; error(''); $('welcome').hidden=true; $('editor').hidden=false;
   $('service').textContent=groupOf(tool); $('title').textContent=labelOf(tool); $('tool-name').textContent=tool.name;
-  $('description').textContent=tool.description||'No description supplied by this service.';
+  $('description').textContent=descriptionOf(tool)||'No description supplied by this service.';
+  $('think-selection').hidden=!isThink(tool);$('copy-invocation').disabled=!isThink(tool);
+  $('run').textContent=isThink(tool)?'Load selected process':'Run tool';
   const readOnly=tool.annotations?.readOnlyHint===true;
-  $('effect').textContent=readOnly?'Read-only':'May make changes'; $('review').hidden=readOnly; $('confirm').checked=false;
+  $('effect').textContent=isThink(tool)?kindLabel(tool):readOnly?'Read-only':'May make changes'; $('review').hidden=readOnly; $('confirm').checked=false;
   $('schema').textContent=JSON.stringify(tool.inputSchema,null,2); $('fields').replaceChildren();
   const schema=tool.inputSchema||{}, properties=schema.properties||{};
   for(const [name,field] of Object.entries(properties)) $('fields').append(makeField(name,field,(schema.required||[]).includes(name)));
@@ -105,6 +117,7 @@ async function refresh(){
   $('refresh').disabled=true;error('');$('catalog-status').textContent='Loading tools…';
   try{const result=await api('tools');tools=result.tools.sort((a,b)=>a.name.localeCompare(b.name));const previous=$('group').value;
     $('group').replaceChildren(new Option('All domains',''));for(const g of [...new Set(tools.flatMap(t=>t._domains||[groupOf(t)]))].sort())$('group').add(new Option(g,g));$('group').value=previous;
+    if(!initialApplied){initialApplied=true;const d=initialSelection.get('domain'),k=initialSelection.get('kind');if([...$('group').options].some(o=>o.value===d))$('group').value=d;if(['process','workflow','family','router'].includes(k))$('think-kind').value=k;const exact=initialSelection.get('process');if(exact){const chosen=tools.find(t=>t.name==='think--'+exact);if(chosen)choose(chosen);}}
     if(selected){const updated=tools.find(t=>t.name===selected.name);if(updated){
       if(JSON.stringify(updated.inputSchema)!==JSON.stringify(selected.inputSchema)){
         error('This tool’s inputs changed. Your edits are preserved; review the updated definition before running.');
@@ -128,6 +141,8 @@ $('run-form').onsubmit=async event=>{
   finally{running=false;$('run').disabled=false;$('refresh').disabled=false;$('confirm').checked=false;renderList();}
 };
 $('download').onclick=()=>{if(!lastResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`propria-${lastResult.tool.replaceAll(/[^a-z0-9_-]/gi,'_')}-${Date.now()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-$('search').oninput=renderList;$('group').onchange=renderList;$('refresh').onclick=refresh;
+$('search').oninput=renderList;$('group').onchange=renderList;$('think-kind').onchange=renderList;$('refresh').onclick=refresh;
+/** Copy the exact manual choice and independent controls; never claim to alter another conversation. */
+$('copy-invocation').onclick=async()=>{if(!selected||!isThink(selected))return;try{const a=$('json-mode').checked?JSON.parse($('raw').value):formValues();const d=a.depth||'adaptive',s=a.scope||'conversation',o=a.output||'silent';const command=`Apply ${labelOf(selected)} (${selected.name.slice(7)}) as my selected Think process. Execution depth: ${d}. Scope: ${s}. Output: ${o}. Load and preserve the complete selected methodology and persistent Reflex control. Do not replace my manual selection with router choices.`;await navigator.clipboard.writeText(command);$('copy-status').textContent='Copied. Paste into the agent conversation that should use this process.';}catch(e){error(e.message);}};
 async function start(){try{const me=await api('session');csrf=me.csrf;const name=document.createElement('span');name.textContent=me.name;const logout=document.createElement('button');logout.textContent='Sign out';logout.onclick=async()=>{try{await api('logout',{});location.reload();}catch(e){error(e.message);}};$('account').replaceChildren(name,logout);$('welcome-signin').hidden=true;await refresh();}catch{$('catalog-status').textContent='Sign in to load your tools.';}}
 start();
