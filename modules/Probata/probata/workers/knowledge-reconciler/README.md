@@ -102,7 +102,7 @@ Run from the repo checkout, using the installed supported runtimes:
     npm test
     npm run check
 
-    node ../deploy/docker/n8n/workflows/knowledge-reconciler/test-workflow.mjs
+    node ../../deploy/docker/n8n/workflows/knowledge-reconciler/test-workflow.mjs
 
     cd ../..
     python -m pytest tests/test_knowledge_reconcile_routes.py
