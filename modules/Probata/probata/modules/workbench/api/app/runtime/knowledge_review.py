@@ -39,6 +39,14 @@ def _reviewer(request: Request) -> str:
     uid = getattr(request.state, "subject_uid", None)
     if not isinstance(uid, str) or not uid or len(uid) > 256:
         raise HTTPException(401, "authenticated owner required")
+    # Do not give every authenticated Workbench user memory-adjudication authority.
+    # The owner subject ID comes from managed runtime settings.
+    allowed = tuple(item.strip() for item in
+                    os.getenv("KNOWLEDGE_REVIEW_OWNER_UIDS", "").split(",") if item.strip())
+    if not allowed:
+        raise HTTPException(503, "knowledge review owner identity is not configured")
+    if not any(hmac.compare_digest(uid.encode(), member.encode()) for member in allowed):
+        raise HTTPException(403, "knowledge review requires an authorized owner identity")
     return uid
 
 
