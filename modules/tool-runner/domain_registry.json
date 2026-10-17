@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "base_url": "https://mcp.mitechconsult.com",
+  "auth_server_id": "320572d2bdd440f3ac61c8b64418d7b3",
+  "oauth": {
+    "authorization_servers": [
+      "https://auth.int.mitechconsult.com/application/o/propria-gateway/"
+    ],
+    "client_id": "3Ag5NHvDHdGfDPbERK-YnMKPUrhuwCTYS_WcqKbW3Xc",
+    "scopes_supported": [
+      "openid",
+      "profile",
+      "email",
+      "offline_access"
+    ]
+  },
+  "domains": {
+    "n8n": {
+      "name": "n8n workflows and automation",
+      "server_id": "c961807d29e24cd790987ff05d940e7c",
+      "path": "/n8n/mcp",
+      "native_count": 54,
+      "resource_root": "n8n",
+      "availability": "registered"
+    },
+    "docstore": {
+      "name": "Governed documentation, decisions and records",
+      "server_id": "87cc9de6ea614d6b9bb816061be4c172",
+      "path": "/docstore/mcp",
+      "native_count": 5,
+      "resource_root": "docstore",
+      "availability": "registered"
+    },
+    "storage": {
+      "name": "Native database and file-store operations",
+      "server_id": "6410561ee8f2419abace082a972be3a4",
+      "path": "/storage/mcp",
+      "native_count": 28,
+      "resource_root": "storage",
+      "availability": "registered"
+    },
+    "platform": {
+      "name": "Propria platform, case and family-court tools",
+      "server_id": "dceeccf982dc45c39a5cd6fae8dc5dc7",
+      "path": "/platform/mcp",
+      "native_count": 44,
+      "resource_root": "platform",
+      "availability": "registered"
+    },
+    "think": {
+      "name": "Individual Think methods, workflows and router",
+      "server_id": "0b1f3fa3a6604cc39189b852e6ef313f",
+      "path": "/think/mcp",
+      "native_count": 0,
+      "resource_root": "think",
+      "availability": "local-methodology"
+    },
+    "search": {
+      "name": "Federated search and recall",
+      "server_id": "5ed4b88921104386876ffbb3ba8fc326",
+      "path": "/search/mcp",
+      "native_count": 16,
+      "resource_root": "search",
+      "availability": "registered"
+    },
+    "admin": {
+      "name": "Platform administration and infrastructure",
+      "server_id": "84e9d0ed3b414858bd7336f7c89c5772",
+      "path": "/admin/mcp",
+      "native_count": 43,
+      "resource_root": "admin",
+      "availability": "registered"
+    }
+  }
+}

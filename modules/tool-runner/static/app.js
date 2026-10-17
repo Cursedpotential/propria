@@ -1,8 +1,8 @@
 /** Build the runner from live MCP schemas; inputs are user edits, effects are explicit API calls. */
 const $ = id => document.getElementById(id);
 let tools = [], selected = null, csrf = '', fields = [], lastResult = null, running = false;
-const groups = ['family-court','coolify-write','cloudflare-docs','context7','agno-docs','n8n-docs','atomic-tools','advocatio','memsearch','octopoda','docstore','n8n','mem','docs','surreal'];
-const groupOf = tool => groups.find(g => tool.name.replaceAll('_','-').startsWith(g)) || tool.name.split(/[-_]/)[0];
+const groups = ['family-court','coolify-write','cloudflare-docs','context7','agno-docs','n8n-docs','atomic-tools','advocatio','memsearch','docstore','n8n','mem','docs','surreal'];
+const groupOf = tool => tool._domain || groups.find(g => tool.name.replaceAll('_','-').startsWith(g)) || tool.name.split(/[-_]/)[0];
 const labelOf = tool => tool.title || tool.name.replaceAll(/[-_]/g,' ');
 
 /** Fetch this origin's runner API; output parsed JSON, no credentials leave the server. */
@@ -17,7 +17,7 @@ function error(message) { $('error').hidden=!message; $('error').textContent=mes
 /** Render filtered tool choices as text nodes; catalog descriptions cannot inject markup. */
 function renderList() {
   const query=$('search').value.toLowerCase().trim(), group=$('group').value;
-  const matches=tools.filter(t=>(!group||groupOf(t)===group)&&`${t.name} ${t.title||''} ${t.description||''}`.toLowerCase().includes(query));
+  const matches=tools.filter(t=>(!group||(t._domains||[groupOf(t)]).includes(group))&&`${t.name} ${t.title||''} ${t.description||''}`.toLowerCase().includes(query));
   $('tools').replaceChildren();
   $('catalog-status').textContent=`${matches.length} of ${tools.length} tools`;
   for(const tool of matches) {
@@ -104,14 +104,14 @@ $('json-mode').onchange=()=>{
 async function refresh(){
   $('refresh').disabled=true;error('');$('catalog-status').textContent='Loading tools…';
   try{const result=await api('tools');tools=result.tools.sort((a,b)=>a.name.localeCompare(b.name));const previous=$('group').value;
-    $('group').replaceChildren(new Option('All services',''));for(const g of [...new Set(tools.map(groupOf))].sort())$('group').add(new Option(g,g));$('group').value=previous;
+    $('group').replaceChildren(new Option('All domains',''));for(const g of [...new Set(tools.flatMap(t=>t._domains||[groupOf(t)]))].sort())$('group').add(new Option(g,g));$('group').value=previous;
     if(selected){const updated=tools.find(t=>t.name===selected.name);if(updated){
       if(JSON.stringify(updated.inputSchema)!==JSON.stringify(selected.inputSchema)){
         error('This tool’s inputs changed. Your edits are preserved; review the updated definition before running.');
         $('schema').textContent=JSON.stringify(updated.inputSchema,null,2);
       }
       selected=updated;$('confirm').checked=false;$('review').hidden=updated.annotations?.readOnlyHint===true;
-    }else{selected=null;$('editor').hidden=true;$('welcome').hidden=false;}}renderList();
+    }else{selected=null;$('editor').hidden=true;$('welcome').hidden=false;}}renderList();const missing=(result.coverage||[]).filter(x=>x.state==='unavailable');if(missing.length)error('Unavailable domains: '+missing.map(x=>x.domain).join(', ')+'. Available tools remain selectable.');
   }catch(e){$('catalog-status').textContent='Tools could not be loaded.';error(e.message);}finally{$('refresh').disabled=false;}
 }
 

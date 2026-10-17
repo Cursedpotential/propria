@@ -26,7 +26,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 ROOT = Path(__file__).parent
-PUBLIC_URL = os.getenv('PUBLIC_URL', 'http://127.0.0.1:8790').rstrip('/')
+PUBLIC_URL = os.getenv('PUBLIC_URL', 'http://127.0.0.1:8790/runner').rstrip('/')
 PREFIX = urlsplit(PUBLIC_URL).path.rstrip('/')
 ORIGIN = f'{urlsplit(PUBLIC_URL).scheme}://{urlsplit(PUBLIC_URL).netloc}'
 ISSUER = os.getenv('OAUTH_ISSUER', 'https://auth.int.mitechconsult.com/application/o/propria-gateway/').rstrip('/')
@@ -89,7 +89,7 @@ async def access_token(value):
         return value['access_token']
 
 
-async def rpc(client, headers, method, params=None, notification=False):
+async def rpc(client, headers, method, params=None, notification=False, endpoint=None):
     """Send one MCP message, handling JSON/SSE responses without replaying operations.
 
     Inputs: authenticated HTTP client, method and parameters. Output: JSON-RPC result.
@@ -99,7 +99,7 @@ async def rpc(client, headers, method, params=None, notification=False):
     message = {'jsonrpc': '2.0', 'method': method, 'params': params or {}}
     if not notification:
         message['id'] = rid
-    async with client.stream('POST', MCP_URL, headers=headers, json=message) as response:
+    async with client.stream('POST', endpoint or MCP_URL, headers=headers, json=message) as response:
         if response.status_code in (401, 403):
             raise HTTPException(response.status_code, 'Gateway denied access. Sign in again or check your account permissions.')
         if response.status_code >= 400:
@@ -138,7 +138,7 @@ async def rpc(client, headers, method, params=None, notification=False):
         return result['result']
 
 
-async def mcp(value, method, params=None):
+async def mcp(value, method, params=None, endpoint=None):
     """Initialize a fresh MCP session, perform one read/call, and return its result.
 
     Inputs: user's session, allowlisted method/arguments. Effects: gateway calls only;
@@ -148,16 +148,16 @@ async def mcp(value, method, params=None):
                'Accept': 'application/json, text/event-stream'}
     async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
         init = await rpc(client, headers, 'initialize', {'protocolVersion': '2025-03-26',
-            'capabilities': {}, 'clientInfo': {'name': 'propria-tool-runner', 'version': '1.0.0'}})
+            'capabilities': {}, 'clientInfo': {'name': 'propria-tool-runner', 'version': '0.2.0'}}, endpoint=endpoint)
         headers['MCP-Protocol-Version'] = init['protocolVersion']
-        await rpc(client, headers, 'notifications/initialized', notification=True)
+        await rpc(client, headers, 'notifications/initialized', notification=True, endpoint=endpoint)
         if method != 'tools/list':
-            return await rpc(client, headers, method, params)
+            return await rpc(client, headers, method, params, endpoint=endpoint)
         result = []
         cursor = None
         seen = set()
         for _ in range(100):
-            page = await rpc(client, headers, 'tools/list', {'cursor': cursor} if cursor else {})
+            page = await rpc(client, headers, 'tools/list', {'cursor': cursor} if cursor else {}, endpoint=endpoint)
             result.extend(page.get('tools', []))
             cursor = page.get('nextCursor')
             if not cursor:
@@ -353,7 +353,11 @@ async def run_tool(request):
             raise HTTPException(429, 'Session run limit reached. Sign in again.')
         value['used_ids'].add(rid)
         start = time.monotonic()
-        result = await mcp(value, 'tools/call', {'name': name, 'arguments': arguments})
+        if tool.get('_domain'):
+            import domains
+            result = await domains.invoke(value, tool['_domain'], name, arguments, confirmed=payload.get('confirmed', False))
+        else:
+            result = await mcp(value, 'tools/call', {'name': name, 'arguments': arguments})
         return JSONResponse({'tool': name, 'request_id': rid, 'elapsed_ms': round((time.monotonic()-start)*1000), 'result': result})
 
 
@@ -389,3 +393,8 @@ async def security_headers(request, call_next):
 
 
 app.add_middleware(BaseHTTPMiddleware, dispatch=security_headers)
+
+# Extend this same authenticated service; no duplicate application or identity.
+import sys
+import domains
+domains.install(sys.modules[__name__])

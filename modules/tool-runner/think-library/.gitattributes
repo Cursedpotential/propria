@@ -1,0 +1,3 @@
+# Preserve copied source bytes so recorded methodology hashes remain valid.
+* -text
+**/* -text

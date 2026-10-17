@@ -2,7 +2,8 @@ FROM python:3.13-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
+COPY app.py domains.py response_projection.py domain_registry.json ./
+COPY think-library ./think-library
 COPY static ./static
 USER 65534:65534
 EXPOSE 8790

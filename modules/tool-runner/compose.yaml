@@ -16,7 +16,7 @@ services:
       retries: 3
     labels:
       - traefik.enable=true
-      - traefik.http.routers.propria-runner.rule=Host(`mcp.mitechconsult.com`) && PathPrefix(`/runner`)
+      - traefik.http.routers.propria-runner.rule=Host(`mcp.mitechconsult.com`) && (PathPrefix(`/runner`) || Path(`/mcp`) || PathRegexp(`^/(n8n|docstore|storage|platform|think|search|admin)/mcp$`) || PathRegexp(`^/.well-known/oauth-protected-resource/(mcp|(n8n|docstore|storage|platform|think|search|admin)/mcp)$`))
       - traefik.http.routers.propria-runner.priority=100
       - traefik.http.routers.propria-runner.entrypoints=https
       - traefik.http.routers.propria-runner.tls=true

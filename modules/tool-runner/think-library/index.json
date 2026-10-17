@@ -1,0 +1,1012 @@
+[
+  {
+    "id": "debias",
+    "path": "skills/debias/SKILL.md",
+    "title": "Debias",
+    "kind": "family",
+    "description": "Check bias, framing, assumptions, perspective, and map-versus-territory errors. Use to challenge a read before trusting it, or route to a specific debias model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/debias/SKILL.md",
+    "sha256": "ee3e0bed652bf94370a6060b24d2be139c445322f1fe59d492dd18634a57c7a6",
+    "selectable": true
+  },
+  {
+    "id": "decide",
+    "path": "skills/decide/SKILL.md",
+    "title": "Decide",
+    "kind": "family",
+    "description": "Improve decisions using reversibility, risk, pre-mortems, red teams, prioritization, and adaptive decision loops. Use directly or route to a decision model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/decide/SKILL.md",
+    "sha256": "3d06272335aaa8aeaff26caaf3608a49fda3b7f7dfaf4a955ecfdbcff9638d61",
+    "selectable": true
+  },
+  {
+    "id": "diagnose",
+    "path": "skills/diagnose/SKILL.md",
+    "title": "Diagnose",
+    "kind": "family",
+    "description": "Find root causes and analyze failures without jumping to the first explanation. Use for debugging, incidents, process failures, or routing to a diagnosis model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/diagnose/SKILL.md",
+    "sha256": "1fc4a01c3854502d3603d29e821d2e2d3d880258e9491102f6f161e2b79ce207",
+    "selectable": true
+  },
+  {
+    "id": "forecast",
+    "path": "skills/forecast/SKILL.md",
+    "title": "Forecast",
+    "kind": "family",
+    "description": "Estimate probabilities, ranges, uncertainty, calibration, and plausible outcomes. Use for forecasting, sizing uncertainty, or routing to a specific forecasting model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/forecast/SKILL.md",
+    "sha256": "9c7696abb0ff8721604b93e9f9d335b2b063e913474ed839e27bc53db6c22e6d",
+    "selectable": true
+  },
+  {
+    "id": "incentives",
+    "path": "skills/incentives/SKILL.md",
+    "title": "Incentives",
+    "kind": "family",
+    "description": "Analyze second-order consequences, incentives, tradeoffs, strategic interaction, opportunity cost, and value over time. Use directly or route to an incentives model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/incentives/SKILL.md",
+    "sha256": "ab51fdfde1f08b8c34673a98a6431dcca31f1a50a66224e8d5c234f412d75451",
+    "selectable": true
+  },
+  {
+    "id": "reason",
+    "path": "skills/reason/SKILL.md",
+    "title": "Reason",
+    "kind": "family",
+    "description": "Test claims, assumptions, explanations, evidence, and first principles. Use for general reasoning or to route to a specific reasoning model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/reason/SKILL.md",
+    "sha256": "783733e0165d68aa0f103221afd6635b954b3c2a6555577325934f321915257d",
+    "selectable": true
+  },
+  {
+    "id": "strategy",
+    "path": "skills/strategy/SKILL.md",
+    "title": "Strategy",
+    "kind": "family",
+    "description": "Build coherent strategy across objectives, tradeoffs, competition, innovation, product direction, and execution. Use directly or route to a strategy model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/strategy/SKILL.md",
+    "sha256": "f00f7c68228cea568ab72b73d0063870a9bfaf55815801e958360eac07992c1c",
+    "selectable": true
+  },
+  {
+    "id": "systems",
+    "path": "skills/systems/SKILL.md",
+    "title": "Systems",
+    "kind": "family",
+    "description": "Analyze interacting components, dependencies, feedback, constraints, bottlenecks, and leverage. Use for cross-component problems or route to a systems model at micro, focused, or full depth.",
+    "source": "propria-plugins/plugins/think/skills/systems/SKILL.md",
+    "sha256": "30ec8fff419c44e3860d6ced2252d7b4cf1ac7f6d128e5d56cd6b0db55b6af24",
+    "selectable": true
+  },
+  {
+    "id": "thinking-model-router",
+    "path": "skills/thinking-model-router/SKILL.md",
+    "title": "Model Router",
+    "kind": "router",
+    "description": "Route a task to the smallest useful combination of think families/models, choose micro/focused/full depth, and orchestrate them as one process. Use when the right thinking approach is unclear or mixed.",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/SKILL.md",
+    "sha256": "f13fb9715769e5a00c07d6e54d2add29e30917079273ba17c0e2474e8239b986",
+    "selectable": true
+  },
+  {
+    "id": "workflows",
+    "path": "skills/workflows/SKILL.md",
+    "title": "Workflows",
+    "kind": "workflow",
+    "description": "'Run one of six integrated repeatable workflows: evaluate, decide, plan, debug, verify-claim, or debias. Each composes thinking models into one process and returns one workflow deliverable.'",
+    "source": "propria-plugins/plugins/think/skills/workflows/SKILL.md",
+    "sha256": "b8f7ad561739c2dbda0acd6918e56e444b35e13a46870d559b33314b5e24b728",
+    "selectable": true
+  },
+  {
+    "id": "reflex",
+    "path": "skills/thinking-model-router/references/reflex/SKILL.md",
+    "title": "Persistent ReAct / Reflex",
+    "kind": "workflow",
+    "description": "Persistent execution-control loop for sequentiality, scope, downstream effects, verification, reflection, and adaptive escalation. Loaded by think entry skills; not a public category.",
+    "source": "propria-plugins/plugins/think/skills/thinking-model-router/references/reflex/SKILL.md",
+    "sha256": "f7ee14b466eda6df47b1fb9b234b2ed3a9724346d34caa31cd565caa12c2990d",
+    "selectable": true
+  },
+  {
+    "id": "causal-loop-diagrams",
+    "path": "skills/systems/references/causal-loop-diagrams/SKILL.md",
+    "title": "Causal Loop Diagrams",
+    "kind": "process",
+    "description": "\"Map cause-and-effect relationships with reinforcing/balancing feedback loops to visualize system structure and predict behavior patterns\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/causal-loop-diagrams/SKILL.md",
+    "sha256": "e99e1fae60a2f88259dd1ef536cc76e05778b8033552dc3fd6b5fac67abf2701",
+    "selectable": true
+  },
+  {
+    "id": "graph-thinking",
+    "path": "skills/systems/references/graph-thinking/SKILL.md",
+    "title": "Graph Thinking",
+    "kind": "process",
+    "description": "\"Apply graph-based thinking to visualize complex relationships and solve problems non-linearly. Use when mapping dependencies, analyzing systems, exploring interconnected concepts, or designing architectures.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/graph-thinking/SKILL.md",
+    "sha256": "4c61bfdeb553fd44ebebe19442037c2d1e0c1df3459e2fe42d005d53a8cc5182",
+    "selectable": true
+  },
+  {
+    "id": "thinking-archetypes",
+    "path": "skills/systems/references/thinking-archetypes/SKILL.md",
+    "title": "Archetypes",
+    "kind": "process",
+    "description": "\"Recognize Senge's Systems Archetypes to diagnose recurring organizational and technical problems, identify why fixes keep failing, and design interventions that address root structure.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/thinking-archetypes/SKILL.md",
+    "sha256": "20b2e3fef7da74dd493edf644c9557953142d610a6bf5efc548c7856c5574e44",
+    "selectable": true
+  },
+  {
+    "id": "thinking-feedback-loops",
+    "path": "skills/systems/references/thinking-feedback-loops/SKILL.md",
+    "title": "Feedback Loops",
+    "kind": "process",
+    "description": "\"Analyze systems using Donella Meadows' feedback loop framework to identify reinforcing loops, balancing loops, delays, and leverage points. Use for organizational dynamics, product growth design, debugging runaway or oscillating systems, and finding high-impact interventions.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/thinking-feedback-loops/SKILL.md",
+    "sha256": "34dc7ee42e48931f1f595d38c353b29de1326342112107e94efe32e28201d900",
+    "selectable": true
+  },
+  {
+    "id": "thinking-leverage-points",
+    "path": "skills/systems/references/thinking-leverage-points/SKILL.md",
+    "title": "Leverage Points",
+    "kind": "process",
+    "description": "\"Identify where small changes can have large effects using Donella Meadows' hierarchy of system intervention points. Use for strategic decisions, system optimization, and choosing where to focus engineering effort.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/thinking-leverage-points/SKILL.md",
+    "sha256": "f0fb1d69a919bcd97f335a09897b591b81cea9d02f4be82d1ccc68ed89bf7223",
+    "selectable": true
+  },
+  {
+    "id": "thinking-systems",
+    "path": "skills/systems/references/thinking-systems/SKILL.md",
+    "title": "Systems",
+    "kind": "process",
+    "description": "\"Analyze problems as interconnected systems with feedback loops, emergent behavior, and non-linear effects. Use for debugging complex systems, architecture decisions, and understanding unexpected behavior.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/thinking-systems/SKILL.md",
+    "sha256": "5a37ef313ff0b1a17611526ed4ef2fea6aa29aceae4e9da52859c0df6f832927",
+    "selectable": true
+  },
+  {
+    "id": "thinking-theory-of-constraints",
+    "path": "skills/systems/references/thinking-theory-of-constraints/SKILL.md",
+    "title": "Theory Of Constraints",
+    "kind": "process",
+    "description": "\"Identify and manage the bottleneck; improvements elsewhere don't matter until the constraint is addressed. Use for performance optimization, process improvement, and resource allocation.\"",
+    "source": "propria-plugins/plugins/think/skills/systems/references/thinking-theory-of-constraints/SKILL.md",
+    "sha256": "b2a04bade51d95d712019287da22c873dd1acf340ff96f1ca388f3279e875975",
+    "selectable": true
+  },
+  {
+    "id": "good-strategy-bad-strategy",
+    "path": "skills/strategy/references/good-strategy-bad-strategy/SKILL.md",
+    "title": "Good Strategy Bad Strategy",
+    "kind": "process",
+    "description": "\"Craft coherent strategy through diagnosis of core challenge, guiding policy, and coordinated actions when facing complex problems requiring more than goals and aspirations\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/good-strategy-bad-strategy/SKILL.md",
+    "sha256": "bd9ba96c455c63a4c4ae0ee86b3c4d1113aacea3c8e70473a96435ec516eef2f",
+    "selectable": true
+  },
+  {
+    "id": "pest-analysis",
+    "path": "skills/strategy/references/pest-analysis/SKILL.md",
+    "title": "Pest Analysis",
+    "kind": "process",
+    "description": "\"Generate PEST analysis plans with strategic questions and Perplexity AI prompts. Use when user mentions PEST analysis, strategic planning, market analysis, external factors, environmental scanning, or needs research questions for political economic social technological factors.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/pest-analysis/SKILL.md",
+    "sha256": "68c363bf3935f67e0c9a01b91f08b6abc20a7855636e0b23df0833eaa8f59afc",
+    "selectable": true
+  },
+  {
+    "id": "pest-analysis-critical",
+    "path": "skills/strategy/references/pest-analysis-critical/SKILL.md",
+    "title": "Pest Analysis Critical",
+    "kind": "process",
+    "description": "\"Critically evaluate PEST synthesis tables for biases, gaps, and oversights. Use when user mentions critical review, bias assessment, gap analysis, or after completing PEST synthesis.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/pest-analysis-critical/SKILL.md",
+    "sha256": "f20dea649ba3bbc019ab5d6779cee4308d4e32d1e98c76b583d30144a9dbcdce",
+    "selectable": true
+  },
+  {
+    "id": "pest-analysis-execute",
+    "path": "skills/strategy/references/pest-analysis-execute/SKILL.md",
+    "title": "Pest Analysis Execute",
+    "kind": "process",
+    "description": "\"Execute PEST analysis by processing research results from Perplexity AI prompts. Create synthesis tables with strategic implications, impact and likelihood ratings. Use when user mentions PEST results, analysis execution, research synthesis, or after generating PEST analysis plans.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/pest-analysis-execute/SKILL.md",
+    "sha256": "b2beb1c8f9fff17d7e2581670a3fca06c56a3a98ba0165032a5bda98d60d70df",
+    "selectable": true
+  },
+  {
+    "id": "pest-analysis-strategy",
+    "path": "skills/strategy/references/pest-analysis-strategy/SKILL.md",
+    "title": "Pest Analysis Strategy",
+    "kind": "process",
+    "description": "\"Transform PEST analysis into actionable strategy: export to CSV, save to Obsidian, create SWOT, define strategic actions, prioritize, and build work plan. Use after completing PEST critical assessment.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/pest-analysis-strategy/SKILL.md",
+    "sha256": "659f3a654178f8ce04f58f1b33d08766c863147c76341bc0332d92d7c92f7f7c",
+    "selectable": true
+  },
+  {
+    "id": "pest-analysis-synthesis",
+    "path": "skills/strategy/references/pest-analysis-synthesis/SKILL.md",
+    "title": "Pest Analysis Synthesis",
+    "kind": "process",
+    "description": "\"Create PEST synthesis tables with strategic implications, impact and likelihood ratings. Use when user mentions synthesis table, strategic recommendations, opportunity threat analysis, or after completing PEST research.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/pest-analysis-synthesis/SKILL.md",
+    "sha256": "e035ea6a0c072866622717c8aff592810e002a3b1b989f0ec4c528b43c925e69",
+    "selectable": true
+  },
+  {
+    "id": "playing-to-win",
+    "path": "skills/strategy/references/playing-to-win/SKILL.md",
+    "title": "Playing To Win",
+    "kind": "process",
+    "description": "\"Five-question strategy cascade framework for making integrated strategic choices from winning aspiration to management systems, from P&G's transformation\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/playing-to-win/SKILL.md",
+    "sha256": "d5fdeafcb417663d9893c17d5436dc0b23819a6861d4b16253715e09418aab04",
+    "selectable": true
+  },
+  {
+    "id": "porters-five-forces",
+    "path": "skills/strategy/references/porters-five-forces/SKILL.md",
+    "title": "Porters Five Forces",
+    "kind": "process",
+    "description": "\"Systematically assess the competitive intensity and attractiveness of an industry by analyzing five fundamental forces that shape competition and profitability\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/porters-five-forces/SKILL.md",
+    "sha256": "90b7550d883831d17ed6220c23133e725dfe4e86fe93d9fdec9a758b02820225",
+    "selectable": true
+  },
+  {
+    "id": "thinking-effectuation",
+    "path": "skills/strategy/references/thinking-effectuation/SKILL.md",
+    "title": "Effectuation",
+    "kind": "process",
+    "description": "\"Start with means, not goals; co-create with partners; leverage contingencies. Use for startup strategy, innovation projects, and uncertain/novel domains where planning is unreliable.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/thinking-effectuation/SKILL.md",
+    "sha256": "9cbea0908e5ed0bdb12b94c61252667eaf4ab7fcdbb0b1571936cf0ece793fb7",
+    "selectable": true
+  },
+  {
+    "id": "thinking-jobs-to-be-done",
+    "path": "skills/strategy/references/thinking-jobs-to-be-done/SKILL.md",
+    "title": "Jobs To Be Done",
+    "kind": "process",
+    "description": "\"Understand what 'job' users hire your product to do, focusing on progress users seek rather than features. Use for product development, feature prioritization, user research, and market positioning.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/thinking-jobs-to-be-done/SKILL.md",
+    "sha256": "abc83a92757a038cf4163eb588500293f49e8d35f31d0361fc7332c999c829f1",
+    "selectable": true
+  },
+  {
+    "id": "thinking-triz",
+    "path": "skills/strategy/references/thinking-triz/SKILL.md",
+    "title": "Triz",
+    "kind": "process",
+    "description": "\"Apply TRIZ (Theory of Inventive Problem Solving) methodology to resolve technical contradictions and find innovative solutions. Use for engineering design, breaking through impossible constraints, and systematic innovation.\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/thinking-triz/SKILL.md",
+    "sha256": "82f1841c279ae3e85f5467e2f243bb525253b483bce48df97607aa1019084b53",
+    "selectable": true
+  },
+  {
+    "id": "three-horizons-framework",
+    "path": "skills/strategy/references/three-horizons-framework/SKILL.md",
+    "title": "Three Horizons Framework",
+    "kind": "process",
+    "description": "\"Balance current business performance with emerging opportunities and future innovation by allocating resources across three time horizons of growth\"",
+    "source": "propria-plugins/plugins/think/skills/strategy/references/three-horizons-framework/SKILL.md",
+    "sha256": "259e098a7388770d8df5d5923bc546e04ce8c016dd75fa94705ff88988cfc2a5",
+    "selectable": true
+  },
+  {
+    "id": "chestertons-fence",
+    "path": "skills/reason/references/chestertons-fence/SKILL.md",
+    "title": "Chestertons Fence",
+    "kind": "process",
+    "description": "\"Before removing something, understand why it was put there in the first place\u2014reforms without understanding cause unintended consequences\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/chestertons-fence/SKILL.md",
+    "sha256": "674ea8c09c000832cb160f2335d12161781cab840d13af5cf0728c4508fa5d35",
+    "selectable": true
+  },
+  {
+    "id": "hanlons-razor",
+    "path": "skills/reason/references/hanlons-razor/SKILL.md",
+    "title": "Hanlons Razor",
+    "kind": "process",
+    "description": "\"Never attribute to malice that which is adequately explained by incompetence\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/hanlons-razor/SKILL.md",
+    "sha256": "d09fb600d7d470e09b037531b20eaa58d04afdfb534467cc9bb957ac4953fc03",
+    "selectable": true
+  },
+  {
+    "id": "hitchens-razor",
+    "path": "skills/reason/references/hitchens-razor/SKILL.md",
+    "title": "Hitchens Razor",
+    "kind": "process",
+    "description": "\"What can be asserted without evidence can be dismissed without evidence\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/hitchens-razor/SKILL.md",
+    "sha256": "ea8337101798403ec148504b0221d6bce7423537d642c3246b0e0276acf10355",
+    "selectable": true
+  },
+  {
+    "id": "humes-guillotine",
+    "path": "skills/reason/references/humes-guillotine/SKILL.md",
+    "title": "Humes Guillotine",
+    "kind": "process",
+    "description": "\"You cannot derive an 'ought' from an 'is' without bridging logic\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/humes-guillotine/SKILL.md",
+    "sha256": "5b387e4dd3376df132f9c35e1c6b6d876cc443668c2e3213afad4a8c2e1cd9c5",
+    "selectable": true
+  },
+  {
+    "id": "poppers-falsifiability",
+    "path": "skills/reason/references/poppers-falsifiability/SKILL.md",
+    "title": "Poppers Falsifiability",
+    "kind": "process",
+    "description": "\"Scientific theories must be testable and capable of being proven false\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/poppers-falsifiability/SKILL.md",
+    "sha256": "95ba25f5fd5f5d2907691bbf446f98770af511ab2499f35123aef22baafb057d",
+    "selectable": true
+  },
+  {
+    "id": "sagan-standard",
+    "path": "skills/reason/references/sagan-standard/SKILL.md",
+    "title": "Sagan Standard",
+    "kind": "process",
+    "description": "\"Calibrate evidence requirements proportional to claim implausibility when evaluating extraordinary assertions\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/sagan-standard/SKILL.md",
+    "sha256": "3066998433cec49a46c6e6983849a3646e46f94ab6e118f03d46be12dd1efb74",
+    "selectable": true
+  },
+  {
+    "id": "thinking-first-principles",
+    "path": "skills/reason/references/thinking-first-principles/SKILL.md",
+    "title": "First Principles",
+    "kind": "process",
+    "description": "\"Break complex problems into fundamental truths by questioning assumptions and rebuilding from irreducible components. Use for innovation, challenging status quo, or when conventional solutions fail.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-first-principles/SKILL.md",
+    "sha256": "4ac6938c4ce3287744df644765e50f8deea4d47272e99980443cf16a625ae8d6",
+    "selectable": true
+  },
+  {
+    "id": "thinking-occams-razor",
+    "path": "skills/reason/references/thinking-occams-razor/SKILL.md",
+    "title": "Occams Razor",
+    "kind": "process",
+    "description": "\"Apply parsimony principle to prefer simpler explanations with fewer assumptions. Use for hypothesis selection in debugging, architecture decisions, and choosing between competing approaches.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-occams-razor/SKILL.md",
+    "sha256": "c14b761e11dc4010c6bd59a157d26b0c1a69aaf6ef4276f465f456c0e933b3b9",
+    "selectable": true
+  },
+  {
+    "id": "thinking-scientific-method",
+    "path": "skills/reason/references/thinking-scientific-method/SKILL.md",
+    "title": "Scientific Method",
+    "kind": "process",
+    "description": "\"Hypothesis \u2192 Prediction \u2192 Test \u2192 Revise with explicit falsification. Use for debugging, feature experimentation, performance investigation, and A/B testing design.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-scientific-method/SKILL.md",
+    "sha256": "66935769f375fcaf98bd4404e394c36d4aa49f28ae449fd8053df245bdec4605",
+    "selectable": true
+  },
+  {
+    "id": "thinking-socratic",
+    "path": "skills/reason/references/thinking-socratic/SKILL.md",
+    "title": "Socratic",
+    "kind": "process",
+    "description": "\"Systematic questioning framework to deepen understanding, challenge assumptions, and uncover hidden beliefs. Use for requirements gathering, debugging, coaching, and critical analysis.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-socratic/SKILL.md",
+    "sha256": "cdb62abe5c37658a4057b33cda5fa1d9a0611c8a5a6f43059cbebf332d593217",
+    "selectable": true
+  },
+  {
+    "id": "thinking-steel-manning",
+    "path": "skills/reason/references/thinking-steel-manning/SKILL.md",
+    "title": "Steel Manning",
+    "kind": "process",
+    "description": "\"Argue against the strongest version of opposing positions, not the weakest. Use for design reviews, evaluating alternatives, conflict resolution, and decision validation.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-steel-manning/SKILL.md",
+    "sha256": "64b3a14c4f9af5260a7f3da1c3288101f4e6268008d6cbe50d0e430b4d0aad51",
+    "selectable": true
+  },
+  {
+    "id": "thinking-thought-experiment",
+    "path": "skills/reason/references/thinking-thought-experiment/SKILL.md",
+    "title": "Thought Experiment",
+    "kind": "process",
+    "description": "\"Test ideas through hypothetical scenarios when empirical testing is impractical. Use for architecture evaluation, edge case analysis, ethics considerations, and strategy development.\"",
+    "source": "propria-plugins/plugins/think/skills/reason/references/thinking-thought-experiment/SKILL.md",
+    "sha256": "4bea9d31731283b96c07c7cf91da1550c6b8d1e98dfba1b029ba6ccd6e9c81ad",
+    "selectable": true
+  },
+  {
+    "id": "compound-interest",
+    "path": "skills/incentives/references/compound-interest/SKILL.md",
+    "title": "Compound Interest",
+    "kind": "process",
+    "description": "\"Leverage exponential growth by reinvesting gains to earn returns on returns, whether in finance, skills, relationships, or habits\u2014small consistent improvements compound into transformational outcomes\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/compound-interest/SKILL.md",
+    "sha256": "e1bca5319c980622f2b190934beb60829dc3c69186f1a74ce459c892b467bae9",
+    "selectable": true
+  },
+  {
+    "id": "goodharts-law",
+    "path": "skills/incentives/references/goodharts-law/SKILL.md",
+    "title": "Goodharts Law",
+    "kind": "process",
+    "description": "\"Anticipate metric gaming and unintended optimization by recognizing that when a measure becomes a target, it ceases to be a good measure\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/goodharts-law/SKILL.md",
+    "sha256": "c471ecbde4c73bc46ece8b3ec7d540abd4ac44ad15d3e1de2d148e1ad9b5677c",
+    "selectable": true
+  },
+  {
+    "id": "incentives-model",
+    "path": "skills/incentives/references/incentives/SKILL.md",
+    "title": "Incentives",
+    "kind": "process",
+    "description": "\"Predict and shape behavior by understanding the hidden rewards and punishments that drive human action\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/incentives/SKILL.md",
+    "sha256": "6b5793ef8e4ed930188da1e79f126dae38324628f3878c50da64b954ac873db4",
+    "selectable": true
+  },
+  {
+    "id": "mechanism-design",
+    "path": "skills/incentives/references/mechanism-design/SKILL.md",
+    "title": "Mechanism Design",
+    "kind": "process",
+    "description": "\"Reverse game theory that engineers rules and incentive structures to achieve desired outcomes when participants have private information and self-interested motivations\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/mechanism-design/SKILL.md",
+    "sha256": "d3a5751f080d5b3f9d4b0fa98437eb8ed91f5f723634dcf9d38df55bdaf38305",
+    "selectable": true
+  },
+  {
+    "id": "nash-equilibrium",
+    "path": "skills/incentives/references/nash-equilibrium/SKILL.md",
+    "title": "Nash Equilibrium",
+    "kind": "process",
+    "description": "\"Identify stable strategic outcomes where no player benefits from unilaterally changing their strategy - predict where competitive dynamics settle\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/nash-equilibrium/SKILL.md",
+    "sha256": "4e2037016172f4f0729e6d58ef0db13e13c75121db73e264a213e7ed2e32f2ca",
+    "selectable": true
+  },
+  {
+    "id": "principal-agent-problem",
+    "path": "skills/incentives/references/principal-agent-problem/SKILL.md",
+    "title": "Principal Agent Problem",
+    "kind": "process",
+    "description": "\"Conflicts arising when one party (agent) makes decisions on behalf of another (principal), but their interests diverge and information is asymmetric\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/principal-agent-problem/SKILL.md",
+    "sha256": "f13eb043eaa724543bdd328dc5540986ac6bb04b23f4adf9f5c2d0f86b404020",
+    "selectable": true
+  },
+  {
+    "id": "prisoners-dilemma",
+    "path": "skills/incentives/references/prisoners-dilemma/SKILL.md",
+    "title": "Prisoners Dilemma",
+    "kind": "process",
+    "description": "\"Recognize situations where individual rational choices lead to collectively worse outcomes - core model for cooperation vs. defection dynamics\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/prisoners-dilemma/SKILL.md",
+    "sha256": "4c4e52b958591f6b0daecfc905527439801f9f86638b7271d5777f1068bbf0b2",
+    "selectable": true
+  },
+  {
+    "id": "thinking-opportunity-cost",
+    "path": "skills/incentives/references/thinking-opportunity-cost/SKILL.md",
+    "title": "Opportunity Cost",
+    "kind": "process",
+    "description": "\"Evaluate decisions by what you give up, not just what you gain. Use for resource allocation, prioritization, build vs. buy choices, and technical debt evaluation.\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/thinking-opportunity-cost/SKILL.md",
+    "sha256": "2d1ee4102665a8bc36636c4fa32348f3a20bcb0fe2d40f488246ee0b4c664fac",
+    "selectable": true
+  },
+  {
+    "id": "thinking-second-order",
+    "path": "skills/incentives/references/thinking-second-order/SKILL.md",
+    "title": "Second Order",
+    "kind": "process",
+    "description": "\"Think beyond immediate consequences to second and third-order effects. Use for strategic decisions, policy changes, and avoiding unintended consequences.\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/thinking-second-order/SKILL.md",
+    "sha256": "ff00437e64e99e7680785778a81f0871022805194d786c963f8e3d4025ee1d31",
+    "selectable": true
+  },
+  {
+    "id": "time-value-of-money",
+    "path": "skills/incentives/references/time-value-of-money/SKILL.md",
+    "title": "Time Value Of Money",
+    "kind": "process",
+    "description": "\"Value money received today higher than the same amount in the future because present money can be invested to earn returns\u2014use Net Present Value to compare cash flows across time and make rational investment decisions\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/time-value-of-money/SKILL.md",
+    "sha256": "f2ea901f596b3b7c599a94ae45ba6e0de0447c4d1fc57b84c7643bee483b8820",
+    "selectable": true
+  },
+  {
+    "id": "tit-for-tat",
+    "path": "skills/incentives/references/tit-for-tat/SKILL.md",
+    "title": "Tit For Tat",
+    "kind": "process",
+    "description": "\"Start new business relationships with trust and investment, but immediately match any breach. Return to cooperation as soon as they do. Make the pattern obvious through transparency.\"",
+    "source": "propria-plugins/plugins/think/skills/incentives/references/tit-for-tat/SKILL.md",
+    "sha256": "f6cd9a2201a80bb004afca6a60d9490d3fb5358f303e4cb60390b4824f5e5833",
+    "selectable": true
+  },
+  {
+    "id": "calibration",
+    "path": "skills/forecast/references/calibration/SKILL.md",
+    "title": "Calibration",
+    "kind": "process",
+    "description": "\"Align predicted probabilities with actual outcomes - train yourself so things you say are 70% likely actually happen 70% of the time\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/calibration/SKILL.md",
+    "sha256": "bf690e9d38c3a49275e567504b0c7d0c22d2e5bdf05ba87233e1566cdf0fe0c6",
+    "selectable": true
+  },
+  {
+    "id": "monte-carlo-simulation",
+    "path": "skills/forecast/references/monte-carlo-simulation/SKILL.md",
+    "title": "Monte Carlo Simulation",
+    "kind": "process",
+    "description": "\"Probabilistic modeling technique that runs thousands of scenarios with random variable inputs to quantify uncertainty and assess risk distributions\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/monte-carlo-simulation/SKILL.md",
+    "sha256": "3f96b3486c9fac699847946f89d529f08b296253bd52734115b796d76e0f8571",
+    "selectable": true
+  },
+  {
+    "id": "outside-view-inside-view",
+    "path": "skills/forecast/references/outside-view-inside-view/SKILL.md",
+    "title": "Outside View Inside View",
+    "kind": "process",
+    "description": "\"Forecast by comparing to similar past cases (outside view) instead of analyzing unique project details (inside view) - cures planning fallacy\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/outside-view-inside-view/SKILL.md",
+    "sha256": "419cfe837eb27e25b749eb736fe4e189bebff0070761daede62f3f264c8fd6bc",
+    "selectable": true
+  },
+  {
+    "id": "sensitivity-analysis",
+    "path": "skills/forecast/references/sensitivity-analysis/SKILL.md",
+    "title": "Sensitivity Analysis",
+    "kind": "process",
+    "description": "\"Systematic testing of how changes in input variables (assumptions) affect output results, revealing which factors drive outcomes and where model risk is concentrated.\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/sensitivity-analysis/SKILL.md",
+    "sha256": "8fe556d1e600151188e086ce7984ddf089b206de8933723c6e6adaa1352eb42c",
+    "selectable": true
+  },
+  {
+    "id": "superforecasting",
+    "path": "skills/forecast/references/superforecasting/SKILL.md",
+    "title": "Superforecasting",
+    "kind": "process",
+    "description": "\"Make probabilistic predictions when strategic decisions require accurate risk assessment\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/superforecasting/SKILL.md",
+    "sha256": "a7ec8d96b5f50891ab24a804e823829ad6b9a2d198a2fc5f6eaca41a9f3ce85f",
+    "selectable": true
+  },
+  {
+    "id": "tetlocks-10-commandments",
+    "path": "skills/forecast/references/tetlocks-10-commandments/SKILL.md",
+    "title": "Tetlocks 10 Commandments",
+    "kind": "process",
+    "description": "\"Improve forecast accuracy by following Philip Tetlock's 10 evidence-based principles from superforecaster research distinguishing top 2% predictors\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/tetlocks-10-commandments/SKILL.md",
+    "sha256": "2c17ce238649645c854f708f298ac36f569b2a0a242fdf360e20d04184370013",
+    "selectable": true
+  },
+  {
+    "id": "thinking-bayesian",
+    "path": "skills/forecast/references/thinking-bayesian/SKILL.md",
+    "title": "Bayesian",
+    "kind": "process",
+    "description": "\"Update beliefs systematically based on new evidence using probabilistic reasoning. Use when estimating probabilities, learning from data, or making decisions under uncertainty.\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/thinking-bayesian/SKILL.md",
+    "sha256": "246e2b0d65ff1ab99d226bdbc03d29ac233088e76848757dfe4f607f611d9ffb",
+    "selectable": true
+  },
+  {
+    "id": "thinking-fermi-estimation",
+    "path": "skills/forecast/references/thinking-fermi-estimation/SKILL.md",
+    "title": "Fermi Estimation",
+    "kind": "process",
+    "description": "\"Make order-of-magnitude estimates for unknown quantities by decomposing into known or estimable factors. Use for capacity planning, cost estimation, market sizing, and technical feasibility assessment.\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/thinking-fermi-estimation/SKILL.md",
+    "sha256": "b4acc04aeb58bc7b96cf9e7589dfdb6d5db8d423fe34b7fcd30aea59358b1743",
+    "selectable": true
+  },
+  {
+    "id": "thinking-in-bets",
+    "path": "skills/forecast/references/thinking-in-bets/SKILL.md",
+    "title": "In Bets",
+    "kind": "process",
+    "description": "\"Frame decisions as probability bets instead of certainties - separate decision quality from outcome quality to avoid resulting bias\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/thinking-in-bets/SKILL.md",
+    "sha256": "7a6ef5865643dc47327c24ab8e2ed5f362c66dbf1a1c9b79ebc2dd5699d32d41",
+    "selectable": true
+  },
+  {
+    "id": "thinking-probabilistic",
+    "path": "skills/forecast/references/thinking-probabilistic/SKILL.md",
+    "title": "Probabilistic",
+    "kind": "process",
+    "description": "\"Express confidence in ranges, update predictions with new information, and track calibration over time. Use for project estimation, risk assessment, and decision making under uncertainty.\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/thinking-probabilistic/SKILL.md",
+    "sha256": "815cc785263ce1c67886c9d8fcde14901146e4c34755cd2d299ff1e86e198a68",
+    "selectable": true
+  },
+  {
+    "id": "wisdom-of-crowds-aggregation",
+    "path": "skills/forecast/references/wisdom-of-crowds-aggregation/SKILL.md",
+    "title": "Wisdom Of Crowds Aggregation",
+    "kind": "process",
+    "description": "\"Combine diverse independent estimates to produce more accurate predictions than any single expert, when conditions support collective intelligence\"",
+    "source": "propria-plugins/plugins/think/skills/forecast/references/wisdom-of-crowds-aggregation/SKILL.md",
+    "sha256": "6e3a9e0f96f7c582ab07b74ce95f5b8e417e9243fde8b1fa1f353afd7af49d18",
+    "selectable": true
+  },
+  {
+    "id": "current-reality-tree",
+    "path": "skills/diagnose/references/current-reality-tree/SKILL.md",
+    "title": "Current Reality Tree",
+    "kind": "process",
+    "description": "\"A logical diagram that maps cause-effect relationships between undesirable effects to identify root causes that drive most organizational problems\"",
+    "source": "propria-plugins/plugins/think/skills/diagnose/references/current-reality-tree/SKILL.md",
+    "sha256": "75269131d7b3e86318bd18880b00131c07af88ec0b7e8869c31d996b7de4e803",
+    "selectable": true
+  },
+  {
+    "id": "fault-tree-analysis",
+    "path": "skills/diagnose/references/fault-tree-analysis/SKILL.md",
+    "title": "Fault Tree Analysis",
+    "kind": "process",
+    "description": "\"Top-down deductive methodology for analyzing system failures by mapping logical relationships between faults, subsystems, and redundant safety elements using Boolean logic diagrams\"",
+    "source": "propria-plugins/plugins/think/skills/diagnose/references/fault-tree-analysis/SKILL.md",
+    "sha256": "745e23806af2569279c5ad265cfe9084565fd9338c624f62c9861295ea43ea50",
+    "selectable": true
+  },
+  {
+    "id": "fishbone-diagram",
+    "path": "skills/diagnose/references/fishbone-diagram/SKILL.md",
+    "title": "Fishbone Diagram",
+    "kind": "process",
+    "description": "\"Visually map all potential causes of a problem across structured categories to systematically identify root causes through team collaboration\"",
+    "source": "propria-plugins/plugins/think/skills/diagnose/references/fishbone-diagram/SKILL.md",
+    "sha256": "4c62b984649bbbc06e80d0a5b9fc4b41b99c64c46693b2d67439e84a17ec7abb",
+    "selectable": true
+  },
+  {
+    "id": "thinking-five-whys-plus",
+    "path": "skills/diagnose/references/thinking-five-whys-plus/SKILL.md",
+    "title": "Five Whys Plus",
+    "kind": "process",
+    "description": "\"Enhanced root cause analysis with explicit bias guards and stopping criteria. Use for incident post-mortems, bug investigations, and process failures where standard 5 Whys might mislead.\"",
+    "source": "propria-plugins/plugins/think/skills/diagnose/references/thinking-five-whys-plus/SKILL.md",
+    "sha256": "563a72c57323be68adafdf54c71faa5d32fc407ca148cbc15dd8cae944c1b9dd",
+    "selectable": true
+  },
+  {
+    "id": "thinking-kepner-tregoe",
+    "path": "skills/diagnose/references/thinking-kepner-tregoe/SKILL.md",
+    "title": "Kepner Tregoe",
+    "kind": "process",
+    "description": "\"Systematic rational process for complex problem analysis, decision making, and risk assessment. Use for high-stakes engineering decisions, root cause analysis beyond 5 Whys, and multi-factor evaluations requiring structured criteria.\"",
+    "source": "propria-plugins/plugins/think/skills/diagnose/references/thinking-kepner-tregoe/SKILL.md",
+    "sha256": "b0afa01644d620844cceb32b89e44ba04fee7722701c4cae47d22b7700a68bb1",
+    "selectable": true
+  },
+  {
+    "id": "eisenhower-matrix",
+    "path": "skills/decide/references/eisenhower-matrix/SKILL.md",
+    "title": "Eisenhower Matrix",
+    "kind": "process",
+    "description": "\"Prioritize tasks by urgency and importance\u2014focus on important but not urgent work to prevent firefighting\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/eisenhower-matrix/SKILL.md",
+    "sha256": "8db77d32811edbee9e7a79be2af6139c9e11e92601dbeffa64aa5988df0a8f7d",
+    "selectable": true
+  },
+  {
+    "id": "rice-prioritization",
+    "path": "skills/decide/references/rice-prioritization/SKILL.md",
+    "title": "Rice Prioritization",
+    "kind": "process",
+    "description": "\"Scoring framework using Reach, Impact, Confidence, and Effort to objectively prioritize product features and projects\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/rice-prioritization/SKILL.md",
+    "sha256": "ce3bc6db79854141a168fccb7cd78190cca36010f3b2e2202f9d158f3141bc49",
+    "selectable": true
+  },
+  {
+    "id": "schelling-fence",
+    "path": "skills/decide/references/schelling-fence/SKILL.md",
+    "title": "Schelling Fence",
+    "kind": "process",
+    "description": "\"Strategic precommitment to defend an arbitrary line on a slippery slope. Use when you face a continuum from acceptable to unacceptable and need a conspicuous, defensible boundary.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/schelling-fence/SKILL.md",
+    "sha256": "669ab1c971144d1927fae01528f66192e8096b1505484e109e4dcf795132a2ac",
+    "selectable": true
+  },
+  {
+    "id": "thinking-bounded-rationality",
+    "path": "skills/decide/references/thinking-bounded-rationality/SKILL.md",
+    "title": "Bounded Rationality",
+    "kind": "process",
+    "description": "\"Apply Herbert Simon's Bounded Rationality and satisficing to make good-enough decisions under real-world constraints. Use for design decisions under time pressure, recognizing cognitive limits, and setting appropriate stopping criteria.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-bounded-rationality/SKILL.md",
+    "sha256": "46496f8cf696e8230ce9fc19f133414f0efb59de20863b2b7863ee1dd8c2ccae",
+    "selectable": true
+  },
+  {
+    "id": "thinking-cynefin",
+    "path": "skills/decide/references/thinking-cynefin/SKILL.md",
+    "title": "Cynefin",
+    "kind": "process",
+    "description": "\"Classify problems by complexity domain (clear, complicated, complex, chaotic) and match approach to domain. Use for choosing methodologies, problem framing, and process design.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-cynefin/SKILL.md",
+    "sha256": "05a052208f4fb396341d8077815d8514d7bdd84e50e7db761c62e9bc057d5ebf",
+    "selectable": true
+  },
+  {
+    "id": "thinking-inversion",
+    "path": "skills/decide/references/thinking-inversion/SKILL.md",
+    "title": "Inversion",
+    "kind": "process",
+    "description": "\"Approach problems backward by identifying paths to failure, then systematically avoiding them. Use for risk identification, planning, and avoiding obvious mistakes.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-inversion/SKILL.md",
+    "sha256": "065b15ca5565f37c44cc3f4c441ac66995edd1562cae32f1b02c888482e070c6",
+    "selectable": true
+  },
+  {
+    "id": "thinking-lindy-effect",
+    "path": "skills/decide/references/thinking-lindy-effect/SKILL.md",
+    "title": "Lindy Effect",
+    "kind": "process",
+    "description": "\"For non-perishable things, future life expectancy is proportional to current age. Use for technology selection, evaluating frameworks/libraries, and predicting tool longevity.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-lindy-effect/SKILL.md",
+    "sha256": "28c4869b9e6155ed3d05030ece7011359efcffb8055f139d34eeafcbc1ee2416",
+    "selectable": true
+  },
+  {
+    "id": "thinking-margin-of-safety",
+    "path": "skills/decide/references/thinking-margin-of-safety/SKILL.md",
+    "title": "Margin Of Safety",
+    "kind": "process",
+    "description": "\"Build in buffers for unknown unknowns and don't optimize to the edge. Use for capacity planning, deadline estimation, architecture design, and risk management.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-margin-of-safety/SKILL.md",
+    "sha256": "5b740b4b5f1b3047961303d26f1d550aa18662bfb45615fc618ccbc6ca25f521",
+    "selectable": true
+  },
+  {
+    "id": "thinking-ooda",
+    "path": "skills/decide/references/thinking-ooda/SKILL.md",
+    "title": "Ooda",
+    "kind": "process",
+    "description": "\"Rapid decision-making loop for dynamic situations. Use for incident response, competitive scenarios, time-sensitive decisions, and situations requiring quick adaptation.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-ooda/SKILL.md",
+    "sha256": "f4a48765c0c6959da3272f1b236b5a8b9d05c3729948889e54159392a4a043c3",
+    "selectable": true
+  },
+  {
+    "id": "thinking-pre-mortem",
+    "path": "skills/decide/references/thinking-pre-mortem/SKILL.md",
+    "title": "Pre Mortem",
+    "kind": "process",
+    "description": "\"Imagine a project has failed and work backward to identify why. Use at project kickoffs, before major decisions, or when optimism may be obscuring risks.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-pre-mortem/SKILL.md",
+    "sha256": "14118cac118bbd251bad953f6340d115f45ae6425468823a9319bfb9b03edb5f",
+    "selectable": true
+  },
+  {
+    "id": "thinking-red-team",
+    "path": "skills/decide/references/thinking-red-team/SKILL.md",
+    "title": "Red Team",
+    "kind": "process",
+    "description": "\"Deliberately attack your own plans, systems, and assumptions to find weaknesses before adversaries or reality does. Use for security review, architecture validation, plan stress-testing, and pre-launch preparation.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-red-team/SKILL.md",
+    "sha256": "5149380e965dd42544391466b6c6aa0dca1c12ea4ed71f81505a1a509e64665f",
+    "selectable": true
+  },
+  {
+    "id": "thinking-regret-minimization",
+    "path": "skills/decide/references/thinking-regret-minimization/SKILL.md",
+    "title": "Regret Minimization",
+    "kind": "process",
+    "description": "\"Project to your future self and ask what you would regret not doing. Use for career decisions, strategic pivots, risk-taking choices, and life-changing decisions.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-regret-minimization/SKILL.md",
+    "sha256": "7b7f913cec02652a377b6dad6984f3cc5f6ddc1718e9c9c0824845f2d3843094",
+    "selectable": true
+  },
+  {
+    "id": "thinking-reversibility",
+    "path": "skills/decide/references/thinking-reversibility/SKILL.md",
+    "title": "Reversibility",
+    "kind": "process",
+    "description": "\"Classify decisions by reversibility and match decision process to decision type. Use for technology choices, architecture decisions, process changes, and hiring decisions.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-reversibility/SKILL.md",
+    "sha256": "aa21ab82a9da1d7e896189698df5b4bc63076612ae5f123878ae488a52007ae8",
+    "selectable": true
+  },
+  {
+    "id": "thinking-via-negativa",
+    "path": "skills/decide/references/thinking-via-negativa/SKILL.md",
+    "title": "Via Negativa",
+    "kind": "process",
+    "description": "\"Improve by removal rather than addition. Focus on what to stop doing, eliminate the negative, and subtract complexity. Use for system simplification, process improvement, and feature prioritization.\"",
+    "source": "propria-plugins/plugins/think/skills/decide/references/thinking-via-negativa/SKILL.md",
+    "sha256": "64459ccd6307aa74d68a0c9e92f7c20d0da2719136871ceb0e27cd9093a0d567",
+    "selectable": true
+  },
+  {
+    "id": "anchoring",
+    "path": "skills/debias/references/anchoring/SKILL.md",
+    "title": "Anchoring",
+    "kind": "process",
+    "description": "\"First information disproportionately influences judgments and decisions, even when the initial value is arbitrary or irrelevant\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/anchoring/SKILL.md",
+    "sha256": "ed129afca472143cecd11dd72ba01aeb80fe8692ce7f40db3811f6c35a0d8b8b",
+    "selectable": true
+  },
+  {
+    "id": "availability-heuristic",
+    "path": "skills/debias/references/availability-heuristic/SKILL.md",
+    "title": "Availability Heuristic",
+    "kind": "process",
+    "description": "\"Correct probability and frequency judgments distorted by mentally available examples by seeking base rate data before relying on vivid anecdotes\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/availability-heuristic/SKILL.md",
+    "sha256": "d46e845d379edae131a5fc01895ece9fc70dd67455a1b0a062815f2d3611c027",
+    "selectable": true
+  },
+  {
+    "id": "confirmation-bias",
+    "path": "skills/debias/references/confirmation-bias/SKILL.md",
+    "title": "Confirmation Bias",
+    "kind": "process",
+    "description": "\"Combat the tendency to seek evidence supporting existing beliefs by actively searching for disconfirming data and treating opinions as testable hypotheses\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/confirmation-bias/SKILL.md",
+    "sha256": "e6669bb2fbaffa093053c47bca6a1d47e4d2f74af0f827743af624f7077e91ef",
+    "selectable": true
+  },
+  {
+    "id": "dunning-kruger-effect",
+    "path": "skills/debias/references/dunning-kruger-effect/SKILL.md",
+    "title": "Dunning Kruger Effect",
+    "kind": "process",
+    "description": "\"Low-skill individuals overestimate their competence because they lack the metacognitive ability to recognize their own incompetence\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/dunning-kruger-effect/SKILL.md",
+    "sha256": "c94b6f58b38b2e6bd04fe413f58f61813348b00fdb1a2241fd9f788f41fe4430",
+    "selectable": true
+  },
+  {
+    "id": "fundamental-attribution-error",
+    "path": "skills/debias/references/fundamental-attribution-error/SKILL.md",
+    "title": "Fundamental Attribution Error",
+    "kind": "process",
+    "description": "\"Over-attributing others' behavior to their character while under-weighting situational factors that shape their actions\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/fundamental-attribution-error/SKILL.md",
+    "sha256": "693b303d9ed717cfb8cd9ae77339555bc55c1bb08ee9bcae830ece91ec3938f7",
+    "selectable": true
+  },
+  {
+    "id": "halo-effect",
+    "path": "skills/debias/references/halo-effect/SKILL.md",
+    "title": "Halo Effect",
+    "kind": "process",
+    "description": "\"One positive trait creates a global positive impression, influencing judgments about unrelated characteristics\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/halo-effect/SKILL.md",
+    "sha256": "0fdaf3fb1e57ff5543f3a74e18f3a833dc54156b87e5d321a9dc5e927765ca64",
+    "selectable": true
+  },
+  {
+    "id": "hindsight-bias",
+    "path": "skills/debias/references/hindsight-bias/SKILL.md",
+    "title": "Hindsight Bias",
+    "kind": "process",
+    "description": "\"The tendency to perceive past events as more predictable than they actually were, leading to distorted learning and overconfidence\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/hindsight-bias/SKILL.md",
+    "sha256": "681d97d0b108b9f2e784b1d7ccd6abdbd1aab1402627bf02e51a2b6a20286023",
+    "selectable": true
+  },
+  {
+    "id": "sunk-cost-fallacy",
+    "path": "skills/debias/references/sunk-cost-fallacy/SKILL.md",
+    "title": "Sunk Cost Fallacy",
+    "kind": "process",
+    "description": "\"Continuing an endeavor due to previously invested resources (time, money, effort) rather than current and future costs and benefits, escalating commitment to failing courses of action\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/sunk-cost-fallacy/SKILL.md",
+    "sha256": "612f705908fe4f38be404c7f7950fbc322dbd10630bb8c86d8e591a78b4c8736",
+    "selectable": true
+  },
+  {
+    "id": "thinking-circle-of-competence",
+    "path": "skills/debias/references/thinking-circle-of-competence/SKILL.md",
+    "title": "Circle Of Competence",
+    "kind": "process",
+    "description": "\"Know the boundaries of your expertise and operate within them. Use when evaluating opportunities, making decisions outside your domain, or assessing when to defer to experts.\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/thinking-circle-of-competence/SKILL.md",
+    "sha256": "b97c66a3c3298abdfe7e686c601c190ceeb845e1a8ef606cb44d3a50f3e426ba",
+    "selectable": true
+  },
+  {
+    "id": "thinking-debiasing",
+    "path": "skills/debias/references/thinking-debiasing/SKILL.md",
+    "title": "Debiasing",
+    "kind": "process",
+    "description": "\"Systematic checklist to identify and counteract cognitive biases in decision-making. Use before major decisions, when evaluating recommendations, or when stakes are high.\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/thinking-debiasing/SKILL.md",
+    "sha256": "0e7842943672e51d339389f86fd371b887e1cd8620277ca1bd6f2de777a7188c",
+    "selectable": true
+  },
+  {
+    "id": "thinking-dual-process",
+    "path": "skills/debias/references/thinking-dual-process/SKILL.md",
+    "title": "Dual Process",
+    "kind": "process",
+    "description": "\"Apply Kahneman's Dual-Process Theory to recognize when to trust intuition vs engage deliberate analysis. Use for high-stakes decisions, error-prone contexts, or when balancing speed vs accuracy.\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/thinking-dual-process/SKILL.md",
+    "sha256": "e5dea51b847d8f3dc528de71d2cafa14daa3a8799f7e9e648a94a0dd6d3b1bd2",
+    "selectable": true
+  },
+  {
+    "id": "thinking-map-territory",
+    "path": "skills/debias/references/thinking-map-territory/SKILL.md",
+    "title": "Map Territory",
+    "kind": "process",
+    "description": "\"Recognize limits of mental models and diagrams. Use when models diverge from reality, debugging expectation mismatches, or questioning abstraction accuracy.\"",
+    "source": "propria-plugins/plugins/think/skills/debias/references/thinking-map-territory/SKILL.md",
+    "sha256": "a04b7596ba423819c8312e05dd9393390ec4bb8ee44ae92b41608397c0caf625",
+    "selectable": true
+  },
+  {
+    "id": "workflow-evaluate",
+    "path": "skills/workflows/references/evaluate.md",
+    "title": "Evaluate workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated evaluate workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/evaluate.md",
+    "sha256": "2eca2bbad43ab8a90833d3b86a086367574f526a69b795a17cf0930506260e7f",
+    "selectable": true
+  },
+  {
+    "id": "workflow-decide",
+    "path": "skills/workflows/references/decide.md",
+    "title": "Decide workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated decide workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/decide.md",
+    "sha256": "b785f8ae3895c0eb14c78281b3f516ceafda2ff599e05252bdeaaecc114a9fc7",
+    "selectable": true
+  },
+  {
+    "id": "workflow-plan",
+    "path": "skills/workflows/references/plan.md",
+    "title": "Plan workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated plan workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/plan.md",
+    "sha256": "c46c1fe890ee5e66e2692a25ade4a18bfb7f3287628570dff5b91949a3166672",
+    "selectable": true
+  },
+  {
+    "id": "workflow-debug",
+    "path": "skills/workflows/references/debug.md",
+    "title": "Debug workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated debug workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/debug.md",
+    "sha256": "4de4f38bb602c422fbe487677157000f71a40102fd38fbfb21145100c84e81dd",
+    "selectable": true
+  },
+  {
+    "id": "workflow-verify-claim",
+    "path": "skills/workflows/references/verify-claim.md",
+    "title": "Verify Claim workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated verify-claim workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/verify-claim.md",
+    "sha256": "98705d5888835c4c8d357fb7e69619d79a4be9f918a4b8785dccba4fbfa0e15c",
+    "selectable": true
+  },
+  {
+    "id": "workflow-debias",
+    "path": "skills/workflows/references/debias.md",
+    "title": "Debias workflow",
+    "kind": "workflow",
+    "description": "Apply the original integrated debias workflow with persistent Reflex control.",
+    "source": "propria-plugins/plugins/think/skills/workflows/references/debias.md",
+    "sha256": "cda0c4c0670e40b88118139a13b42af30411cd1b384b3d51108aec590a4335bb",
+    "selectable": true
+  }
+]
