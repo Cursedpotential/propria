@@ -2,6 +2,47 @@
 
 **Implementation source committed, NOT LIVE, as of 2026-10-17.**
 
+
+## Live staging receipt — 2026-10-17
+
+The checks below were performed against running systems, not inferred from source alone.
+
+- **Updated credentials verified.** The owner's existing n8n secrets file at
+  C:\Users\matts\.secrets\n8n-ovh2.env successfully listed all seven pre-existing
+  active Proffer workflows. A stale Windows N8N_API_KEY environment variable
+  overrides that file and causes HTTP 401 unless unset for the requesting process.
+  No credentials were added to Git or printed.
+- **Whole n8n workflow imported, inactive.** Workflow ID BORSjvRVDfP7CQQG,
+  named Propria Knowledge Reconciliation · End-to-end n8n Workflow, has 11 nodes.
+  It was imported through the verified tailnet n8n REST API. Existing workflows
+  were not modified and the new workflow is not activated.
+- **n8n MCP was already federated.** ContextForge n8n virtual-server ID
+  c961807d29e24cd790987ff05d940e7c is enabled and OAuth-configured, with
+  54 available tools. No new MCP proxy or gateway was deployed.
+- **ChatGPT-facing gateway extended.** Existing OAuth-enabled ContextForge
+  virtual server propria (320572d2bdd440f3ac61c8b64418d7b3) now associates
+  159 tools, the original 105 plus all 54 n8n tools. ContextForge readback
+  verified OAuth remained enabled. All 54 n8n tools are enabled and publicly
+  visible while preserving their original team ownership metadata.
+- **Live MCP dispatch proved.** A request for n8n-search-workflows succeeded
+  both through ContextForge JSON-RPC and directly through the existing Propria
+  virtual server's MCP tools/call endpoint (HTTP 200 with workflow results).
+- **Repeatable script and rollback.** The root script
+  scripts/contextforge/federate-n8n-into-propria.ps1 performs the same tool
+  association idempotently; a rerun reported ALREADY FEDERATED and changed
+  nothing. Previous membership was saved locally at
+  C:\Users\matts\.secrets\contextforge-propria-tools-before-n8n-20261017.json.
+
+The current ChatGPT conversation still holds an older cached MCP tool catalog
+without the added n8n tools. Refreshing or reconnecting the existing Propria
+plugin may be necessary; **native ChatGPT invocation has not been re-verified**.
+
+The imported n8n workflow is **not production-ready**: source snapshot adapters,
+canonical PostgreSQL review migration/grants, notification addresses, service
+credentials, and a signed end-to-end synthetic receipt remain required before
+activation. Approved source changes are not automatically applied or archived.
+
+
 The owner selected a deliberately simple structure: **Cloudflare Worker triggers ONE n8n workflow; n8n owns the entire end-to-end reconciliation; existing Propria PostgreSQL stores human reviews; Workbench Activity is the human interface.** Temporal is NOT required on the ordinary path. No new independent index, evidence queue, or agent state machine.
 
 ## End-to-end diagram
