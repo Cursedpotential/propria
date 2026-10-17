@@ -133,6 +133,8 @@ function sanitizeReceipt(result) {
       scope: string(entry.scope, 120),
       newly_created: entry.newly_created === true,
       // No source body, evidence excerpts, credentials, or LLM reasoning in an alert.
+      // Use the existing Workbench Activity entry unless a verified deep link is supplied.
+      // The backend owns the review details and decision route, not this Worker.
       review_path: "/activity"
     };
   });
@@ -145,7 +147,7 @@ function sanitizeReceipt(result) {
       queued: reviewQueue.filter(x => x.status === "queued").length
     },
     review_queue: reviewQueue,
-    source_mutations: 0
+    worker_source_mutations: 0
   };
 }
 
@@ -203,12 +205,15 @@ async function dispatch(env, input) {
   for (const item of candidates) {
     try {
       // n8n DISPATCHES only: does not approve, archive, delete, or change records.
-      await postJson(env.N8N_ALERT_WEBHOOK_URL, env.N8N_ALERT_TOKEN, {
+      const acknowledgement = await postJson(env.N8N_ALERT_WEBHOOK_URL, env.N8N_ALERT_TOKEN, {
         schema: "propria-knowledge-review-alert/v1",
         run_id: receipt.run_id, review_ref: item.review_ref,
         kind: item.kind, severity: item.severity, scope: item.scope,
         workbench_path: item.review_path
       }, "n8n_notification");
+      if (acknowledgement.accepted !== true || acknowledgement.review_ref !== item.review_ref) {
+        throw new Error("n8n_notification_ack_missing_or_mismatched");
+      }
       alertsSent++;
     } catch (error) {
       failures.push({review_ref: item.review_ref, reason: String(error.message).slice(0,90)});
