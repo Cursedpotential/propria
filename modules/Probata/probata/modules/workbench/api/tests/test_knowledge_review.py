@@ -47,13 +47,25 @@ def test_noncanonical_or_missing_persisted_reference_rejected():
                                    "items": [{"severity": "critical", "status": "queued"}]})
 
 
-def test_no_identity_is_not_authenticated():
+def test_no_identity_is_not_authenticated(monkeypatch):
     with pytest.raises(HTTPException) as error:
         knowledge_review._reviewer(SimpleNamespace(state=SimpleNamespace()))
     assert error.value.status_code == 401
+    monkeypatch.setenv("KNOWLEDGE_REVIEW_OWNER_UIDS", "authentik-owner")
     assert knowledge_review._reviewer(
         SimpleNamespace(state=SimpleNamespace(subject_uid="authentik-owner"))
     ) == "authentik-owner"
+
+
+def test_unconfigured_or_unapproved_identity_cannot_decide(monkeypatch):
+    monkeypatch.delenv("KNOWLEDGE_REVIEW_OWNER_UIDS", raising=False)
+    with pytest.raises(HTTPException) as error:
+        knowledge_review._reviewer(SimpleNamespace(state=SimpleNamespace(subject_uid="random")))
+    assert error.value.status_code == 503
+    monkeypatch.setenv("KNOWLEDGE_REVIEW_OWNER_UIDS", "authentik-owner")
+    with pytest.raises(HTTPException) as error:
+        knowledge_review._reviewer(SimpleNamespace(state=SimpleNamespace(subject_uid="random")))
+    assert error.value.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -63,6 +75,7 @@ async def test_owner_verdict_not_represented_as_source_write(monkeypatch):
     from app.runtime.knowledge_review import DecisionRequest
 
     review_id = UUID("7f707e7a-32ed-4f99-9a6b-1d61ab9f8122")
+    monkeypatch.setenv("KNOWLEDGE_REVIEW_OWNER_UIDS", "real-owner")
     request = SimpleNamespace(state=SimpleNamespace(subject_uid="real-owner"))
     stub = AsyncMock(return_value={
         "review_ref": str(review_id), "decision": "approve_plan",
