@@ -1,267 +1,164 @@
 /**
- * Propria Knowledge Reconciler: schedule/manual/change triggers and human-review alert relay.
+ * Propria knowledge reconciliation: Cloudflare ingress to ONE complete n8n workflow.
  *
- * Inputs: authenticated reference-only events, daily Cron Trigger, approved backend responses.
- * Outputs: compact run receipts, pending-review alerts referencing existing Workbench cases.
- * Side effects: triggers an existing reconciliation backend and n8n notifications. Never writes
- * memories, documents, rules, PostgreSQL decisions or evidence. Choose this rather than
- * introducing another database/review queue or automatically deciding ambiguous conflicts.
+ * Inputs: daily Cron, authorized manual request, source-change event with canonical refs.
+ * Outputs: compact n8n workflow receipt with verified persistent HITL review references.
+ * Effects: exactly one invocation of the n8n workflow; no database, notification, rule
+ *   or memory writes at the edge. Choose this ingress instead of chaining atomic jobs.
  *
- * Backend contract: POST RECONCILER_BACKEND_URL must persist candidate review items through the
- * existing PostgreSQL/HITL workflow BEFORE returning newly_created queue receipts. The Worker
- * never assumes an item exists merely because an upstream analyzer suggested it.
+ * The n8n workflow owns discovery, comparison, deduplication, idempotent review
+ * persistence, notifications, reminders and an auditable completion receipt.
  */
-
 const MAX_BODY_BYTES = 16384;
-const MAX_RECEIPT_BYTES = 262144;
-const MAX_ALERTS_PER_RUN = 20;
+const MAX_REPLY_BYTES = 131072;
 const SOURCES = new Set([
   "memsearch", "engram", "cnf", "docstore", "propria-search",
   "superindex", "casebible", "workbench", "ccc"
 ]);
-const TYPES = new Set(["memory.changed", "memory.created", "memory.retired",
-  "document.changed", "document.created", "record.changed", "record.created"]);
-const LEVELS = new Set(["low", "medium", "high", "critical"]);
-const DECISIONS = new Set(["queued", "deferred", "decided"]);
-
-function reply(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff"
-    }
+const EVENTS = new Set([
+  "memory.created", "memory.changed", "memory.retired",
+  "document.created", "document.changed", "document.retired",
+  "record.created", "record.changed", "record.retired"
+]);
+const STATUSES = new Set(["completed", "review_pending", "partial", "blocked"]);
+function response(body, status=200) {
+  return new Response(JSON.stringify(body), {status, headers: {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff"
+  }});
+}
+function value(x, max=512) {return typeof x==="string" ? x.trim().slice(0,max) : "";}
+function eventInput(body) {
+  if (!EVENTS.has(body.type) || !SOURCES.has(body.source))
+    throw new Error("unknown event or source");
+  if (Object.hasOwn(body,"content") || Object.hasOwn(body,"raw") || Object.hasOwn(body,"binary"))
+    throw new Error("triggers must contain reference IDs, not source content");
+  const ref=value(body.record_ref,1024), revision=value(body.revision,256), scope=value(body.scope,120);
+  if (!ref || !revision || !(scope==="propria" || scope.startsWith("propria/")))
+    throw new Error("record_ref, revision and a Propria scope are required");
+  return {kind:"event",type:body.type,source:body.source,record_ref:ref,revision,scope};
+}
+function manualInput(body) {
+  const scope=value(body.scope,120)||"propria", source=value(body.source,60);
+  if (!(scope==="propria" || scope.startsWith("propria/")))
+    throw new Error("unrecognized scope");
+  if (source && !SOURCES.has(source))throw new Error("unrecognized source");
+  if (Object.hasOwn(body,"content") || Object.hasOwn(body,"records"))
+    throw new Error("supply scoped references, not full records");
+  return {kind:"manual",scope,source:source||null};
+}
+async function validUser(request,env) {
+  const expected=value(env.RECONCILER_TRIGGER_TOKEN,4096);
+  if (!expected) return false;
+  const auth=request.headers.get("authorization")||"";
+  if (!auth.startsWith("Bearer "))return false;
+  const a=new TextEncoder().encode(auth.slice(7)),b=new TextEncoder().encode(expected);
+  let diff=a.length^b.length;
+  for(let i=0;i<Math.max(a.length,b.length);i++) diff|=(a[i]||0)^(b[i]||0);
+  return diff===0;
+}
+async function bodyInput(request) {
+  if(Number(request.headers.get("content-length")||"0")>MAX_BODY_BYTES)
+    throw new Error("input too large");
+  const raw=await request.text();
+  if(new TextEncoder().encode(raw).length>MAX_BODY_BYTES)
+    throw new Error("input too large");
+  let body;
+  try{body=JSON.parse(raw);}catch{throw new Error("invalid JSON");}
+  if(!body || typeof body!=="object" || Array.isArray(body))throw new Error("expected input object");
+  return body;
+}
+function verifiedN8nResult(result){
+  if(!result || result.schema!=="propria-knowledge-workflow-result/v1" ||
+    typeof result.run_id!=="string" || !result.run_id ||
+    !STATUSES.has(result.status) || !Array.isArray(result.review_queue) ||
+    !Array.isArray(result.coverage) || !Array.isArray(result.alerts))
+    throw new Error("n8n workflow response does not meet verified receipt contract");
+  if(result.review_queue.length>100 || result.coverage.length>30 || result.alerts.length>100)
+    throw new Error("unbounded workflow receipt");
+  const queue=result.review_queue.map(row=>{
+    if(typeof row?.review_ref!=="string" || !row.review_ref ||
+      !["queued","deferred","decided"].includes(row.status))
+      throw new Error("review without canonical identity");
+    return {review_ref:value(row.review_ref),status:row.status,
+      severity:value(row.severity,16),kind:value(row.kind,80),
+      newly_created:row.newly_created===true};
   });
-}
-
-function string(value, limit = 512) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function fixedHttps(value, label) {
-  if (!value) return null;
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.username || url.password ||
-      url.hash || url.search || !url.hostname) {
-    throw new Error(label + " must be a fixed HTTPS endpoint without credentials or query");
-  }
-  return url.toString();
-}
-
-async function authenticate(request, env) {
-  // This API is an administrative ingress; never accept an unauthenticated change event.
-  if (!env.RECONCILER_TRIGGER_TOKEN) return false;
-  const header = request.headers.get("authorization") || "";
-  if (!header.startsWith("Bearer ")) return false;
-  const actual = new TextEncoder().encode(header.slice(7));
-  const expected = new TextEncoder().encode(env.RECONCILER_TRIGGER_TOKEN);
-  let mismatch = actual.length ^ expected.length;
-  for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
-    mismatch |= (actual[i] || 0) ^ (expected[i] || 0);
-  }
-  return mismatch === 0;
-}
-
-async function parseBody(request) {
-  const length = Number(request.headers.get("content-length") || "0");
-  if (length > MAX_BODY_BYTES) throw new Error("body_too_large");
-  const body = await request.text();
-  if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) throw new Error("body_too_large");
-  try {
-    const value = JSON.parse(body);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw Error();
-    return value;
-  } catch {
-    throw new Error("invalid_json_object");
-  }
-}
-
-function eventPayload(input) {
-  if (!TYPES.has(input.type) || !SOURCES.has(input.source))
-    throw new Error("invalid_event_type_or_source");
-  const ref = string(input.record_ref, 1024);
-  const revision = string(input.revision, 256);
-  const scope = string(input.scope, 120);
-  if (!ref || !revision || !scope) throw new Error("event_requires_record_ref_revision_scope");
-  if (Object.hasOwn(input, "content") || Object.hasOwn(input, "raw")) {
-    throw new Error("source_content_not_allowed_in_trigger");
-  }
-  return {type: input.type, source: input.source, record_ref: ref,
-    revision, scope, requested_by: "source_event"};
-}
-
-function runPayload(input) {
-  const scope = string(input.scope, 120) || "propria";
-  if (scope !== "propria" && !scope.startsWith("propria/"))
-    throw new Error("invalid_propria_scope");
-  const source = string(input.source, 60);
-  if (source && !SOURCES.has(source)) throw new Error("invalid_source");
-  return {scope, source: source || null, requested_by: "manual"};
-}
-
-async function readJsonResponse(response, label) {
-  const text = await response.text();
-  if (new TextEncoder().encode(text).length > MAX_RECEIPT_BYTES)
-    throw new Error(label + "_response_too_large");
-  if (!response.ok) throw new Error(label + "_http_" + response.status);
-  let value;
-  try { value = JSON.parse(text); } catch { throw new Error(label + "_invalid_json"); }
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(label + "_invalid_result");
-  return value;
-}
-
-function sanitizeReceipt(result) {
-  if (result.schema !== "propria-reconciliation-result/v1")
-    throw new Error("backend_receipt_contract_mismatch");
-  const runId = string(result.run_id, 128);
-  if (!runId || !Array.isArray(result.review_queue))
-    throw new Error("backend_missing_run_or_review_queue");
-  if (result.review_queue.length > 1000)
-    throw new Error("backend_review_queue_overflow");
-  const reviewQueue = result.review_queue.map(entry => {
-    if (!entry || typeof entry !== "object") throw new Error("invalid_review_receipt");
-    const reviewRef = string(entry.review_ref, 512);
-    const status = string(entry.status, 30);
-    const severity = string(entry.severity, 30);
-    if (!reviewRef || !DECISIONS.has(status) || !LEVELS.has(severity))
-      throw new Error("invalid_review_receipt");
-    return {
-      review_ref: reviewRef, status, severity,
-      kind: string(entry.kind, 80),
-      scope: string(entry.scope, 120),
-      newly_created: entry.newly_created === true,
-      // No source body, evidence excerpts, credentials, or LLM reasoning in an alert.
-      // Use the existing Workbench Activity entry unless a verified deep link is supplied.
-      // The backend owns the review details and decision route, not this Worker.
-      review_path: "/activity"
-    };
-  });
-  return {
-    run_id: runId,
-    state: string(result.state, 80) || "processed",
-    counts: {
-      scanned: Number.isSafeInteger(result.scanned) ? result.scanned : null,
-      findings: Number.isSafeInteger(result.findings) ? result.findings : null,
-      queued: reviewQueue.filter(x => x.status === "queued").length
+  return {schema:"propria-knowledge-workflow-result/v1",
+    status:result.status,run_id:value(result.run_id,128),
+    counts:{
+      scanned:Number.isSafeInteger(result.scanned)?result.scanned:null,
+      findings:Number.isSafeInteger(result.findings)?result.findings:null,
+      new_reviews:queue.filter(x=>x.newly_created).length
     },
-    review_queue: reviewQueue,
-    worker_source_mutations: 0
+    review_queue:queue,
+    coverage:result.coverage.map(row=>({
+      store:value(row?.store,64),
+      state:value(row?.state,32),
+      reason:value(row?.reason,180)
+    })),
+    alerts:result.alerts.map(row=>({
+      review_ref:value(row?.review_ref),status:value(row?.status,32)
+    }))
   };
 }
-
-function alertCandidates(receipt) {
-  // Only genuinely new, persisted high-severity cases generate an immediate alert.
-  // Older/unreviewed material stays queryable but does not flood the owner inbox.
-  return receipt.review_queue.filter(x =>
-    x.status === "queued" && x.newly_created &&
-    (x.severity === "high" || x.severity === "critical")
-  ).slice(0, MAX_ALERTS_PER_RUN);
+async function dispatch(env,input){
+  const target=env.N8N_RECONCILER_WEBHOOK_URL;
+  if(!target || !env.N8N_RECONCILER_TOKEN)
+    return {status:"blocked",reason:"n8n reconciler webhook and credentials are not configured"};
+  let endpoint;
+  try{
+    endpoint=new URL(target);
+    if(endpoint.protocol!=="https:" || endpoint.username || endpoint.password ||
+      endpoint.hash || endpoint.search)
+      throw new Error("bad n8n endpoint");
+  }catch{
+    return {status:"blocked",reason:"n8n requires a fixed HTTPS endpoint"};
+  }
+  try{
+    const r=await fetch(endpoint.toString(),{
+      method:"POST",
+      redirect:"error",
+      headers:{"content-type":"application/json",
+        "authorization":"Bearer "+env.N8N_RECONCILER_TOKEN},
+      body:JSON.stringify({schema:"propria-knowledge-trigger/v1",...input}),
+      signal:AbortSignal.timeout(55000)
+    });
+    if(!r.ok)throw new Error("n8n returned HTTP "+r.status);
+    const body=await r.text();
+    if(new TextEncoder().encode(body).length>MAX_REPLY_BYTES)
+      throw new Error("n8n response too large");
+    return verifiedN8nResult(JSON.parse(body));
+  }catch(error){
+    return {status:"blocked",reason:"n8n workflow did not complete: "+String(error.message).slice(0,120)};
+  }
 }
-
-async function postJson(url, token, body, label) {
-  const endpoint = fixedHttps(url, label);
-  if (!endpoint || !token) throw new Error(label + "_not_configured");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {"content-type": "application/json",
-      "authorization": "Bearer " + token},
-    body: JSON.stringify(body),
-    redirect: "error",
-    signal: AbortSignal.timeout(20000)
-  });
-  return readJsonResponse(response, label);
-}
-
-async function dispatch(env, input) {
-  // Backend must have persisted review items through the established PG/Temporal/Workbench
-  // authority chain, returning verified references. The edge Worker has no approval power.
-  let value;
-  try {
-    value = await postJson(env.RECONCILER_BACKEND_URL,
-      env.RECONCILER_BACKEND_TOKEN,
-      {schema: "propria-reconciliation-trigger/v1", ...input},
-      "reconciler_backend");
-  } catch (error) {
-    return {status: "blocked", reason: String(error.message).slice(0,120),
-      review_queue: [], alerts_sent: 0};
-  }
-  let receipt;
-  try { receipt = sanitizeReceipt(value); } catch (error) {
-    return {status: "blocked", reason: String(error.message).slice(0,120),
-      review_queue: [], alerts_sent: 0};
-  }
-  const candidates = alertCandidates(receipt);
-  if (!candidates.length) {
-    return {status: "completed", ...receipt, alerts_sent: 0};
-  }
-  if (!env.N8N_ALERT_WEBHOOK_URL || !env.N8N_ALERT_TOKEN) {
-    return {status: "review_queued_alert_blocked", ...receipt, alerts_sent: 0,
-      alert_blocker: "n8n alert endpoint or credential unavailable"};
-  }
-  let alertsSent = 0;
-  const failures = [];
-  for (const item of candidates) {
-    try {
-      // n8n DISPATCHES only: does not approve, archive, delete, or change records.
-      const acknowledgement = await postJson(env.N8N_ALERT_WEBHOOK_URL, env.N8N_ALERT_TOKEN, {
-        schema: "propria-knowledge-review-alert/v1",
-        run_id: receipt.run_id, review_ref: item.review_ref,
-        kind: item.kind, severity: item.severity, scope: item.scope,
-        workbench_path: item.review_path
-      }, "n8n_notification");
-      if (acknowledgement.accepted !== true || acknowledgement.review_ref !== item.review_ref) {
-        throw new Error("n8n_notification_ack_missing_or_mismatched");
-      }
-      alertsSent++;
-    } catch (error) {
-      failures.push({review_ref: item.review_ref, reason: String(error.message).slice(0,90)});
-    }
-  }
-  return {
-    status: failures.length ? "review_queued_alert_failed" : "completed",
-    ...receipt, alerts_sent: alertsSent,
-    alert_failures: failures,
-    alert_truncated: receipt.review_queue.filter(x => x.status === "queued" &&
-      x.newly_created && (x.severity === "high" || x.severity === "critical")).length > MAX_ALERTS_PER_RUN
-  };
-}
-
-async function run(request, env, kind) {
-  if (!(await authenticate(request, env))) return reply({error: "unauthorized"}, 401);
-  if (request.method !== "POST") return reply({error: "method_not_allowed"}, 405);
-  let parsed, input;
-  try {
-    parsed = await parseBody(request);
-    input = kind === "event" ? eventPayload(parsed) : runPayload(parsed);
-  } catch (error) {
-    return reply({error: String(error.message).slice(0,120)}, 400);
-  }
-  const result = await dispatch(env, {kind, ...input});
-  return reply(result, result.status === "blocked" ? 503 : 200);
-}
-
 export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/health") {
-      return reply({ok: true, service: "propria-knowledge-reconciler",
-        capability: "triggers_review_alerts", approval_authority: false});
-    }
-    if (url.pathname === "/events") return run(request, env, "event");
-    if (url.pathname === "/runs") return run(request, env, "manual");
-    return reply({error: "not_found"}, 404);
+  async fetch(request,env) {
+    const path=new URL(request.url).pathname;
+    if(path==="/health"&&request.method==="GET")
+      return response({ok:true,service:"propria-knowledge-trigger",
+        n8n_configured:!!(env.N8N_RECONCILER_WEBHOOK_URL&&env.N8N_RECONCILER_TOKEN),
+        workflow_owner:"n8n",source_mutations:0});
+    if(!["/runs","/events"].includes(path))return response({error:"not found"},404);
+    if(!(await validUser(request,env)))return response({error:"unauthorized"},401);
+    if(request.method!=="POST")return response({error:"method not allowed"},405);
+    let input;
+    try{
+      const body=await bodyInput(request);
+      input=path==="/events"?eventInput(body):manualInput(body);
+    }catch(e){return response({error:String(e.message).slice(0,140)},400);}
+    const result=await dispatch(env,input);
+    return response(result,result.status==="blocked"?503:200);
   },
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(dispatch(env, {
-      kind: "scheduled", scope: "propria", requested_by: "daily_cron",
-      scheduled_at: new Date(event.scheduledTime).toISOString()
-    }).then(result => {
-      if (result.status !== "completed") console.error("Reconciliation scheduled run status:", result.status,
-        "run:", result.run_id || "none");
-    }).catch(error => console.error("Reconciliation scheduled dispatch failed:", error.name)));
+  async scheduled(event,env,ctx){
+    const task=dispatch(env,{kind:"scheduled",scope:"propria",
+      scheduled_at:new Date(event.scheduledTime).toISOString()}).then(receipt=>{
+      if(receipt.status==="blocked")console.error("Knowledge reconciling blocked");
+      else console.log("Knowledge reconciliation",receipt.run_id,receipt.status);
+    }).catch(()=>console.error("Knowledge reconciliation transport failure"));
+    ctx.waitUntil(task);
   }
 };
-
-export const testHooks = {sanitizeReceipt, alertCandidates, eventPayload, runPayload, dispatch};
+export const testHooks={eventInput,manualInput,verifiedN8nResult,dispatch};
