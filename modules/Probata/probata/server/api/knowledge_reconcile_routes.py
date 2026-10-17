@@ -28,7 +28,7 @@ from sqlalchemy import create_engine, text
 from server.api.platform_auth import require_platform_owner
 
 SCHEMA = "propria-knowledge-review-proposals/v1"
-SOURCES = ("memsearch", "engram", "cnf", "docstore", "casebible", "superindex", "ccc")
+SOURCES = ("memsearch", "engram", "cnf", "docstore", "casebible", "superindex", "ccc", "workbench", "propria-search")
 MAX_IN = 192 * 1024
 MAX_RESPONSE = 1024 * 1024
 MAX_ITEMS = 500
@@ -235,10 +235,12 @@ def _decide(review_ref: UUID, payload: Decision) -> dict:
     try:
         with _db().begin() as conn:
             prior = conn.execute(text("""
-                SELECT action_id,decision,case_version FROM ops.knowledge_review_action
+                SELECT action_id,review_ref,decision,case_version FROM ops.knowledge_review_action
                 WHERE idempotency_key=:key
             """), {"key": payload.request_id}).mappings().first()
             if prior:
+                if str(prior["review_ref"]) != str(review_ref) or prior["decision"] != payload.decision:
+                    raise HTTPException(409, "idempotency key belongs to another decision")
                 return {"review_ref": str(review_ref), "decision": prior["decision"],
                         "case_version": prior["case_version"],
                         "action_ref": str(prior["action_id"]), "duplicate": True,
@@ -343,7 +345,7 @@ async def _one_snapshot(store: str, config: tuple[str, str] | None, trigger: Tri
                 not isinstance(row.get("id"), str) or not row["id"] or
                 not isinstance(row.get("revision"), str) or not row["revision"] or
                 not isinstance(row.get("scope"), str) or
-                not row["scope"].startswith(trigger.scope) or
+                not (row["scope"] == trigger.scope or row["scope"].startswith(trigger.scope + "/")) or
                 not isinstance(row.get("subject_key"), str) or
                 not isinstance(row.get("text"), str) or len(row["text"]) > 2000 or
                 len(row["subject_key"]) > 240):
